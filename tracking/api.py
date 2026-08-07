@@ -319,6 +319,28 @@ def ticket_detail(request, pk):
 		setattr(ticket, field, value)
 		changed.append(field)
 
+	# Handle flags (ManyToMany)
+	if "flags" in data:
+		flag_names = data.get("flags", [])
+		ticket.flags.clear()
+		for name in flag_names:
+			try:
+				flag = Flag.objects.get(project=ticket.project, name=name)
+				ticket.flags.add(flag)
+			except Flag.DoesNotExist:
+				pass  # silently ignore unknown flag names
+
+	# Handle components (ManyToMany)
+	if "components" in data:
+		component_names = data.get("components", [])
+		ticket.components.clear()
+		for name in component_names:
+			try:
+				component = Component.objects.get(project=ticket.project, name=name)
+				ticket.components.add(component)
+			except Component.DoesNotExist:
+				pass  # silently ignore unknown component names
+
 	if changed:
 		ticket.save(update_fields=[*changed, "updated_at"])
 	return JsonResponse(serialize_ticket(ticket))

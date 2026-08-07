@@ -7,7 +7,7 @@ all: venv
 $(VENV)/bin/activate: requirements.txt
 	python3 -m venv $(VENV)
 	./$(VENV)/bin/python3.12 -m pip install --upgrade pip
-	./$(VENV)/bin/pip3.12 install --no-cache-dir -r requirements.txt
+	./$(VENV)/bin/pip3.12 install -r requirements.txt
 
 # venv is a shortcut target
 venv: $(VENV)/bin/activate

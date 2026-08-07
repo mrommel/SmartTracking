@@ -14,15 +14,29 @@ Django API. Configuration comes from the environment (loaded from ``.env``):
 """
 
 import os
+import sys
 import logging
 from typing import Any, Optional
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-# Suppress noisy Pydantic validation warnings from the MCP library's request router.
-# These fire on every request as the router tries all 21+ message types before
-# dispatching to the correct handler — they are harmless but spam the console.
+# ── Logging setup ──────────────────────────────────────────────────────────
+# The "Failed to validate request" errors are NOT emitted via Python's logging
+# module (likely from a compiled extension or the client side).  We add a
+# stderr-based logger so we can see every request/response cycle and correlate
+# timestamps with the validation errors.
+
+_console = logging.StreamHandler(sys.stderr)
+_console.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+_logger = logging.getLogger("smarttracking.mcp")
+_logger.setLevel(logging.DEBUG)
+_logger.addHandler(_console)
+
+# Also suppress noisy Pydantic validation warnings from the MCP library's
+# request router.  These fire on every request as the router tries all 21+
+# message types before dispatching to the correct handler — they are harmless
+# but spam the console.
 logging.getLogger("pydantic").setLevel(logging.ERROR)
 logging.getLogger("mcp.server.streamable_http").setLevel(logging.ERROR)
 
@@ -45,6 +59,7 @@ def _client() -> httpx.Client:
 
 def _request(method: str, path: str, **kwargs: Any) -> Any:
 	"""Call the REST API and return parsed JSON, surfacing errors to the agent."""
+	_logger.debug("API %s %s %s", method, path, kwargs.get("json", kwargs.get("params", {})))
 	with _client() as client:
 		resp = client.request(method, path, **kwargs)
 	try:
@@ -52,7 +67,9 @@ def _request(method: str, path: str, **kwargs: Any) -> Any:
 	except ValueError:
 		body = {"error": resp.text}
 	if resp.status_code >= 400:
+		_logger.debug("API %s %s -> %d", method, path, resp.status_code)
 		return {"status": resp.status_code, **body}
+	_logger.debug("API %s %s -> %d", method, path, resp.status_code)
 	return body
 
 
@@ -132,9 +149,13 @@ def update_ticket(
 	description: Optional[str] = None,
 	type: Optional[str] = None,
 	priority: Optional[int] = None,
+	flags: Optional[list[str]] = None,
+	components: Optional[list[str]] = None,
 ) -> Any:
 	"""Partially update a ticket's fields. To change the state, use
-	`transition_ticket` instead (this endpoint rejects a 'state' key)."""
+	`transition_ticket` instead (this endpoint rejects a 'state' key).
+	`flags` and `components` accept a list of flag/component names for the
+	project; unknown names are silently ignored."""
 	payload = {
 		k: v
 		for k, v in {
@@ -142,6 +163,8 @@ def update_ticket(
 			"description": description,
 			"type": type,
 			"priority": priority,
+			"flags": flags,
+			"components": components,
 		}.items()
 		if v is not None
 	}
@@ -157,6 +180,22 @@ def transition_ticket(ticket_id: int, state: str) -> Any:
 	)
 
 
+@mcp.tool()
+def list_flags(project: str) -> Any:
+	"""List all flags defined for a project. Use this to learn valid flag
+	names before setting them on a ticket via `update_ticket`."""
+	return _request("GET", "/flags/", params={"project": project})
+
+
+@mcp.tool()
+def list_components(project: str) -> Any:
+	"""List all components defined for a project. Use this to learn valid
+	component names before setting them on a ticket via `update_ticket`."""
+	return _request("GET", "/components/", params={"project": project})
+
 if __name__ == "__main__":
+	_logger.info("Starting SmartTracking MCP server on %s:%d", MCP_HOST, MCP_PORT)
+	_logger.info("Django API base: %s", API)
+	_logger.info("API token: %s", "set" if TOKEN else "not set")
 	# Streamable HTTP transport -> reachable at http://MCP_HOST:MCP_PORT/mcp
 	mcp.run(transport="streamable-http")

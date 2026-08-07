@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from tracking.models import Project, Ticket
+from tracking.models import Flag, Project, Ticket
 
 User = get_user_model()
 
@@ -165,3 +165,76 @@ class ApiEndpointTests(TestCase):
 		ticket.refresh_from_db()
 		self.assertEqual(ticket.state, Ticket.State.OPEN)
 
+	# --- Flags ---------------------------------------------------------------
+
+	def test_create_ticket_with_flags(self):
+		flag = Flag.objects.create(project=self.project, name="urgent", color="red")
+		response = self._post(
+			reverse("api_ticket_collection"),
+			{
+				"project": "SMT",
+				"title": "flagged ticket",
+				"type": "bug",
+				"priority": 4,
+				"flags": ["urgent"],
+			},
+		)
+		self.assertEqual(response.status_code, 201)
+		body = response.json()
+		self.assertEqual(len(body["flags"]), 1)
+		self.assertEqual(body["flags"][0]["name"], "urgent")
+		ticket = Ticket.objects.get(pk=body["id"])
+		self.assertIn(flag, ticket.flags.all())
+
+	def test_create_ticket_with_unknown_flags_ignored(self):
+		response = self._post(
+			reverse("api_ticket_collection"),
+			{
+				"project": "SMT",
+				"title": "ticket with unknown flag",
+				"flags": ["nonexistent"],
+			},
+		)
+		self.assertEqual(response.status_code, 201)
+		body = response.json()
+		self.assertEqual(len(body["flags"]), 0)
+
+	def test_patch_updates_flags(self):
+		flag = Flag.objects.create(project=self.project, name="blocked", color="orange")
+		ticket = Ticket.objects.create(project=self.project, title="t")
+		response = self._patch(
+			reverse("api_ticket_detail", args=[ticket.pk]),
+			{"flags": ["blocked"]},
+		)
+		self.assertEqual(response.status_code, 200)
+		body = response.json()
+		self.assertEqual(len(body["flags"]), 1)
+		self.assertEqual(body["flags"][0]["name"], "blocked")
+		ticket.refresh_from_db()
+		self.assertIn(flag, ticket.flags.all())
+
+	def test_patch_clears_flags(self):
+		flag = Flag.objects.create(project=self.project, name="urgent", color="red")
+		ticket = Ticket.objects.create(project=self.project, title="t")
+		ticket.flags.add(flag)
+		response = self._patch(
+			reverse("api_ticket_detail", args=[ticket.pk]),
+			{"flags": []},
+		)
+		self.assertEqual(response.status_code, 200)
+		body = response.json()
+		self.assertEqual(len(body["flags"]), 0)
+		ticket.refresh_from_db()
+		self.assertEqual(ticket.flags.count(), 0)
+
+	def test_patch_flags_unknown_flag_ignored(self):
+		ticket = Ticket.objects.create(project=self.project, title="t")
+		response = self._patch(
+			reverse("api_ticket_detail", args=[ticket.pk]),
+			{"flags": ["nonexistent"]},
+		)
+		self.assertEqual(response.status_code, 200)
+		body = response.json()
+		self.assertEqual(len(body["flags"]), 0)
+		ticket.refresh_from_db()
+		self.assertEqual(ticket.flags.count(), 0)
