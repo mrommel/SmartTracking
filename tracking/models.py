@@ -21,6 +21,53 @@ class Project(models.Model):
 		return f"{self.key} - {self.name}"
 
 
+class Component(models.Model):
+	"""A component within a project, used to group tickets."""
+
+	project = models.ForeignKey(
+		Project,
+		on_delete=models.CASCADE,
+		related_name="components",
+		verbose_name=_("project"),
+	)
+	name = models.CharField(_("name"), max_length=100)
+	description = models.TextField(_("description"), blank=True)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+
+	class Meta:
+		verbose_name = _("component")
+		verbose_name_plural = _("components")
+		ordering = ["name"]
+		unique_together = ["project", "name"]
+
+	def __str__(self):
+		return f"{self.project.key} / {self.name}"
+
+
+class Flag(models.Model):
+	"""A flag within a project, used to group or highlight tickets."""
+
+	project = models.ForeignKey(
+		Project,
+		on_delete=models.CASCADE,
+		related_name="flags",
+		verbose_name=_("project"),
+	)
+	name = models.CharField(_("name"), max_length=50)
+	color = models.CharField(_("color"), max_length=20, default="secondary")
+	description = models.TextField(_("description"), blank=True)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+
+	class Meta:
+		verbose_name = _("flag")
+		verbose_name_plural = _("flags")
+		ordering = ["name"]
+		unique_together = ["project", "name"]
+
+	def __str__(self):
+		return f"{self.project.key} / {self.name}"
+
+
 class Ticket(models.Model):
 	"""A single unit of work (issue/task/bug) that belongs to a project."""
 
@@ -82,6 +129,18 @@ class Ticket(models.Model):
 		blank=True,
 		related_name="assigned_tickets",
 		verbose_name=_("assignee"),
+	)
+	components = models.ManyToManyField(
+		Component,
+		blank=True,
+		related_name="tickets",
+		verbose_name=_("components"),
+	)
+	flags = models.ManyToManyField(
+		Flag,
+		blank=True,
+		related_name="tickets",
+		verbose_name=_("flags"),
 	)
 	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
 	updated_at = models.DateTimeField(_("updated at"), auto_now=True)

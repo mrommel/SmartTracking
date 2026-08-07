@@ -22,7 +22,7 @@ from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import Comment, Project, Ticket
+from .models import Comment, Component, Flag, Project, Ticket
 
 
 # --- Authentication --------------------------------------------------------
@@ -85,6 +85,12 @@ def serialize_ticket(ticket):
 		"priority_display": ticket.get_priority_display(),
 		"reporter": str(ticket.reporter) if ticket.reporter else None,
 		"assignee": str(ticket.assignee) if ticket.assignee else None,
+		"components": [
+			serialize_component(c) for c in ticket.components.all()
+		],
+		"flags": [
+			serialize_flag(f) for f in ticket.flags.all()
+		],
 		"allowed_transitions": [s.value for s in ticket.allowed_transitions()],
 		"comments": [
 			serialize_comment(c)
@@ -103,6 +109,27 @@ def serialize_comment(comment):
 		"author": str(comment.author) if comment.author else None,
 		"created_at": comment.created_at.isoformat(),
 		"updated_at": comment.updated_at.isoformat(),
+	}
+
+
+def serialize_component(component):
+	return {
+		"id": component.pk,
+		"project": component.project.key,
+		"name": component.name,
+		"description": component.description,
+		"created_at": component.created_at.isoformat(),
+	}
+
+
+def serialize_flag(flag):
+	return {
+		"id": flag.pk,
+		"project": flag.project.key,
+		"name": flag.name,
+		"color": flag.color,
+		"description": flag.description,
+		"created_at": flag.created_at.isoformat(),
 	}
 
 
@@ -192,6 +219,12 @@ def ticket_collection(request):
 		state = request.GET.get("state")
 		if state:
 			tickets = tickets.filter(state=state)
+		component = request.GET.get("component")
+		if component:
+			tickets = tickets.filter(components__name=component)
+		flag = request.GET.get("flag")
+		if flag:
+			tickets = tickets.filter(flags__name=flag)
 		return JsonResponse(
 			{"tickets": [serialize_ticket(t) for t in tickets]}
 		)
@@ -229,6 +262,27 @@ def ticket_collection(request):
 	)
 	if request.user.is_authenticated:
 		ticket.reporter = request.user
+	ticket.save()
+
+	# Set components and flags if provided
+	component_names = data.get("components", [])
+	if component_names:
+		for name in component_names:
+			try:
+				component = Component.objects.get(project=project, name=name)
+				ticket.components.add(component)
+			except Component.DoesNotExist:
+				pass  # silently ignore unknown component names
+
+	flag_names = data.get("flags", [])
+	if flag_names:
+		for name in flag_names:
+			try:
+				flag = Flag.objects.get(project=project, name=name)
+				ticket.flags.add(flag)
+			except Flag.DoesNotExist:
+				pass  # silently ignore unknown flag names
+
 	ticket.save()
 	return JsonResponse(serialize_ticket(ticket), status=201)
 
@@ -334,6 +388,83 @@ def comment_collection(request):
 	return JsonResponse(serialize_comment(comment), status=201)
 
 
+# --- Components -------------------------------------------------------------
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET", "POST"])
+def component_collection(request):
+	"""List or create components for a project."""
+	project_key = request.GET.get("project")
+	if not project_key:
+		return _error("Query parameter 'project' is required.")
+	project = get_object_or_404(Project, key=project_key.upper())
+
+	if request.method == "GET":
+		components = project.components.all()
+		return JsonResponse(
+			{"components": [serialize_component(c) for c in components]}
+		)
+
+	# POST -> create
+	try:
+		data = _parse_json(request)
+	except (ValueError, json.JSONDecodeError):
+		return _error("Request body must be valid JSON.")
+
+	name = (data.get("name") or "").strip()
+	if not name:
+		return _error("Field 'name' is required.")
+	if Component.objects.filter(project=project, name=name).exists():
+		return _error(f"Component '{name}' already exists in project '{project.key}'.", status=409)
+
+	component = Component.objects.create(
+		project=project,
+		name=name,
+		description=data.get("description", ""),
+	)
+	return JsonResponse(serialize_component(component), status=201)
+
+
+# --- Flags ------------------------------------------------------------------
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET", "POST"])
+def flag_collection(request):
+	"""List or create flags for a project."""
+	project_key = request.GET.get("project")
+	if not project_key:
+		return _error("Query parameter 'project' is required.")
+	project = get_object_or_404(Project, key=project_key.upper())
+
+	if request.method == "GET":
+		flags = project.flags.all()
+		return JsonResponse(
+			{"flags": [serialize_flag(f) for f in flags]}
+		)
+
+	# POST -> create
+	try:
+		data = _parse_json(request)
+	except (ValueError, json.JSONDecodeError):
+		return _error("Request body must be valid JSON.")
+
+	name = (data.get("name") or "").strip()
+	if not name:
+		return _error("Field 'name' is required.")
+	if Flag.objects.filter(project=project, name=name).exists():
+		return _error(f"Flag '{name}' already exists in project '{project.key}'.", status=409)
+
+	flag = Flag.objects.create(
+		project=project,
+		name=name,
+		color=data.get("color", "secondary"),
+		description=data.get("description", ""),
+	)
+	return JsonResponse(serialize_flag(flag), status=201)
+
+
 # --- URL patterns (included from tracking/urls.py) -------------------------
 
 urlpatterns = [
@@ -344,4 +475,6 @@ urlpatterns = [
 	path("tickets/<int:pk>/", ticket_detail, name="api_ticket_detail"),
 	path("tickets/<int:pk>/transition/", ticket_transition, name="api_ticket_transition"),
 	path("comments/", comment_collection, name="api_comment_collection"),
+	path("components/", component_collection, name="api_component_collection"),
+	path("flags/", flag_collection, name="api_flag_collection"),
 ]

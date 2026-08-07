@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 
 from .forms import CommentForm, ProjectForm, TicketForm, TicketTransitionForm
-from .models import Comment, Project, Ticket
+from .models import Comment, Component, Flag, Project, Ticket
 
 
 @login_required
@@ -80,7 +80,7 @@ def project_create(request):
 
 @login_required
 def ticket_list(request):
-	"""List tickets, optionally filtered by project (?project=KEY) and state."""
+	"""List tickets, optionally filtered by project, state, component, and flag."""
 	tickets = Ticket.objects.select_related("project", "assignee")
 
 	project_key = request.GET.get("project")
@@ -91,6 +91,14 @@ def ticket_list(request):
 	if state:
 		tickets = tickets.filter(state=state)
 
+	component = request.GET.get("component")
+	if component:
+		tickets = tickets.filter(components__name=component)
+
+	flag = request.GET.get("flag")
+	if flag:
+		tickets = tickets.filter(flags__name=flag)
+
 	return render(request, "tracking/ticket_list.html", {
 		"title": "Tickets",
 		"tickets": tickets,
@@ -98,6 +106,10 @@ def ticket_list(request):
 		"states": Ticket.State.choices,
 		"current_project": project_key or "",
 		"current_state": state or "",
+		"current_component": component or "",
+		"current_flag": flag or "",
+		"components": Component.objects.all().order_by("name"),
+		"flags": Flag.objects.all().order_by("name"),
 	})
 
 
@@ -131,6 +143,15 @@ def ticket_create(request):
 			return redirect("ticket_detail", pk=ticket.pk)
 	else:
 		form = TicketForm()
+		# Pre-populate components/flags for the selected project
+		project_key = request.GET.get("project")
+		if project_key:
+			form.fields["components"].queryset = Component.objects.filter(
+				project__key=project_key.upper()
+			)
+			form.fields["flags"].queryset = Flag.objects.filter(
+				project__key=project_key.upper()
+			)
 
 	return render(request, "tracking/ticket_form.html", {
 		"title": "New ticket",

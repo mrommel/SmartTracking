@@ -34,6 +34,16 @@
 						<dt class="col-5">Priority</dt><dd class="col-7">{{ ticket.get_priority_display }}</dd>
 						<dt class="col-5">Reporter</dt><dd class="col-7">{{ ticket.reporter|default:"—" }}</dd>
 						<dt class="col-5">Assignee</dt><dd class="col-7">{{ ticket.assignee|default:"—" }}</dd>
+						<dt class="col-5">Components</dt><dd class="col-7">
+							{% for component in ticket.components.all %}
+								{% #badge %}{{ component.name }}{% /badge %}
+							{% endfor %}
+						</dd>
+						<dt class="col-5">Flags</dt><dd class="col-7">
+							{% for flag in ticket.flags.all %}
+								<span class="badge bg-{{ flag.color }} me-1">{{ flag.name }}</span>
+							{% endfor %}
+						</dd>
 						<dt class="col-5">Created</dt><dd class="col-7">{{ ticket.created_at|naturaltime }}</dd>
 						<dt class="col-5">Updated</dt><dd class="col-7">{{ ticket.updated_at|naturaltime }}</dd>
 					</dl>

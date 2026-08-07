@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Comment, Project, Ticket
+from .models import Comment, Component, Flag, Project, Ticket
 
 
 @admin.register(Project)
@@ -30,3 +30,19 @@ class CommentAdmin(admin.ModelAdmin):
 	def body_preview(self, obj):
 		return obj.body[:50] + "..." if len(obj.body) > 50 else obj.body
 	body_preview.short_description = _("body")
+
+
+@admin.register(Component)
+class ComponentAdmin(admin.ModelAdmin):
+	list_display = ("name", "project", "created_at")
+	list_filter = ("project",)
+	search_fields = ("name", "description")
+	autocomplete_fields = ("project",)
+
+
+@admin.register(Flag)
+class FlagAdmin(admin.ModelAdmin):
+	list_display = ("name", "project", "color", "created_at")
+	list_filter = ("project", "color")
+	search_fields = ("name", "description")
+	autocomplete_fields = ("project",)

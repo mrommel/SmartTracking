@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Project, Ticket, Comment
+from .models import Comment, Component, Flag, Project, Ticket
 
 
 class ProjectForm(forms.ModelForm):
@@ -34,9 +34,13 @@ class TicketForm(forms.ModelForm):
 			"type",
 			"priority",
 			"assignee",
+			"components",
+			"flags",
 		]
 		widgets = {
 			"description": forms.Textarea(attrs={"rows": 4}),
+			"components": forms.SelectMultiple(attrs={"class": "form-select"}),
+			"flags": forms.SelectMultiple(attrs={"class": "form-select"}),
 		}
 
 

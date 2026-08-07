@@ -25,6 +25,26 @@
 				{% endfor %}
 			</select>
 		</div>
+		<div class="col-auto">
+			<select name="component" class="form-select" onchange="this.form.submit()">
+				<option value="">All components</option>
+				{% for component in components %}
+					<option value="{{ component.name }}" {% if component.name == current_component %}selected{% endif %}>
+						{{ component.name }}
+					</option>
+				{% endfor %}
+			</select>
+		</div>
+		<div class="col-auto">
+			<select name="flag" class="form-select" onchange="this.form.submit()">
+				<option value="">All flags</option>
+				{% for flag in flags %}
+					<option value="{{ flag.name }}" {% if flag.name == current_flag %}selected{% endif %}>
+						{{ flag.name }}
+					</option>
+				{% endfor %}
+			</select>
+		</div>
 	</form>
 
 	<div class="card">
@@ -56,4 +76,3 @@
 		</table>
 	</div>
 {% endblock %}
-
