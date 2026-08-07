@@ -1,23 +1,51 @@
-from django.http import HttpResponse
 from django.shortcuts import render
-from django.template import loader
 
 from django.contrib import messages
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 
-from .forms import TicketForm, TicketTransitionForm
+from .forms import ProjectForm, TicketForm, TicketTransitionForm
 from .models import Project, Ticket
 
 
-# Create your views here.
 def dashboard(request):
-	template = loader.get_template('dashboard.html')
-	context = {
-		'title': 'Dashboard',
+	"""Landing page: high-level counts and the most recent activity."""
+	tickets = Ticket.objects.all()
+	total_tickets = tickets.count()
+
+	# Counts keyed by state/priority value, so the template can look them up.
+	state_counts = {
+		row["state"]: row["count"]
+		for row in tickets.values("state").annotate(count=Count("id"))
 	}
-	return HttpResponse(template.render(context, request))
+	priority_counts = {
+		row["priority"]: row["count"]
+		for row in tickets.values("priority").annotate(count=Count("id"))
+	}
+
+	open_states = [Ticket.State.OPEN, Ticket.State.IN_PROGRESS]
+	open_tickets = sum(state_counts.get(s, 0) for s in open_states)
+
+	# Ordered (state, label, count) rows for the status breakdown widget.
+	state_breakdown = [
+		(state.value, state.label, state_counts.get(state.value, 0))
+		for state in Ticket.State
+	]
+
+	recent_tickets = (
+		tickets.select_related("project", "assignee").order_by("-created_at")[:8]
+	)
+
+	return render(request, "tracking/dashboard.html", {
+		"title": "Dashboard",
+		"total_tickets": total_tickets,
+		"open_tickets": open_tickets,
+		"project_count": Project.objects.count(),
+		"critical_count": priority_counts.get(Ticket.Priority.CRITICAL.value, 0),
+		"state_breakdown": state_breakdown,
+		"recent_tickets": recent_tickets,
+	})
 
 
 def project_list(request):
@@ -26,6 +54,23 @@ def project_list(request):
 	return render(request, "tracking/project_list.html", {
 		"title": "Projects",
 		"projects": projects,
+	})
+
+
+def project_create(request):
+	"""Create a new project."""
+	if request.method == "POST":
+		form = ProjectForm(request.POST)
+		if form.is_valid():
+			project = form.save()
+			messages.success(request, f"Project “{project.key}” created.")
+			return redirect("project_list")
+	else:
+		form = ProjectForm()
+
+	return render(request, "tracking/project_form.html", {
+		"title": "New project",
+		"form": form,
 	})
 
 

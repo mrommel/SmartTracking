@@ -1,6 +1,25 @@
 from django import forms
 
-from .models import Ticket
+from .models import Project, Ticket
+
+
+class ProjectForm(forms.ModelForm):
+	"""Create / edit a project."""
+
+	class Meta:
+		model = Project
+		fields = [
+			"key",
+			"name",
+			"description",
+		]
+		widgets = {
+			"description": forms.Textarea(attrs={"rows": 4}),
+		}
+
+	def clean_key(self):
+		# Project keys are stored/compared uppercase (used as ticket-ID prefix).
+		return self.cleaned_data["key"].upper()
 
 
 class TicketForm(forms.ModelForm):
