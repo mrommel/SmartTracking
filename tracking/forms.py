@@ -107,7 +107,7 @@ class FlagForm(forms.ModelForm):
 		self.project = project
 		if project is not None:
 			self.fields["name"].widget.attrs["placeholder"] = f"e.g. blocked, in-review"
-			self.fields["color"].choices = self.colors
+			self.fields["color"].widget.choices = self.colors
 
 	def clean_name(self):
 		name = self.cleaned_data["name"]
