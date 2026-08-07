@@ -1,6 +1,8 @@
 # SmartTracking — AI Agent Guide
 
-Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` project. SQLite dev DB, server-rendered Bootstrap 5 templates. No JS framework. A plain-Django JSON REST API (no DRF) lives in `tracking/api.py`, mounted at `/tracking/api/` for MCP integration.
+Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` project. SQLite dev DB, server-rendered Bootstrap 5 templates. No JS framework. A plain-Django JSON REST API (no DRF) lives in `tracking/api.py`, mounted at `/tracking/api/` and exposed as MCP tools.
+
+**Where to find the ticket system:** The MCP server is the primary documentation source. Start it with `make run` (port 8091) and call `get_meta` for all enums (types, states, priorities) and the full state-transition graph. Use the MCP tools (`list_tickets`, `create_ticket`, `transition_ticket`, etc.) to interact — no need to read MD files for ticket domain knowledge. See **Workflows** below to start it.
 
 ## Architecture
 - `setup/` is the Django project (settings, root URLconf, WSGI/ASGI). `setup/urls.py` mounts everything under `tracking/` and redirects `/` → `/tracking/dashboard`.
@@ -37,7 +39,7 @@ Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` pro
 - Plain-Django JSON views (no DRF), function-based, CSRF-exempt, own `urlpatterns` `include()`d from `tracking/urls.py`. URL names are `api_`-prefixed.
 - Endpoints: `GET /api/meta/` (enums + transition graph for discovery), `GET|POST /api/projects/`, `GET /api/projects/<key>/`, `GET|POST /api/tickets/` (filter `?project=&state=`), `GET|PATCH /api/tickets/<pk>/`, `POST /api/tickets/<pk>/transition/`.
 - State changes go **only** through `/transition/`, which reuses `ticket.can_transition_to()` (returns 409 + `allowed_transitions` on illegal moves); `PATCH` rejects a `state` key. Mirror the HTML views' state-machine discipline for any new endpoint.
-- MCP integration: `make run` also starts a bundled MCP server (`mcp_server.py`, streamable HTTP on port 8091 at `/mcp`) that wraps these endpoints as agent tools. See `mcp_server.md` for client config (VS Code / Claude Desktop). It calls the REST API using `TRACKING_API_TOKEN`; ports/URL are configurable via `MCP_HOST`/`MCP_PORT`/`SMARTTRACKING_URL`.
+- MCP integration: `make run` also starts a bundled MCP server (see Workflows above) wrapping these endpoints as agent tools. See `mcp_server.md` for client config (VS Code / Claude Desktop); ports/URL are configurable via `MCP_HOST`/`MCP_PORT`/`SMARTTRACKING_URL`.
 
 ## Authentication
 - **All HTML views are `@login_required`** (`tracking/views.py`). Login/logout use Django's built-in `LoginView`/`LogoutView` (URL names `login`/`logout`); template is `templates/registration/login.html`. Settings: `LOGIN_URL="login"`, `LOGIN_REDIRECT_URL="dashboard"`, `LOGOUT_REDIRECT_URL="login"`. Logout is a POST form in `base.html`.
