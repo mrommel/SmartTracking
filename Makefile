@@ -54,5 +54,5 @@ compiletranslations: venv
 
 # testing
 
- test: venv
+test: venv
 	./$(VENV)/bin/python3.12 manage.py test tracking
