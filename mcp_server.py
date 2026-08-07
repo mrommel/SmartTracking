@@ -14,10 +14,17 @@ Django API. Configuration comes from the environment (loaded from ``.env``):
 """
 
 import os
+import logging
 from typing import Any, Optional
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+
+# Suppress noisy Pydantic validation warnings from the MCP library's request router.
+# These fire on every request as the router tries all 21+ message types before
+# dispatching to the correct handler — they are harmless but spam the console.
+logging.getLogger("pydantic").setLevel(logging.ERROR)
+logging.getLogger("mcp.server.streamable_http").setLevel(logging.ERROR)
 
 BASE_URL = os.environ.get("SMARTTRACKING_URL", "http://127.0.0.1:8092").rstrip("/")
 API = f"{BASE_URL}/tracking/api"
@@ -153,4 +160,3 @@ def transition_ticket(ticket_id: int, state: str) -> Any:
 if __name__ == "__main__":
 	# Streamable HTTP transport -> reachable at http://MCP_HOST:MCP_PORT/mcp
 	mcp.run(transport="streamable-http")
-

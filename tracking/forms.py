@@ -79,16 +79,19 @@ class CommentForm(forms.ModelForm):
 class FlagForm(forms.ModelForm):
 	"""Create / edit a flag."""
 
-	colors = [
-		("secondary", "Secondary"),
-		("primary", "Primary"),
-		("success", "Success"),
-		("danger", "Danger"),
-		("warning", "Warning"),
-		("info", "Info"),
-		("light", "Light"),
-		("dark", "Dark"),
-	]
+	color = forms.ChoiceField(
+		choices=[
+			("secondary", "Secondary"),
+			("primary", "Primary"),
+			("success", "Success"),
+			("danger", "Danger"),
+			("warning", "Warning"),
+			("info", "Info"),
+			("light", "Light"),
+			("dark", "Dark"),
+		],
+		widget=forms.Select(attrs={"class": "form-select"}),
+	)
 
 	class Meta:
 		model = Flag
@@ -99,7 +102,6 @@ class FlagForm(forms.ModelForm):
 		]
 		widgets = {
 			"description": forms.Textarea(attrs={"rows": 3}),
-			"color": forms.Select(attrs={"class": "form-select"}),
 		}
 
 	def __init__(self, *args, project=None, **kwargs):
@@ -107,7 +109,6 @@ class FlagForm(forms.ModelForm):
 		self.project = project
 		if project is not None:
 			self.fields["name"].widget.attrs["placeholder"] = f"e.g. blocked, in-review"
-			self.fields["color"].widget.choices = self.colors
 
 	def clean_name(self):
 		name = self.cleaned_data["name"]
