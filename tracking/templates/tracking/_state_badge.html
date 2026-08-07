@@ -1,0 +1,12 @@
+{% if ticket.state == "open" %}
+	<span class="badge text-bg-primary">{{ ticket.get_state_display }}</span>
+{% elif ticket.state == "in_progress" %}
+	<span class="badge text-bg-warning">{{ ticket.get_state_display }}</span>
+{% elif ticket.state == "resolved" %}
+	<span class="badge text-bg-info">{{ ticket.get_state_display }}</span>
+{% elif ticket.state == "closed" %}
+	<span class="badge text-bg-success">{{ ticket.get_state_display }}</span>
+{% else %}
+	<span class="badge text-bg-secondary">{{ ticket.get_state_display }}</span>
+{% endif %}
+

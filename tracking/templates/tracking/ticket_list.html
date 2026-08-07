@@ -1,0 +1,59 @@
+{% extends "tracking/base.html" %}
+
+{% block content %}
+	<div class="d-flex justify-content-between align-items-center mb-3">
+		<h1 class="h3 mb-0">Tickets</h1>
+		<a class="btn btn-primary" href="{% url 'ticket_create' %}">+ New ticket</a>
+	</div>
+
+	<form method="get" class="row g-2 mb-3">
+		<div class="col-auto">
+			<select name="project" class="form-select" onchange="this.form.submit()">
+				<option value="">All projects</option>
+				{% for project in projects %}
+					<option value="{{ project.key }}" {% if project.key == current_project %}selected{% endif %}>
+						{{ project.key }} — {{ project.name }}
+					</option>
+				{% endfor %}
+			</select>
+		</div>
+		<div class="col-auto">
+			<select name="state" class="form-select" onchange="this.form.submit()">
+				<option value="">All states</option>
+				{% for value, label in states %}
+					<option value="{{ value }}" {% if value == current_state %}selected{% endif %}>{{ label }}</option>
+				{% endfor %}
+			</select>
+		</div>
+	</form>
+
+	<div class="card">
+		<table class="table table-hover mb-0 align-middle">
+			<thead>
+				<tr>
+					<th>Title</th>
+					<th style="width: 6rem">Project</th>
+					<th style="width: 7rem">Type</th>
+					<th style="width: 9rem">State</th>
+					<th style="width: 7rem">Priority</th>
+					<th style="width: 10rem">Assignee</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for ticket in tickets %}
+					<tr>
+						<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></td>
+						<td><span class="badge text-bg-secondary">{{ ticket.project.key }}</span></td>
+						<td>{{ ticket.get_type_display }}</td>
+						<td>{% include "tracking/_state_badge.html" with ticket=ticket %}</td>
+						<td>{{ ticket.get_priority_display }}</td>
+						<td>{{ ticket.assignee|default:"—" }}</td>
+					</tr>
+				{% empty %}
+					<tr><td colspan="6" class="text-muted">No tickets found.</td></tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+{% endblock %}
+
