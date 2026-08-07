@@ -6,8 +6,8 @@ from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 
-from .forms import ProjectForm, TicketForm, TicketTransitionForm
-from .models import Project, Ticket
+from .forms import CommentForm, ProjectForm, TicketForm, TicketTransitionForm
+from .models import Comment, Project, Ticket
 
 
 @login_required
@@ -103,14 +103,17 @@ def ticket_list(request):
 
 @login_required
 def ticket_detail(request, pk):
-	"""Show a single ticket with its allowed state transitions."""
+	"""Show a single ticket with its allowed state transitions and comments."""
 	ticket = get_object_or_404(
 		Ticket.objects.select_related("project", "assignee", "reporter"), pk=pk
 	)
+	comments = ticket.comments.select_related("author").all()
 	return render(request, "tracking/ticket_detail.html", {
 		"title": ticket.title,
 		"ticket": ticket,
 		"transition_form": TicketTransitionForm(ticket=ticket),
+		"comment_form": CommentForm(),
+		"comments": comments,
 	})
 
 
@@ -148,3 +151,19 @@ def ticket_transition(request, pk):
 		else:
 			messages.error(request, "Invalid state transition.")
 	return redirect(reverse("ticket_detail", args=[ticket.pk]))
+
+
+@login_required
+def ticket_comment_create(request, pk):
+	"""Add a comment to a ticket."""
+	ticket = get_object_or_404(Ticket, pk=pk)
+	if request.method == "POST":
+		form = CommentForm(request.POST)
+		if form.is_valid():
+			comment = form.save(commit=False)
+			comment.ticket = ticket
+			comment.author = request.user
+			comment.save()
+			messages.success(request, "Comment added.")
+			return redirect("ticket_detail", pk=ticket.pk)
+	return redirect("ticket_detail", pk=ticket.pk)

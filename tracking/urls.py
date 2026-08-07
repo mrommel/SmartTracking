@@ -16,6 +16,7 @@ urlpatterns = [
     path('tickets/new/', views.ticket_create, name='ticket_create'),
     path('tickets/<int:pk>/', views.ticket_detail, name='ticket_detail'),
     path('tickets/<int:pk>/transition/', views.ticket_transition, name='ticket_transition'),
+    path('tickets/<int:pk>/comment/', views.ticket_comment_create, name='ticket_comment_create'),
 ]
 
 # JSON REST API for MCP integration (see tracking/api.py).

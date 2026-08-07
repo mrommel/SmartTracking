@@ -22,7 +22,7 @@ from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import Project, Ticket
+from .models import Comment, Project, Ticket
 
 
 # --- Authentication --------------------------------------------------------
@@ -86,8 +86,23 @@ def serialize_ticket(ticket):
 		"reporter": str(ticket.reporter) if ticket.reporter else None,
 		"assignee": str(ticket.assignee) if ticket.assignee else None,
 		"allowed_transitions": [s.value for s in ticket.allowed_transitions()],
+		"comments": [
+			serialize_comment(c)
+			for c in ticket.comments.select_related("author").all()
+		],
 		"created_at": ticket.created_at.isoformat(),
 		"updated_at": ticket.updated_at.isoformat(),
+	}
+
+
+def serialize_comment(comment):
+	return {
+		"id": comment.pk,
+		"ticket": comment.ticket.pk,
+		"body": comment.body,
+		"author": str(comment.author) if comment.author else None,
+		"created_at": comment.created_at.isoformat(),
+		"updated_at": comment.updated_at.isoformat(),
 	}
 
 
@@ -283,6 +298,42 @@ def ticket_transition(request, pk):
 	return JsonResponse(serialize_ticket(ticket))
 
 
+# --- Comments --------------------------------------------------------------
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET", "POST"])
+def comment_collection(request):
+	"""List or create comments on a ticket."""
+	ticket_pk = request.GET.get("ticket")
+	if not ticket_pk:
+		return _error("Query parameter 'ticket' is required.")
+	ticket = get_object_or_404(Ticket, pk=ticket_pk)
+
+	if request.method == "GET":
+		comments = Comment.objects.select_related("author").filter(ticket=ticket)
+		return JsonResponse(
+			{"comments": [serialize_comment(c) for c in comments]}
+		)
+
+	# POST -> create
+	try:
+		data = _parse_json(request)
+	except (ValueError, json.JSONDecodeError):
+		return _error("Request body must be valid JSON.")
+
+	body = (data.get("body") or "").strip()
+	if not body:
+		return _error("Field 'body' is required.")
+
+	comment = Comment.objects.create(
+		ticket=ticket,
+		body=body,
+		author=request.user if request.user.is_authenticated else None,
+	)
+	return JsonResponse(serialize_comment(comment), status=201)
+
+
 # --- URL patterns (included from tracking/urls.py) -------------------------
 
 urlpatterns = [
@@ -292,5 +343,5 @@ urlpatterns = [
 	path("tickets/", ticket_collection, name="api_ticket_collection"),
 	path("tickets/<int:pk>/", ticket_detail, name="api_ticket_detail"),
 	path("tickets/<int:pk>/transition/", ticket_transition, name="api_ticket_transition"),
+	path("comments/", comment_collection, name="api_comment_collection"),
 ]
-

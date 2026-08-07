@@ -60,5 +60,35 @@
 			</div>
 		</div>
 	</div>
-{% endblock %}
 
+	<!-- Comments section -->
+	<div class="card mt-4">
+		<div class="card-body">
+			<h2 class="h6 text-muted">Comments ({{ comments|length }})</h2>
+
+			{% for comment in comments %}
+				<div class="comment mb-3 pb-3{% if not forloop.last %} border-bottom{% endif %}">
+					<div class="d-flex justify-content-between align-items-start mb-1">
+						<strong>{{ comment.author.get_username|default:"—" }}</strong>
+						<small class="text-muted">{{ comment.created_at|naturaltime }}</small>
+					</div>
+					<p style="white-space: pre-wrap">{{ comment.body }}</p>
+				</div>
+			{% empty %}
+				<p class="text-muted">No comments yet.</p>
+			{% endfor %}
+
+			{% if user.is_authenticated %}
+				<hr>
+				<h2 class="h6 text-muted">Add a comment</h2>
+				<form method="post" action="{% url 'ticket_comment_create' ticket.pk %}">
+					{% csrf_token %}
+					<div class="mb-2">
+						<textarea name="body" class="form-control" rows="3" placeholder="Write your comment..." required></textarea>
+					</div>
+					<button type="submit" class="btn btn-sm btn-primary">Post comment</button>
+				</form>
+			{% endif %}
+		</div>
+	</div>
+{% endblock %}

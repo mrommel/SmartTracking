@@ -101,3 +101,33 @@ class Ticket(models.Model):
 	def can_transition_to(self, new_state):
 		"""Return True if moving to ``new_state`` is a permitted transition."""
 		return self.State(new_state) in self.allowed_transitions()
+
+
+class Comment(models.Model):
+	"""A comment attached to a ticket."""
+
+	ticket = models.ForeignKey(
+		Ticket,
+		on_delete=models.CASCADE,
+		related_name="comments",
+		verbose_name=_("ticket"),
+	)
+	body = models.TextField(_("body"))
+	author = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name="comments",
+		verbose_name=_("author"),
+	)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+	updated_at = models.DateTimeField(_("updated at"), auto_now=True)
+
+	class Meta:
+		verbose_name = _("comment")
+		verbose_name_plural = _("comments")
+		ordering = ["created_at"]
+
+	def __str__(self):
+		return f"Comment on {self.ticket} by {self.author}"

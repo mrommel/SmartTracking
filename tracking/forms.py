@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Project, Ticket
+from .models import Project, Ticket, Comment
 
 
 class ProjectForm(forms.ModelForm):
@@ -59,3 +59,15 @@ class TicketTransitionForm(forms.Form):
 			raise forms.ValidationError("That state transition is not allowed.")
 		return state
 
+
+class CommentForm(forms.ModelForm):
+	"""Create a comment on a ticket."""
+
+	class Meta:
+		model = Comment
+		fields = [
+			"body",
+		]
+		widgets = {
+			"body": forms.Textarea(attrs={"rows": 3}),
+		}
