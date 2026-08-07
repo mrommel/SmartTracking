@@ -20,7 +20,7 @@ Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` pro
 - All pages live in `templates/tracking/` and extend `tracking/base.html` (including `dashboard.html`).
 
 ## Workflows (use the Makefile — it pins `python3.12` inside `.venv`)
-- Run dev server (loads `.env`, port 8092): `make run`
+- Run dev server (loads `.env`, port 8092) **and the bundled MCP server (port 8091)**: `make run`
 - Create/apply migrations: `make makemigrations` (note: hardcodes `sqlmigrate tracking 0001` — update the migration number) / `make migrate`
 - Translations: `make preparetranslations` then `make compiletranslations` (locale at `tracking/locale/`)
 - Rebuild venv: `make clean && make venv`
@@ -37,6 +37,7 @@ Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` pro
 - Plain-Django JSON views (no DRF), function-based, CSRF-exempt, own `urlpatterns` `include()`d from `tracking/urls.py`. URL names are `api_`-prefixed.
 - Endpoints: `GET /api/meta/` (enums + transition graph for discovery), `GET|POST /api/projects/`, `GET /api/projects/<key>/`, `GET|POST /api/tickets/` (filter `?project=&state=`), `GET|PATCH /api/tickets/<pk>/`, `POST /api/tickets/<pk>/transition/`.
 - State changes go **only** through `/transition/`, which reuses `ticket.can_transition_to()` (returns 409 + `allowed_transitions` on illegal moves); `PATCH` rejects a `state` key. Mirror the HTML views' state-machine discipline for any new endpoint.
+- MCP integration: `make run` also starts a bundled MCP server (`mcp_server.py`, streamable HTTP on port 8091 at `/mcp`) that wraps these endpoints as agent tools. See `mcp_server.md` for client config (VS Code / Claude Desktop). It calls the REST API using `TRACKING_API_TOKEN`; ports/URL are configurable via `MCP_HOST`/`MCP_PORT`/`SMARTTRACKING_URL`.
 
 ## Authentication
 - **All HTML views are `@login_required`** (`tracking/views.py`). Login/logout use Django's built-in `LoginView`/`LogoutView` (URL names `login`/`logout`); template is `templates/registration/login.html`. Settings: `LOGIN_URL="login"`, `LOGIN_REDIRECT_URL="dashboard"`, `LOGOUT_REDIRECT_URL="login"`. Logout is a POST form in `base.html`.
