@@ -27,13 +27,19 @@ Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` pro
 - Direct manage.py calls must use the venv interpreter: `./.venv/bin/python3.12 manage.py <cmd>`.
 
 ## Integrations / gotchas
-- `slippers` is registered as a template builtin — its component tags work without `{% load %}`.
+- `slippers` is registered as a template builtin — its component tags work without `{% load %}`. Reusable UI components are registered in `tracking/templates/components.yaml` and live in `tracking/templates/tracking/components/`: `badge` (props `variant`, `pill`; use as block `{% #badge variant="primary" %}…{% /badge %}`) and `state_badge` (prop `ticket`, maps state→variant). **Never put Django tag syntax (`{% %}`) inside `{# #}` comments in `.html` or `components.yaml`** — multiline `{# #}` isn't supported and the tags get parsed for real (caused component self-recursion).
 - `django-autocomplete-light` (`dal`, `dal_select2`) powers admin `autocomplete_fields` (see `tracking/admin.py`); also `crispy_forms` + `crispy_bootstrap5` (pack = `bootstrap5`), `django_extensions`, `django_admin_inline_paginator`.
-- `tracking/tests.py` is empty — there is no test suite yet; run tests with `./.venv/bin/python3.12 manage.py test`.
+- Env vars load from `.env` via `make run` (copy `.env.example`). `TRACKING_API_TOKEN` is the only app var. `.env` is gitignored; `.env.example` is the tracked template.
+- Tests live in the `tracking/tests/` package (`test_models.py`, `test_views.py`, `test_api.py`). Run with `./.venv/bin/python3.12 manage.py test tracking`. API tests set the token via `@override_settings(TRACKING_API_TOKEN=...)`.
 - Settings are dev-only (`DEBUG=True`, hardcoded `SECRET_KEY`, console email backend). Don't rely on production config.
 
 ## REST API (`tracking/api.py`, `/tracking/api/`)
 - Plain-Django JSON views (no DRF), function-based, CSRF-exempt, own `urlpatterns` `include()`d from `tracking/urls.py`. URL names are `api_`-prefixed.
 - Endpoints: `GET /api/meta/` (enums + transition graph for discovery), `GET|POST /api/projects/`, `GET /api/projects/<key>/`, `GET|POST /api/tickets/` (filter `?project=&state=`), `GET|PATCH /api/tickets/<pk>/`, `POST /api/tickets/<pk>/transition/`.
 - State changes go **only** through `/transition/`, which reuses `ticket.can_transition_to()` (returns 409 + `allowed_transitions` on illegal moves); `PATCH` rejects a `state` key. Mirror the HTML views' state-machine discipline for any new endpoint.
+
+## Authentication
+- **All HTML views are `@login_required`** (`tracking/views.py`). Login/logout use Django's built-in `LoginView`/`LogoutView` (URL names `login`/`logout`); template is `templates/registration/login.html`. Settings: `LOGIN_URL="login"`, `LOGIN_REDIRECT_URL="dashboard"`, `LOGOUT_REDIRECT_URL="login"`. Logout is a POST form in `base.html`.
+- **API endpoints use `@require_api_auth`** (`tracking/api.py`): accepts a logged-in session *or* a bearer token (`Authorization: Bearer <token>` / `X-API-Token`) compared against `settings.TRACKING_API_TOKEN` (from env `TRACKING_API_TOKEN`, empty disables token auth). Unauthenticated → 401 + `WWW-Authenticate: Bearer`. Decorator order is `@csrf_exempt` → `@require_api_auth` → `@require_http_methods`.
+- Create users via `./.venv/bin/python3.12 manage.py createsuperuser`; run the API with a token: `TRACKING_API_TOKEN=... make run`.
 

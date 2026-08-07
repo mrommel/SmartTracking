@@ -1,0 +1,9 @@
+# Slippers component registry. Lives in a template root dir and is
+# auto-discovered. Each entry registers an inline tag and a block tag
+# (block tag name is prefixed with a hash) named after the key.
+# NOTE: keep Django template tag syntax out of this file - it is compiled
+# as a template when loaded.
+components:
+  badge: "tracking/components/badge.html"
+  state_badge: "tracking/components/state_badge.html"
+

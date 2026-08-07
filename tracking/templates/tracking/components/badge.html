@@ -1,0 +1,3 @@
+{# Generic Bootstrap badge. Props: variant (default secondary), pill (bool). Slot: children. #}
+<span class="badge text-bg-{{ variant|default:'secondary' }}{% if pill %} rounded-pill{% endif %}">{{ children }}</span>
+

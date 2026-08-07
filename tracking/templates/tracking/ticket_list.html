@@ -43,9 +43,9 @@
 				{% for ticket in tickets %}
 					<tr>
 						<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></td>
-						<td><span class="badge text-bg-secondary">{{ ticket.project.key }}</span></td>
+						<td>{% #badge %}{{ ticket.project.key }}{% /badge %}</td>
 						<td>{{ ticket.get_type_display }}</td>
-						<td>{% include "tracking/_state_badge.html" with ticket=ticket %}</td>
+						<td>{% state_badge ticket=ticket %}</td>
 						<td>{{ ticket.get_priority_display }}</td>
 						<td>{{ ticket.assignee|default:"—" }}</td>
 					</tr>

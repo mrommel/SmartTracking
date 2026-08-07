@@ -11,8 +11,11 @@ The state machine is *not* re-implemented here: state changes go through
 Routes are wired in ``tracking/urls.py`` under ``/tracking/api/``.
 """
 
+import hmac
 import json
+from functools import wraps
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import path
@@ -20,6 +23,41 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from .models import Project, Ticket
+
+
+# --- Authentication --------------------------------------------------------
+
+def _token_ok(request):
+	"""True if the request carries the configured API bearer token."""
+	expected = settings.TRACKING_API_TOKEN
+	if not expected:
+		return False
+	header = request.META.get("HTTP_AUTHORIZATION", "")
+	provided = ""
+	if header.startswith("Bearer "):
+		provided = header[len("Bearer "):].strip()
+	else:
+		provided = request.META.get("HTTP_X_API_TOKEN", "").strip()
+	# Constant-time compare to avoid leaking the token via timing.
+	return bool(provided) and hmac.compare_digest(provided, expected)
+
+
+def require_api_auth(view):
+	"""Allow either a logged-in session or a valid API token.
+
+	MCP clients authenticate with ``Authorization: Bearer <TRACKING_API_TOKEN>``
+	(or an ``X-API-Token`` header); browser sessions work too for convenience.
+	"""
+
+	@wraps(view)
+	def wrapper(request, *args, **kwargs):
+		if request.user.is_authenticated or _token_ok(request):
+			return view(request, *args, **kwargs)
+		response = JsonResponse({"error": "Authentication required."}, status=401)
+		response["WWW-Authenticate"] = "Bearer"
+		return response
+
+	return wrapper
 
 
 # --- Serialization helpers -------------------------------------------------
@@ -66,6 +104,7 @@ def _error(message, status=400, **extra):
 
 # --- Meta / discovery ------------------------------------------------------
 
+@require_api_auth
 @require_http_methods(["GET"])
 def meta(request):
 	"""Expose enums and the state machine so a client can self-describe.
@@ -89,6 +128,7 @@ def meta(request):
 # --- Projects --------------------------------------------------------------
 
 @csrf_exempt
+@require_api_auth
 @require_http_methods(["GET", "POST"])
 def project_collection(request):
 	if request.method == "GET":
@@ -116,6 +156,7 @@ def project_collection(request):
 	return JsonResponse(serialize_project(project), status=201)
 
 
+@require_api_auth
 @require_http_methods(["GET"])
 def project_detail(request, key):
 	project = get_object_or_404(Project, key=key.upper())
@@ -125,6 +166,7 @@ def project_detail(request, key):
 # --- Tickets ---------------------------------------------------------------
 
 @csrf_exempt
+@require_api_auth
 @require_http_methods(["GET", "POST"])
 def ticket_collection(request):
 	if request.method == "GET":
@@ -177,6 +219,7 @@ def ticket_collection(request):
 
 
 @csrf_exempt
+@require_api_auth
 @require_http_methods(["GET", "PATCH"])
 def ticket_detail(request, pk):
 	ticket = get_object_or_404(
@@ -213,6 +256,7 @@ def ticket_detail(request, pk):
 
 
 @csrf_exempt
+@require_api_auth
 @require_http_methods(["POST"])
 def ticket_transition(request, pk):
 	"""Move a ticket to a new state, honouring ``Ticket.TRANSITIONS``."""

@@ -44,5 +44,10 @@ compiletranslations: venv
 #	./$(VENV)/bin/python3.12 manage.py createsuperuser
 # mrommel + mKuAZ6v4ytxLPO37
 
-createapp: venv
-	./$(VENV)/bin/python3.12 manage.py startapp tracking
+# createapp: venv
+#	./$(VENV)/bin/python3.12 manage.py startapp tracking
+
+# testing
+
+ test: venv
+	./$(VENV)/bin/python3.12 manage.py test tracking

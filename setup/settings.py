@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 
 from pathlib import Path
 from django.utils.translation import gettext_lazy as _
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -86,6 +87,17 @@ TEMPLATES = [
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
+
+# Authentication
+# UI views require login; unauthenticated users are sent to LOGIN_URL.
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "dashboard"
+LOGOUT_REDIRECT_URL = "login"
+
+# Shared bearer token for the JSON REST API (see tracking/api.py). Set via env,
+# e.g. `TRACKING_API_TOKEN=... make run`. Empty means token auth is disabled and
+# the API only accepts authenticated sessions.
+TRACKING_API_TOKEN = os.environ.get("TRACKING_API_TOKEN", "")
 
 WSGI_APPLICATION = 'setup.wsgi.application'
 

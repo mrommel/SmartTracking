@@ -15,10 +15,10 @@
 				<div class="card-body">
 					<div class="d-flex justify-content-between align-items-start">
 						<h1 class="h4">{{ ticket.title }}</h1>
-						{% include "tracking/_state_badge.html" with ticket=ticket %}
+						{% state_badge ticket=ticket %}
 					</div>
 					<p class="text-muted mb-3">
-						<span class="badge text-bg-secondary">{{ ticket.project.key }}</span>
+						{% #badge %}{{ ticket.project.key }}{% /badge %}
 						· {{ ticket.get_type_display }}
 					</p>
 					<p style="white-space: pre-wrap">{{ ticket.description|default:"No description provided." }}</p>

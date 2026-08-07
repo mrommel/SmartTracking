@@ -1,6 +1,7 @@
 from django.shortcuts import render
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -9,6 +10,7 @@ from .forms import ProjectForm, TicketForm, TicketTransitionForm
 from .models import Project, Ticket
 
 
+@login_required
 def dashboard(request):
 	"""Landing page: high-level counts and the most recent activity."""
 	tickets = Ticket.objects.all()
@@ -48,6 +50,7 @@ def dashboard(request):
 	})
 
 
+@login_required
 def project_list(request):
 	"""Show all projects with their ticket counts."""
 	projects = Project.objects.annotate(ticket_count=Count("tickets")).order_by("key")
@@ -57,6 +60,7 @@ def project_list(request):
 	})
 
 
+@login_required
 def project_create(request):
 	"""Create a new project."""
 	if request.method == "POST":
@@ -74,6 +78,7 @@ def project_create(request):
 	})
 
 
+@login_required
 def ticket_list(request):
 	"""List tickets, optionally filtered by project (?project=KEY) and state."""
 	tickets = Ticket.objects.select_related("project", "assignee")
@@ -96,6 +101,7 @@ def ticket_list(request):
 	})
 
 
+@login_required
 def ticket_detail(request, pk):
 	"""Show a single ticket with its allowed state transitions."""
 	ticket = get_object_or_404(
@@ -108,6 +114,7 @@ def ticket_detail(request, pk):
 	})
 
 
+@login_required
 def ticket_create(request):
 	"""Create a new ticket."""
 	if request.method == "POST":
@@ -128,6 +135,7 @@ def ticket_create(request):
 	})
 
 
+@login_required
 def ticket_transition(request, pk):
 	"""Apply a state transition to a ticket if it is allowed."""
 	ticket = get_object_or_404(Ticket, pk=pk)
