@@ -13,6 +13,7 @@
 					<th style="width: 8rem">Key</th>
 					<th>Name</th>
 					<th class="text-end" style="width: 8rem">Tickets</th>
+					<th style="width: 10rem" class="text-end">Actions</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -23,12 +24,14 @@
 							<a href="{% url 'ticket_list' %}?project={{ project.key }}">{{ project.name }}</a>
 						</td>
 						<td class="text-end">{{ project.ticket_count }}</td>
+						<td class="text-end">
+							<a href="{% url 'flag_list' pk=project.pk %}" class="btn btn-sm btn-outline-secondary">Manage flags</a>
+						</td>
 					</tr>
 				{% empty %}
-					<tr><td colspan="3" class="text-muted">No projects yet. <a href="{% url 'project_create' %}">Create one.</a></td></tr>
+					<tr><td colspan="4" class="text-muted">No projects yet. <a href="{% url 'project_create' %}">Create one.</a></td></tr>
 				{% endfor %}
 			</tbody>
 		</table>
 	</div>
 {% endblock %}
-

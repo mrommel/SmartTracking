@@ -1,0 +1,53 @@
+{% extends "tracking/base.html" %}
+
+{% block content %}
+	<nav aria-label="breadcrumb">
+		<ol class="breadcrumb">
+			<li class="breadcrumb-item"><a href="{% url 'ticket_list' %}">Tickets</a></li>
+			<li class="breadcrumb-item"><a href="{% url 'ticket_list' %}?project={{ project.key }}">{{ project.key }}</a></li>
+			<li class="breadcrumb-item"><a href="{% url 'flag_list' pk=project.pk %}">Flags</a></li>
+			{% if flag %}
+				<li class="breadcrumb-item active">Edit "{{ flag.name }}"</li>
+			{% else %}
+				<li class="breadcrumb-item active">New flag</li>
+			{% endif %}
+		</ol>
+	</nav>
+
+	<div class="card" style="max-width: 500px">
+		<div class="card-body">
+			<h1 class="h4 mb-3">{% if flag %}Edit flag{% else %}New flag{% endif %}</h1>
+			<form method="post">
+				{% csrf_token %}
+				<div class="mb-3">
+					<label for="{{ form.name.id_for_label }}" class="form-label">{{ form.name.label }}</label>
+					{{ form.name }}
+					{% if form.name.errors %}
+						<div class="text-danger small">{{ form.name.errors }}</div>
+					{% endif %}
+				</div>
+				<div class="mb-3">
+					<label for="{{ form.color.id_for_label }}" class="form-label">{{ form.color.label }}</label>
+					{{ form.color }}
+					{% if form.color.errors %}
+						<div class="text-danger small">{{ form.color.errors }}</div>
+					{% endif %}
+				</div>
+				<div class="mb-3">
+					<label for="{{ form.description.id_for_label }}" class="form-label">{{ form.description.label }}</label>
+					{{ form.description }}
+					{% if form.description.errors %}
+						<div class="text-danger small">{{ form.description.errors }}</div>
+					{% endif %}
+				</div>
+				<div class="d-flex gap-2">
+					<button type="submit" class="btn btn-primary">
+						{% if flag %}Save changes{% else %}Create flag{% endif %}
+					</button>
+					<a href="{% url 'flag_list' pk=project.pk %}" class="btn btn-secondary">Cancel</a>
+				</div>
+			</form>
+		</div>
+	</div>
+{% endblock %}
+

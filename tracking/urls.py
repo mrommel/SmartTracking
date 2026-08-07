@@ -17,6 +17,12 @@ urlpatterns = [
     path('tickets/<int:pk>/', views.ticket_detail, name='ticket_detail'),
     path('tickets/<int:pk>/transition/', views.ticket_transition, name='ticket_transition'),
     path('tickets/<int:pk>/comment/', views.ticket_comment_create, name='ticket_comment_create'),
+    # Flag management (per-project).
+    path('projects/<int:pk>/flags/', views.flag_list, name='flag_list'),
+    path('flags/', views.flag_list, name='flag_list_all'),
+    path('projects/<int:pk>/flags/new/', views.flag_create, name='flag_create'),
+    path('flags/<int:pk>/edit/', views.flag_update, name='flag_update'),
+    path('flags/<int:pk>/delete/', views.flag_delete, name='flag_delete'),
 ]
 
 # JSON REST API for MCP integration (see tracking/api.py).

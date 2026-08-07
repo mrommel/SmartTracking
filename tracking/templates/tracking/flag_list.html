@@ -1,0 +1,79 @@
+{% extends "tracking/base.html" %}
+
+{% block content %}
+	<div class="d-flex justify-content-between align-items-center mb-3">
+		<h1 class="h3 mb-0">
+			{% if project %}Flags — {{ project.key }}{% else %}All flags{% endif %}
+		</h1>
+		<div class="d-flex gap-2">
+			{% if project %}
+				<a class="btn btn-outline-secondary" href="{% url 'ticket_list' %}?project={{ project.key }}">← Back to tickets</a>
+				<a class="btn btn-primary" href="{% url 'flag_create' pk=project.pk %}">+ New flag</a>
+			{% else %}
+				<a class="btn btn-outline-secondary" href="{% url 'ticket_list' %}">← Back to tickets</a>
+			{% endif %}
+		</div>
+	</div>
+
+	{% if not project %}
+		<!-- Show project selector when listing all flags -->
+		<div class="card mb-3">
+			<div class="card-body">
+				<p class="text-muted mb-0">Select a project to manage its flags, or browse all flags below.</p>
+				<div class="d-flex gap-2 mt-2">
+					{% for proj in projects %}
+						<a class="btn btn-sm btn-outline-primary" href="{% url 'flag_list' pk=proj.pk %}">{{ proj.key }}</a>
+					{% endfor %}
+				</div>
+			</div>
+		</div>
+	{% endif %}
+
+	<div class="card">
+		<table class="table table-hover mb-0 align-middle">
+			<thead>
+				<tr>
+					{% if not project %}
+						<th style="width: 8rem">Project</th>
+					{% endif %}
+					<th style="width: 12rem">Name</th>
+					<th style="width: 8rem">Color</th>
+					<th>Description</th>
+					<th style="width: 10rem" class="text-end">Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for flag in flags %}
+					<tr>
+						{% if not project %}
+							<td>{% #badge %}{{ flag.project.key }}{% /badge %}</td>
+						{% endif %}
+						<td>
+							<span class="badge bg-{{ flag.color }} me-1">{{ flag.name }}</span>
+						</td>
+						<td>
+							{% #badge %}{{ flag.color }}{% /badge %}
+						</td>
+						<td class="text-muted">{{ flag.description|default:"—" }}</td>
+						<td class="text-end">
+							<div class="d-flex gap-2 justify-content-end">
+								<a href="{% url 'flag_update' pk=flag.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+								<a href="{% url 'flag_delete' pk=flag.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+							</div>
+						</td>
+					</tr>
+				{% empty %}
+					<tr>
+						<td colspan="{% if not project %}5{% else %}4{% endif %}" class="text-muted text-center py-4">
+							{% if project %}
+								No flags yet. <a href="{% url 'flag_create' pk=project.pk %}">Create one.</a>
+							{% else %}
+								No flags found.
+							{% endif %}
+						</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+{% endblock %}

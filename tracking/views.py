@@ -6,7 +6,7 @@ from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 
-from .forms import CommentForm, ProjectForm, TicketForm, TicketTransitionForm
+from .forms import CommentForm, FlagDeleteForm, FlagForm, ProjectForm, TicketForm, TicketTransitionForm
 from .models import Comment, Component, Flag, Project, Ticket
 
 
@@ -188,3 +188,94 @@ def ticket_comment_create(request, pk):
 			messages.success(request, "Comment added.")
 			return redirect("ticket_detail", pk=ticket.pk)
 	return redirect("ticket_detail", pk=ticket.pk)
+
+
+@login_required
+def flag_list(request, pk=None):
+	"""List and manage flags for a project."""
+	if pk is not None:
+		project = get_object_or_404(Project, pk=pk)
+	else:
+		project_key = request.GET.get("project")
+		if project_key:
+			project = get_object_or_404(Project, key=project_key.upper())
+		else:
+			# No project specified — show all flags across all projects
+			return render(request, "tracking/flag_list.html", {
+				"title": "Flags",
+				"project": None,
+				"flags": Flag.objects.all().order_by("project__key", "name"),
+				"projects": Project.objects.all(),
+			})
+	return render(request, "tracking/flag_list.html", {
+		"title": f"Flags — {project.key}",
+		"project": project,
+		"flags": project.flags.all().order_by("name"),
+	})
+
+
+@login_required
+def flag_create(request, pk):
+	"""Create a new flag for a project."""
+	project = get_object_or_404(Project, pk=pk)
+	if request.method == "POST":
+		form = FlagForm(request.POST, project=project)
+		if form.is_valid():
+			flag = form.save(commit=False)
+			flag.project = project
+			flag.save()
+			messages.success(request, f"Flag '{flag.name}' created.")
+			return redirect("flag_list", pk=project.pk)
+	else:
+		form = FlagForm(project=project)
+
+	return render(request, "tracking/flag_form.html", {
+		"title": f"New flag — {project.key}",
+		"form": form,
+		"project": project,
+	})
+
+
+@login_required
+def flag_update(request, pk):
+	"""Edit an existing flag."""
+	flag = get_object_or_404(Flag, pk=pk)
+	if request.method == "POST":
+		form = FlagForm(request.POST, instance=flag, project=flag.project)
+		if form.is_valid():
+			flag = form.save()
+			messages.success(request, f"Flag '{flag.name}' updated.")
+			return redirect("flag_list", pk=flag.project.pk)
+	else:
+		form = FlagForm(instance=flag, project=flag.project)
+
+	return render(request, "tracking/flag_form.html", {
+		"title": f"Edit flag — {flag.project.key}",
+		"form": form,
+		"project": flag.project,
+		"flag": flag,
+	})
+
+
+@login_required
+def flag_delete(request, pk):
+	"""Delete a flag."""
+	flag = get_object_or_404(Flag, pk=pk)
+	project = flag.project
+	if request.method == "POST":
+		form = FlagDeleteForm(request.POST, project=project)
+		if form.is_valid():
+			selected_flag = form.cleaned_data["flag"]
+			name = selected_flag.name
+			selected_flag.delete()
+			messages.success(request, f"Flag '{name}' deleted.")
+			return redirect("flag_list", pk=project.pk)
+	else:
+		form = FlagDeleteForm(project=project)
+
+	return render(request, "tracking/flag_delete.html", {
+		"title": f"Delete flag — {project.key}",
+		"form": form,
+		"project": project,
+		"flag": flag,
+	})

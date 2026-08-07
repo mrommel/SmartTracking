@@ -3,7 +3,12 @@
 {% block content %}
 	<div class="d-flex justify-content-between align-items-center mb-3">
 		<h1 class="h3 mb-0">Tickets</h1>
-		<a class="btn btn-primary" href="{% url 'ticket_create' %}">+ New ticket</a>
+		<div class="d-flex gap-2">
+			{% if current_project %}
+				<a class="btn btn-outline-secondary" href="{% url 'flag_list_all' %}?project={{ current_project }}">Manage flags</a>
+			{% endif %}
+			<a class="btn btn-primary" href="{% url 'ticket_create' %}">+ New ticket</a>
+		</div>
 	</div>
 
 	<form method="get" class="row g-2 mb-3">
