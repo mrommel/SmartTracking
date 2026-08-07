@@ -13,3 +13,10 @@ urlpatterns = [
     path('tickets/<int:pk>/', views.ticket_detail, name='ticket_detail'),
     path('tickets/<int:pk>/transition/', views.ticket_transition, name='ticket_transition'),
 ]
+
+# JSON REST API for MCP integration (see tracking/api.py).
+from django.urls import include  # noqa: E402
+
+urlpatterns += [
+    path('api/', include('tracking.api')),
+]

@@ -1,6 +1,6 @@
 # SmartTracking — AI Agent Guide
 
-Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` project. SQLite dev DB, server-rendered Bootstrap 5 templates. No JS framework, no REST API.
+Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` project. SQLite dev DB, server-rendered Bootstrap 5 templates. No JS framework. A plain-Django JSON REST API (no DRF) lives in `tracking/api.py`, mounted at `/tracking/api/` for MCP integration.
 
 ## Architecture
 - `setup/` is the Django project (settings, root URLconf, WSGI/ASGI). `setup/urls.py` mounts everything under `tracking/` and redirects `/` → `/tracking/dashboard`.
@@ -31,4 +31,9 @@ Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` pro
 - `django-autocomplete-light` (`dal`, `dal_select2`) powers admin `autocomplete_fields` (see `tracking/admin.py`); also `crispy_forms` + `crispy_bootstrap5` (pack = `bootstrap5`), `django_extensions`, `django_admin_inline_paginator`.
 - `tracking/tests.py` is empty — there is no test suite yet; run tests with `./.venv/bin/python3.12 manage.py test`.
 - Settings are dev-only (`DEBUG=True`, hardcoded `SECRET_KEY`, console email backend). Don't rely on production config.
+
+## REST API (`tracking/api.py`, `/tracking/api/`)
+- Plain-Django JSON views (no DRF), function-based, CSRF-exempt, own `urlpatterns` `include()`d from `tracking/urls.py`. URL names are `api_`-prefixed.
+- Endpoints: `GET /api/meta/` (enums + transition graph for discovery), `GET|POST /api/projects/`, `GET /api/projects/<key>/`, `GET|POST /api/tickets/` (filter `?project=&state=`), `GET|PATCH /api/tickets/<pk>/`, `POST /api/tickets/<pk>/transition/`.
+- State changes go **only** through `/transition/`, which reuses `ticket.can_transition_to()` (returns 409 + `allowed_transitions` on illegal moves); `PATCH` rejects a `state` key. Mirror the HTML views' state-machine discipline for any new endpoint.
 
