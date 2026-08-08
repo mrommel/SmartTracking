@@ -193,6 +193,36 @@ def list_components(project: str) -> Any:
 	component names before setting them on a ticket via `update_ticket`."""
 	return _request("GET", "/components/", params={"project": project})
 
+
+@mcp.tool()
+def create_component(
+	project: str,
+	name: str,
+	description: str = "",
+) -> Any:
+	"""Create a component for a project. Returns status 409 if the name already
+	exists in that project."""
+	return _request(
+		"POST", "/components/",
+		json={"project": project, "name": name, "description": description},
+	)
+
+
+@mcp.tool()
+def create_flag(
+	project: str,
+	name: str,
+	color: str = "secondary",
+	description: str = "",
+) -> Any:
+	"""Create a flag for a project. Returns status 409 if the name already
+	exists in that project. `color` is a Bootstrap badge color (default
+	"secondary")."""
+	return _request(
+		"POST", "/flags/",
+		json={"project": project, "name": name, "color": color, "description": description},
+	)
+
 if __name__ == "__main__":
 	_logger.info("Starting SmartTracking MCP server on %s:%d", MCP_HOST, MCP_PORT)
 	_logger.info("Django API base: %s", API)
