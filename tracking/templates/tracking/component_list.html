@@ -1,0 +1,75 @@
+{% extends "tracking/base.html" %}
+
+{% block content %}
+	<div class="d-flex justify-content-between align-items-center mb-3">
+		<h1 class="h3 mb-0">
+			{% if project %}Components — {{ project.key }}{% else %}All components{% endif %}
+		</h1>
+		<div class="d-flex gap-2">
+			{% if project %}
+				<a class="btn btn-outline-secondary" href="{% url 'ticket_list' %}?project={{ project.key }}">← Back to tickets</a>
+				<a class="btn btn-primary" href="{% url 'component_create' pk=project.pk %}">+ New component</a>
+			{% else %}
+				<a class="btn btn-outline-secondary" href="{% url 'ticket_list' %}">← Back to tickets</a>
+			{% endif %}
+		</div>
+	</div>
+
+	{% if not project %}
+		<!-- Show project selector when listing all components -->
+		<div class="card mb-3">
+			<div class="card-body">
+				<p class="text-muted mb-0">Select a project to manage its components, or browse all components below.</p>
+				<div class="d-flex gap-2 mt-2">
+					{% for proj in projects %}
+						<a class="btn btn-sm btn-outline-primary" href="{% url 'component_list' pk=proj.pk %}">{{ proj.key }}</a>
+					{% endfor %}
+				</div>
+			</div>
+		</div>
+	{% endif %}
+
+	<div class="card">
+		<table class="table table-hover mb-0 align-middle">
+			<thead>
+				<tr>
+					{% if not project %}
+						<th style="width: 8rem">Project</th>
+					{% endif %}
+					<th style="width: 12rem">Name</th>
+					<th>Description</th>
+					<th style="width: 10rem" class="text-end">Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for component in components %}
+					<tr>
+						{% if not project %}
+							<td>{% #badge %}{{ component.project.key }}{% /badge %}</td>
+						{% endif %}
+						<td>
+							{% #badge %}{{ component.name }}{% /badge %}
+						</td>
+						<td class="text-muted">{{ component.description|default:"—" }}</td>
+						<td class="text-end">
+							<div class="d-flex gap-2 justify-content-end">
+								<a href="{% url 'component_update' pk=component.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+								<a href="{% url 'component_delete' pk=component.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+							</div>
+						</td>
+					</tr>
+				{% empty %}
+					<tr>
+						<td colspan="{% if not project %}4{% else %}3{% endif %}" class="text-muted text-center py-4">
+							{% if project %}
+								No components yet. <a href="{% url 'component_create' pk=project.pk %}">Create one.</a>
+							{% else %}
+								No components found.
+							{% endif %}
+						</td>
+					</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+{% endblock %}

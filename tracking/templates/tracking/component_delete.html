@@ -1,0 +1,29 @@
+{% extends "tracking/base.html" %}
+
+{% block content %}
+		<nav aria-label="breadcrumb">
+			<ol class="breadcrumb">
+				<li class="breadcrumb-item"><a href="{% url 'ticket_list' %}">Tickets</a></li>
+				<li class="breadcrumb-item"><a href="{% url 'ticket_list' %}?project={{ project.key }}">{{ project.key }}</a></li>
+				<li class="breadcrumb-item"><a href="{% url 'component_list' pk=project.pk %}">Components</a></li>
+				<li class="breadcrumb-item active">Delete "{{ component.name }}"</li>
+			</ol>
+		</nav>
+
+		<div class="card" style="max-width: 500px">
+			<div class="card-body">
+				<h1 class="h4 mb-3">Delete component</h1>
+				<p class="mb-3">
+					Are you sure you want to delete the component <strong>"{{ component.name }}"</strong>?
+					This action cannot be undone. Tickets with this component will no longer have it assigned.
+				</p>
+				<form method="post">
+					{% csrf_token %}
+					<div class="d-flex gap-2">
+						<button type="submit" class="btn btn-danger">Delete component</button>
+						<a href="{% url 'component_list' pk=project.pk %}" class="btn btn-secondary">Cancel</a>
+				</div>
+			</form>
+		</div>
+	</div>
+{% endblock %}
