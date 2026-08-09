@@ -5,7 +5,7 @@ from django.shortcuts import render
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -87,6 +87,12 @@ def ticket_list(request):
 	"""List tickets, optionally filtered by project, state, component, and label."""
 	tickets = Ticket.objects.select_related("project", "assignee")
 
+	query = request.GET.get("q")
+	if query:
+		tickets = tickets.filter(
+			Q(title__icontains=query) | Q(description__icontains=query)
+		)
+
 	project_key = request.GET.get("project")
 	if project_key:
 		tickets = tickets.filter(project__key=project_key)
@@ -112,6 +118,7 @@ def ticket_list(request):
 		"current_state": state or "",
 		"current_component": component or "",
 		"current_label": label or "",
+		"current_query": query or "",
 		"components": Component.objects.all().order_by("name"),
 		"labels": Label.objects.all().order_by("name"),
 	})

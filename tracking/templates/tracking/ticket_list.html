@@ -12,6 +12,9 @@
 	</div>
 
 	<form method="get" class="row g-2 mb-3">
+		<div class="col">
+			<input type="text" name="q" class="form-control" placeholder="Search title or description..." value="{{ current_query }}">
+		</div>
 		<div class="col-auto">
 			<select name="project" class="form-select" onchange="this.form.submit()">
 				<option value="">All projects</option>
