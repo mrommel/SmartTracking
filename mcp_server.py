@@ -126,10 +126,12 @@ def create_ticket(
 	title: str,
 	type: str = "task",
 	priority: int = 2,
+	estimation: Optional[int] = None,
 	description: str = "",
 ) -> Any:
 	"""Create a ticket in a project. `type` is one of task/bug/story/epic;
-	`priority` is 1..4 (low..critical). See `get_meta` for exact values."""
+	`priority` is 1..4 (low..critical). `estimation` is an optional integer.
+	See `get_meta` for exact values."""
 	return _request(
 		"POST", "/tickets/",
 		json={
@@ -137,6 +139,7 @@ def create_ticket(
 			"title": title,
 			"type": type,
 			"priority": priority,
+			"estimation": estimation,
 			"description": description,
 		},
 	)
@@ -148,6 +151,7 @@ def update_ticket(
 	title: Optional[str] = None,
 	description: Optional[str] = None,
 	type: Optional[str] = None,
+	estimation: Optional[int] = None,
 	priority: Optional[int] = None,
 	labels: Optional[list[str]] = None,
 	components: Optional[list[str]] = None,
@@ -162,6 +166,7 @@ def update_ticket(
 			"title": title,
 			"description": description,
 			"type": type,
+			"estimation": estimation,
 			"priority": priority,
 			"labels": labels,
 			"components": components,

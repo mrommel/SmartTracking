@@ -188,9 +188,9 @@ def ticket_edit(request, pk):
 	if request.method == "POST":
 		form = TicketForm(request.POST)
 		if form.is_valid():
-			for field in ["title", "description", "type", "priority", "assignee"]:
+			for field in ["title", "description", "type", "estimation", "priority", "assignee"]:
 				setattr(ticket, field, form.cleaned_data[field])
-			ticket.save(update_fields=["title", "description", "type", "priority", "assignee", "updated_at"])
+			ticket.save(update_fields=["title", "description", "type", "estimation", "priority", "assignee", "updated_at"])
 			ticket.components.set(form.cleaned_data.get("components", []))
 			ticket.labels.set(form.cleaned_data.get("labels", []))
 			messages.success(request, "Ticket updated.")

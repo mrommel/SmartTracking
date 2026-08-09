@@ -81,6 +81,7 @@ class McpToolTests(TestCase):
 				"title": "New ticket",
 				"type": "task",
 				"priority": 2,
+				"estimation": None,
 				"description": "",
 			},
 		)
@@ -94,6 +95,7 @@ class McpToolTests(TestCase):
 				"title": "Bug report",
 				"type": "bug",
 				"priority": 4,
+				"estimation": None,
 				"description": "Details",
 			},
 		)

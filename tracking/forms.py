@@ -32,6 +32,7 @@ class TicketForm(forms.ModelForm):
 			"title",
 			"description",
 			"type",
+			"estimation",
 			"priority",
 			"assignee",
 			"components",

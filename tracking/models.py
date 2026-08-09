@@ -114,6 +114,9 @@ class Ticket(models.Model):
 	priority = models.IntegerField(
 		_("priority"), choices=Priority.choices, default=Priority.MEDIUM
 	)
+	estimation = models.IntegerField(
+		_("estimation"), null=True, blank=True, default=None
+	)
 	reporter = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
 		on_delete=models.SET_NULL,

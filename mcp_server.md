@@ -45,8 +45,8 @@ Configuration (all optional, read from the environment / `.env`):
 | `create_project`    | `POST /tracking/api/projects/`                 | `key`, `name`, `description?` |
 | `list_tickets`      | `GET /tracking/api/tickets/`                   | filter by `project` / `state` |
 | `get_ticket`        | `GET /tracking/api/tickets/<id>/`              | includes `allowed_transitions` |
-| `create_ticket`     | `POST /tracking/api/tickets/`                  | `project`, `title`, `type?`, `priority?`, `description?` |
-| `update_ticket`     | `PATCH /tracking/api/tickets/<id>/`            | fields only; **not** `state` |
+| `create_ticket`     | `POST /tracking/api/tickets/`                  | `project`, `title`, `type?`, `priority?`, `estimation?`, `description?` |
+| `update_ticket`     | `PATCH /tracking/api/tickets/<id>/`            | fields only (incl. `estimation`); **not** `state` |
 | `transition_ticket` | `POST /tracking/api/tickets/<id>/transition/`  | `state`; 409 + `allowed_transitions` if illegal |
 
 State changes go **only** through `transition_ticket` (mirroring the API);

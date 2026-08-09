@@ -76,6 +76,7 @@
 					<th style="width: 6rem">Project</th>
 					<th style="width: 7rem">Type</th>
 					<th style="width: 9rem">State</th>
+					<th style="width: 6rem">Estimation</th>
 					<th style="width: 7rem">Priority</th>
 					<th style="width: 10rem">Assignee</th>
 				</tr>
@@ -87,11 +88,12 @@
 						<td>{% #badge %}{{ ticket.project.key }}{% /badge %}</td>
 						<td>{{ ticket.get_type_display }}</td>
 						<td>{% state_badge ticket=ticket %}</td>
+						<td>{{ ticket.estimation|default:"—" }}</td>
 						<td>{{ ticket.get_priority_display }}</td>
 						<td>{{ ticket.assignee|default:"—" }}</td>
 					</tr>
 				{% empty %}
-					<tr><td colspan="6" class="text-muted">No tickets found.</td></tr>
+					<tr><td colspan="7" class="text-muted">No tickets found.</td></tr>
 				{% endfor %}
 			</tbody>
 		</table>

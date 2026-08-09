@@ -34,6 +34,7 @@
 				<div class="card-body">
 					<h2 class="h6 text-muted">Details</h2>
 					<dl class="row mb-0">
+						<dt class="col-5">Estimation</dt><dd class="col-7">{{ ticket.estimation|default:"—" }}</dd>
 						<dt class="col-5">Priority</dt><dd class="col-7">{{ ticket.get_priority_display }}</dd>
 						<dt class="col-5">Reporter</dt><dd class="col-7">{{ ticket.reporter|default:"—" }}</dd>
 						<dt class="col-5">Assignee</dt><dd class="col-7">{{ ticket.assignee|default:"—" }}</dd>

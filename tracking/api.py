@@ -83,6 +83,7 @@ def serialize_ticket(ticket):
 		"state_display": ticket.get_state_display(),
 		"priority": ticket.priority,
 		"priority_display": ticket.get_priority_display(),
+		"estimation": ticket.estimation,
 		"reporter": str(ticket.reporter) if ticket.reporter else None,
 		"assignee": str(ticket.assignee) if ticket.assignee else None,
 		"components": [
@@ -278,6 +279,7 @@ def ticket_collection(request):
 		description=data.get("description", ""),
 		type=ticket_type,
 		priority=priority,
+		estimation=data.get("estimation"),
 	)
 	if request.user.is_authenticated:
 		ticket.reporter = request.user
@@ -327,7 +329,7 @@ def ticket_detail(request, pk):
 			"Use the /transition/ endpoint to change 'state'.", status=400
 		)
 
-	updatable = {"title", "description", "type", "priority", "assignee"}
+	updatable = {"title", "description", "type", "estimation", "priority", "assignee"}
 	if "assignee" in data:
 		assignee_value = data["assignee"]
 		if assignee_value is not None and assignee_value != "":
