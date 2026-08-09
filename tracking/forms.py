@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Comment, Component, Label, Project, Ticket
+from .models import Attachment, Comment, Component, Label, Project, Ticket
 
 
 class ProjectForm(forms.ModelForm):
@@ -127,3 +127,22 @@ class LabelDeleteForm(forms.Form):
 		super().__init__(*args, **kwargs)
 		if project is not None:
 			self.fields["label"].queryset = project.labels.all()
+
+
+class AttachmentForm(forms.ModelForm):
+	"""Upload an attachment to a ticket."""
+
+	name = forms.CharField(required=False, widget=forms.HiddenInput())
+
+	def clean(self):
+		cleaned = super().clean()
+		file = self.files.get("file")
+		name = cleaned.get("name")
+		if file and not name:
+			cleaned["name"] = file.name
+		return cleaned
+
+	class Meta:
+		model = Attachment
+		fields = ["file", "name"]
+		widgets = {"file": forms.ClearableFileInput(attrs={"class": "form-control"})}

@@ -223,6 +223,51 @@ def create_label(
 		json={"project": project, "name": name, "color": color, "description": description},
 	)
 
+
+def _upload_file(ticket_id: int, file_path: str) -> Any:
+	"""Upload a file to a ticket using multipart form data."""
+	import os as _os
+	with _client() as client:
+		try:
+			with open(file_path, "rb") as f:
+				resp = client.post(
+					f"/attachments/",
+					files={"file": (os.path.basename(file_path), f)},
+					params={"ticket": ticket_id},
+				)
+		except FileNotFoundError:
+			return {"status": 400, "error": f"File not found: {file_path}"}
+	try:
+		body = resp.json()
+	except ValueError:
+		body = {"error": resp.text}
+	return {"status": resp.status_code, **body}
+
+
+@mcp.tool()
+def list_attachments(ticket_id: int) -> Any:
+	"""List all attachments for a ticket."""
+	return _request("GET", "/attachments/", params={"ticket": ticket_id})
+
+
+@mcp.tool()
+def get_attachment(attachment_id: int) -> Any:
+	"""Get a single attachment by numeric id."""
+	return _request("GET", f"/attachments/{attachment_id}/")
+
+
+@mcp.tool()
+def delete_attachment(attachment_id: int) -> Any:
+	"""Delete an attachment. The file is permanently removed."""
+	return _request("DELETE", f"/attachments/{attachment_id}/")
+
+
+@mcp.tool()
+def upload_attachment(ticket_id: int, file_path: str) -> Any:
+	"""Upload a file to a ticket. The file must exist on the local filesystem.
+	Allowed extensions: png, jpg, jpeg, pdf, txt, log, json."""
+	return _upload_file(ticket_id, file_path)
+
 if __name__ == "__main__":
 	_logger.info("Starting SmartTracking MCP server on %s:%d", MCP_HOST, MCP_PORT)
 	_logger.info("Django API base: %s", API)

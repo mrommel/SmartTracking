@@ -22,7 +22,7 @@ from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import Comment, Component, Label, Project, Ticket
+from .models import Attachment, Comment, Component, Label, Project, Ticket
 
 
 # --- Authentication --------------------------------------------------------
@@ -130,6 +130,18 @@ def serialize_label(label):
 		"color": label.color,
 		"description": label.description,
 		"created_at": label.created_at.isoformat(),
+	}
+
+
+def serialize_attachment(attachment):
+	from django.conf import settings
+	return {
+		"id": attachment.pk,
+		"ticket": attachment.ticket.pk,
+		"name": attachment.name,
+		"mime_type": attachment.mime_type,
+		"url": f"{settings.MEDIA_URL}attachments/{attachment.ticket.project.key}/{attachment.ticket.pk}/{attachment.file_extension}/{attachment.name}",
+		"created_at": attachment.created_at.isoformat(),
 	}
 
 
@@ -487,6 +499,62 @@ def label_collection(request):
 	return JsonResponse(serialize_label(label), status=201)
 
 
+# --- Attachments -----------------------------------------------------------
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET", "POST"])
+def attachment_collection(request):
+	"""List or upload attachments on a ticket."""
+	ticket_pk = request.GET.get("ticket")
+	if not ticket_pk:
+		return _error("Query parameter 'ticket' is required.")
+	ticket = get_object_or_404(Ticket, pk=ticket_pk)
+
+	if request.method == "GET":
+		attachments = ticket.attachments.all()
+		return JsonResponse(
+			{"attachments": [serialize_attachment(a) for a in attachments]}
+		)
+
+	# POST -> upload
+	file = request.FILES.get("file")
+	if not file:
+		return _error("Field 'file' is required.")
+
+	allowed_exts = {"png", "jpg", "jpeg", "pdf", "txt", "log", "json"}
+	name_lower = file.name.lower()
+	ext = name_lower.rsplit(".", 1)[-1] if "." in name_lower else ""
+	if ext not in allowed_exts:
+		return _error(f"File type '.{ext}' is not allowed. Allowed: {', '.join(sorted(allowed_exts))}")
+
+	mime_map = {
+		"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+		"pdf": "application/pdf", "txt": "text/plain", "log": "text/plain",
+		"json": "application/json",
+	}
+	attachment = Attachment.objects.create(
+		ticket=ticket,
+		name=file.name,
+		file=file,
+		mime_type=mime_map.get(ext, "application/octet-stream"),
+	)
+	return JsonResponse(serialize_attachment(attachment), status=201)
+
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET", "DELETE"])
+def attachment_detail(request, pk):
+	attachment = get_object_or_404(Attachment, pk=pk)
+	if request.method == "GET":
+		return JsonResponse(serialize_attachment(attachment))
+	# DELETE -> remove attachment
+	attachment.file.delete()
+	attachment.delete()
+	return JsonResponse({"status": "deleted"})
+
+
 # --- URL patterns (included from tracking/urls.py) -------------------------
 
 urlpatterns = [
@@ -499,4 +567,6 @@ urlpatterns = [
 	path("comments/", comment_collection, name="api_comment_collection"),
 	path("components/", component_collection, name="api_component_collection"),
 	path("labels/", label_collection, name="api_label_collection"),
+	path("attachments/", attachment_collection, name="api_attachment_collection"),
+	path("attachments/<int:pk>/", attachment_detail, name="api_attachment_detail"),
 ]

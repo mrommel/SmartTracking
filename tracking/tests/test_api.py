@@ -3,10 +3,11 @@
 import json
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from tracking.models import Label, Project, Ticket
+from tracking.models import Attachment, Label, Project, Ticket
 
 User = get_user_model()
 
@@ -238,3 +239,150 @@ class ApiEndpointTests(TestCase):
 		self.assertEqual(len(body["labels"]), 0)
 		ticket.refresh_from_db()
 		self.assertEqual(ticket.labels.count(), 0)
+
+	# --- Attachments -----------------------------------------------------------
+
+	def _upload_file(self, url, file, params=None):
+		return self.client.post(
+			url,
+			{"file": file, **(params or {})},
+			**self._auth(),
+		)
+
+	def _get(self, url):
+		return self.client.get(url, **self._auth())
+
+	def test_create_ticket_for_attachments(self):
+		response = self._post(
+			reverse("api_ticket_collection"),
+			{"project": "SMT", "title": "ticket with attachments"},
+		)
+		self.assertEqual(response.status_code, 201)
+		return response.json()["id"]
+
+	def test_list_attachments_empty(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		response = self._get(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}"
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["attachments"], [])
+
+	def test_upload_png(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		img = SimpleUploadedFile("test.png", b"\x89PNG\r\n\x1a\n", content_type="image/png")
+		response = self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}",
+			img,
+		)
+		self.assertEqual(response.status_code, 201)
+		body = response.json()
+		self.assertEqual(body["name"], "test.png")
+		self.assertEqual(body["mime_type"], "image/png")
+		self.assertEqual(body["ticket"], ticket_id)
+
+	def test_upload_jpeg(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		img = SimpleUploadedFile("photo.jpg", b"\xff\xd8\xff", content_type="image/jpeg")
+		response = self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}",
+			img,
+		)
+		self.assertEqual(response.status_code, 201)
+		self.assertEqual(response.json()["mime_type"], "image/jpeg")
+
+	def test_upload_pdf(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		pdf = SimpleUploadedFile("doc.pdf", b"%PDF-1.4", content_type="application/pdf")
+		response = self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}",
+			pdf,
+		)
+		self.assertEqual(response.status_code, 201)
+		self.assertEqual(response.json()["mime_type"], "application/pdf")
+
+	def test_upload_txt(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		txt = SimpleUploadedFile("notes.txt", b"hello world", content_type="text/plain")
+		response = self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}",
+			txt,
+		)
+		self.assertEqual(response.status_code, 201)
+		self.assertEqual(response.json()["mime_type"], "text/plain")
+
+	def test_upload_log(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		log = SimpleUploadedFile("app.log", b"log entry", content_type="text/plain")
+		response = self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}",
+			log,
+		)
+		self.assertEqual(response.status_code, 201)
+		self.assertEqual(response.json()["mime_type"], "text/plain")
+
+	def test_upload_json(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		j = SimpleUploadedFile("data.json", b"{}", content_type="application/json")
+		response = self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}",
+			j,
+		)
+		self.assertEqual(response.status_code, 201)
+		self.assertEqual(response.json()["mime_type"], "application/json")
+
+	def test_upload_rejected_unknown_extension(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		zip = SimpleUploadedFile("test.zip", b"PK\x03\x04", content_type="application/zip")
+		response = self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}",
+			zip,
+		)
+		self.assertEqual(response.status_code, 400)
+		self.assertIn("error", response.json())
+
+	def test_list_attachments_with_files(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		img1 = SimpleUploadedFile("a.png", b"\x89PNG\r\n\x1a\n", content_type="image/png")
+		img2 = SimpleUploadedFile("b.png", b"\x89PNG\r\n\x1a\n", content_type="image/png")
+		self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}", img1
+		)
+		self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}", img2
+		)
+		response = self._get(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}"
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(len(response.json()["attachments"]), 2)
+
+	def test_get_single_attachment(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		img = SimpleUploadedFile("test.png", b"\x89PNG\r\n\x1a\n", content_type="image/png")
+		resp = self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}", img
+		)
+		attachment_id = resp.json()["id"]
+		response = self._get(reverse("api_attachment_detail", args=[attachment_id]))
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["name"], "test.png")
+
+	def test_delete_attachment(self):
+		ticket_id = self.test_create_ticket_for_attachments()
+		img = SimpleUploadedFile("test.png", b"\x89PNG\r\n\x1a\n", content_type="image/png")
+		resp = self._upload_file(
+			reverse("api_attachment_collection") + f"?ticket={ticket_id}", img
+		)
+		attachment_id = resp.json()["id"]
+		response = self.client.delete(
+			reverse("api_attachment_detail", args=[attachment_id]),
+			**self._auth(),
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["status"], "deleted")
+		self.assertEqual(Attachment.objects.filter(pk=attachment_id).count(), 0)
+
+	def test_list_attachments_requires_ticket_param(self):
+		response = self._get(reverse("api_attachment_collection"))
+		self.assertEqual(response.status_code, 400)

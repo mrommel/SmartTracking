@@ -17,6 +17,9 @@ urlpatterns = [
     path('tickets/<int:pk>/', views.ticket_detail, name='ticket_detail'),
     path('tickets/<int:pk>/transition/', views.ticket_transition, name='ticket_transition'),
     path('tickets/<int:pk>/comment/', views.ticket_comment_create, name='ticket_comment_create'),
+    path('tickets/<int:pk>/attach/', views.ticket_attachment_upload, name='ticket_attachment_upload'),
+    path('tickets/<int:pk>/media/<int:attachment_pk>/', views.ticket_attachment_serve, name='ticket_attachment_serve'),
+    path('tickets/attachments/<int:pk>/delete/', views.ticket_attachment_delete, name='ticket_attachment_delete'),
     # Label management (per-project).
     path('projects/<int:pk>/labels/', views.label_list, name='label_list'),
     path('labels/', views.label_list, name='label_list_all'),

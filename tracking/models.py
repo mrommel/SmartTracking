@@ -190,3 +190,79 @@ class Comment(models.Model):
 
 	def __str__(self):
 		return f"Comment on {self.ticket} by {self.author}"
+
+
+# Allowed file extensions and their MIME types.
+_ALLOWED_EXTENSIONS = {
+	"png": "image/png",
+	"jpg": "image/jpeg",
+	"jpeg": "image/jpeg",
+	"pdf": "application/pdf",
+	"txt": "text/plain",
+	"log": "text/plain",
+	"json": "application/json",
+}
+_ALLOWED_MIMES = set(_ALLOWED_EXTENSIONS.values())
+_MAX_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+def attachment_path(instance, filename):
+	ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+	return f"attachments/{instance.ticket.project.key}/{instance.ticket.pk}/{ext}/{filename}"
+
+
+class Attachment(models.Model):
+	"""A file attached to a ticket (images, PDFs, text files, etc.)."""
+
+	ticket = models.ForeignKey(
+		Ticket,
+		on_delete=models.CASCADE,
+		related_name="attachments",
+		verbose_name=_("ticket"),
+	)
+	name = models.CharField(_("name"), max_length=255)
+	file = models.FileField(
+		_("file"),
+		upload_to=attachment_path,
+	)
+	mime_type = models.CharField(_("mime type"), max_length=100, editable=False)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+
+	class Meta:
+		verbose_name = _("attachment")
+		verbose_name_plural = _("attachments")
+		ordering = ["-created_at"]
+
+	def __str__(self):
+		return f"{self.ticket} - {self.name}"
+
+	@property
+	def file_extension(self):
+		name, ext = self.name.rsplit(".", 1) if "." in self.name else (self.name, "")
+		return ext.lower()
+
+	@property
+	def is_image(self):
+		return self.mime_type.startswith("image/")
+
+	def clean(self):
+		# Extract file extension for validation
+		if self.name:
+			base, ext = self.name.rsplit(".", 1) if "." in self.name else (self.name, "")
+		elif hasattr(self.file, "name"):
+			base, ext = self.file.name.rsplit(".", 1) if "." in self.file.name else (self.file.name, "")
+		else:
+			ext = ""
+		ext = ext.lower()
+		if ext not in _ALLOWED_EXTENSIONS:
+			from django.core.exceptions import ValidationError
+			raise ValidationError(
+				_("File type '.%(ext)s' is not allowed. Allowed: %(allowed)s"),
+				params={"ext": ext, "allowed": ", ".join(sorted(_ALLOWED_EXTENSIONS.keys()))},
+			)
+		if self.mime_type and self.mime_type not in _ALLOWED_MIMES:
+			from django.core.exceptions import ValidationError
+			raise ValidationError(
+				_("MIME type '%(mime)s' is not allowed."),
+				params={"mime": self.mime_type},
+			)

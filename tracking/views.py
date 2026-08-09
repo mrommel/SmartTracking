@@ -1,3 +1,6 @@
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.http import HttpResponse
 from django.shortcuts import render
 
 from django.contrib import messages
@@ -5,9 +8,10 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.views.decorators.http import require_POST
 
-from .forms import CommentForm, LabelDeleteForm, LabelForm, ProjectForm, TicketForm, TicketTransitionForm
-from .models import Comment, Component, Label, Project, Ticket
+from .forms import AttachmentForm, CommentForm, LabelDeleteForm, LabelForm, ProjectForm, TicketForm, TicketTransitionForm
+from .models import Attachment, Comment, Component, Label, Project, Ticket
 
 
 @login_required
@@ -115,17 +119,19 @@ def ticket_list(request):
 
 @login_required
 def ticket_detail(request, pk):
-	"""Show a single ticket with its allowed state transitions and comments."""
+	"""Show a single ticket with its allowed state transitions, comments, and attachments."""
 	ticket = get_object_or_404(
 		Ticket.objects.select_related("project", "assignee", "reporter"), pk=pk
 	)
 	comments = ticket.comments.select_related("author").all()
+	attachments = ticket.attachments.all()
 	return render(request, "tracking/ticket_detail.html", {
 		"title": ticket.title,
 		"ticket": ticket,
 		"transition_form": TicketTransitionForm(ticket=ticket),
 		"comment_form": CommentForm(),
 		"comments": comments,
+		"attachments": attachments,
 	})
 
 
@@ -279,3 +285,45 @@ def label_delete(request, pk):
 		"project": project,
 		"label": label,
 	})
+
+
+@login_required
+def ticket_attachment_upload(request, pk):
+	ticket = get_object_or_404(Ticket, pk=pk)
+	if request.method == "POST":
+		form = AttachmentForm(request.POST, request.FILES)
+		if form.is_valid():
+			attachment = form.save(commit=False)
+			attachment.ticket = ticket
+			_, ext = attachment.name.rsplit(".", 1) if "." in attachment.name else (attachment.name, "")
+			attachment.mime_type = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
+				"pdf": "application/pdf", "txt": "text/plain", "log": "text/plain",
+				"json": "application/json"}.get(ext.lower(), "application/octet-stream")
+			attachment.save()
+			messages.success(request, "Attachment uploaded.")
+			return redirect("ticket_detail", pk=ticket.pk)
+	return redirect("ticket_detail", pk=ticket.pk)
+
+
+@login_required
+@require_POST
+def ticket_attachment_delete(request, pk):
+	attachment = get_object_or_404(Attachment, pk=pk)
+	ticket = attachment.ticket
+	attachment.file.delete()
+	attachment.delete()
+	messages.success(request, "Attachment deleted.")
+	return redirect("ticket_detail", pk=ticket.pk)
+
+
+@login_required
+def ticket_attachment_serve(request, pk, attachment_pk):
+	attachment = get_object_or_404(Attachment, pk=attachment_pk)
+	try:
+		with open(attachment.file.path, "rb") as f:
+			response = HttpResponse(f.read(), content_type=attachment.mime_type)
+		response["Content-Disposition"] = f'inline; filename="{attachment.name}"'
+		return response
+	except (FileNotFoundError, ValueError) as e:
+		messages.error(request, "Attachment file not found.")
+		return redirect("ticket_detail", pk=attachment.ticket.pk)

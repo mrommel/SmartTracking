@@ -29,4 +29,4 @@ urlpatterns = [
 	path('.well-known/appspecific/com.chrome.devtools.json', RedirectView.as_view(
         url='/static/com.chrome.devtools.json', permanent=True
     )),
-] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT) + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
