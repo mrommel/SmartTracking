@@ -149,12 +149,12 @@ def update_ticket(
 	description: Optional[str] = None,
 	type: Optional[str] = None,
 	priority: Optional[int] = None,
-	flags: Optional[list[str]] = None,
+	labels: Optional[list[str]] = None,
 	components: Optional[list[str]] = None,
 ) -> Any:
 	"""Partially update a ticket's fields. To change the state, use
 	`transition_ticket` instead (this endpoint rejects a 'state' key).
-	`flags` and `components` accept a list of flag/component names for the
+	`labels` and `components` accept a list of label/component names for the
 	project; unknown names are silently ignored."""
 	payload = {
 		k: v
@@ -163,7 +163,7 @@ def update_ticket(
 			"description": description,
 			"type": type,
 			"priority": priority,
-			"flags": flags,
+			"labels": labels,
 			"components": components,
 		}.items()
 		if v is not None
@@ -181,10 +181,10 @@ def transition_ticket(ticket_id: int, state: str) -> Any:
 
 
 @mcp.tool()
-def list_flags(project: str) -> Any:
-	"""List all flags defined for a project. Use this to learn valid flag
+def list_labels(project: str) -> Any:
+	"""List all labels defined for a project. Use this to learn valid label
 	names before setting them on a ticket via `update_ticket`."""
-	return _request("GET", "/flags/", params={"project": project})
+	return _request("GET", "/labels/", params={"project": project})
 
 
 @mcp.tool()
@@ -209,17 +209,17 @@ def create_component(
 
 
 @mcp.tool()
-def create_flag(
+def create_label(
 	project: str,
 	name: str,
 	color: str = "secondary",
 	description: str = "",
 ) -> Any:
-	"""Create a flag for a project. Returns status 409 if the name already
+	"""Create a label for a project. Returns status 409 if the name already
 	exists in that project. `color` is a Bootstrap badge color (default
 	"secondary")."""
 	return _request(
-		"POST", "/flags/",
+		"POST", "/labels/",
 		json={"project": project, "name": name, "color": color, "description": description},
 	)
 

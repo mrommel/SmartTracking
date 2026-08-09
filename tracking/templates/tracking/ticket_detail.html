@@ -39,9 +39,9 @@
 								{% #badge %}{{ component.name }}{% /badge %}
 							{% endfor %}
 						</dd>
-						<dt class="col-5">Flags</dt><dd class="col-7">
-							{% for flag in ticket.flags.all %}
-								<span class="badge bg-{{ flag.color }} me-1">{{ flag.name }}</span>
+						<dt class="col-5">Labels</dt><dd class="col-7">
+							{% for label in ticket.labels.all %}
+								<span class="badge bg-{{ label.color }} me-1">{{ label.name }}</span>
 							{% endfor %}
 						</dd>
 						<dt class="col-5">Created</dt><dd class="col-7">{{ ticket.created_at|naturaltime }}</dd>

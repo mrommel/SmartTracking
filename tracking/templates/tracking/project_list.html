@@ -25,7 +25,7 @@
 						</td>
 						<td class="text-end">{{ project.ticket_count }}</td>
 						<td class="text-end">
-							<a href="{% url 'flag_list' pk=project.pk %}" class="btn btn-sm btn-outline-secondary">Manage flags</a>
+							<a href="{% url 'label_list' pk=project.pk %}" class="btn btn-sm btn-outline-secondary">Manage labels</a>
 						</td>
 					</tr>
 				{% empty %}

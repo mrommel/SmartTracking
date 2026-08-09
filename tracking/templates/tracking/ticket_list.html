@@ -5,7 +5,7 @@
 		<h1 class="h3 mb-0">Tickets</h1>
 		<div class="d-flex gap-2">
 			{% if current_project %}
-				<a class="btn btn-outline-secondary" href="{% url 'flag_list_all' %}?project={{ current_project }}">Manage flags</a>
+				<a class="btn btn-outline-secondary" href="{% url 'label_list_all' %}?project={{ current_project }}">Manage labels</a>
 			{% endif %}
 			<a class="btn btn-primary" href="{% url 'ticket_create' %}">+ New ticket</a>
 		</div>
@@ -41,11 +41,11 @@
 			</select>
 		</div>
 		<div class="col-auto">
-			<select name="flag" class="form-select" onchange="this.form.submit()">
-				<option value="">All flags</option>
-				{% for flag in flags %}
-					<option value="{{ flag.name }}" {% if flag.name == current_flag %}selected{% endif %}>
-						{{ flag.name }}
+			<select name="label" class="form-select" onchange="this.form.submit()">
+				<option value="">All labels</option>
+				{% for label in labels %}
+					<option value="{{ label.name }}" {% if label.name == current_label %}selected{% endif %}>
+						{{ label.name }}
 					</option>
 				{% endfor %}
 			</select>

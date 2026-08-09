@@ -3,12 +3,12 @@
 {% block content %}
 	<div class="d-flex justify-content-between align-items-center mb-3">
 		<h1 class="h3 mb-0">
-			{% if project %}Flags — {{ project.key }}{% else %}All flags{% endif %}
+			{% if project %}Labels — {{ project.key }}{% else %}All labels{% endif %}
 		</h1>
 		<div class="d-flex gap-2">
 			{% if project %}
 				<a class="btn btn-outline-secondary" href="{% url 'ticket_list' %}?project={{ project.key }}">← Back to tickets</a>
-				<a class="btn btn-primary" href="{% url 'flag_create' pk=project.pk %}">+ New flag</a>
+				<a class="btn btn-primary" href="{% url 'label_create' pk=project.pk %}">+ New label</a>
 			{% else %}
 				<a class="btn btn-outline-secondary" href="{% url 'ticket_list' %}">← Back to tickets</a>
 			{% endif %}
@@ -16,13 +16,13 @@
 	</div>
 
 	{% if not project %}
-		<!-- Show project selector when listing all flags -->
+		<!-- Show project selector when listing all labels -->
 		<div class="card mb-3">
 			<div class="card-body">
-				<p class="text-muted mb-0">Select a project to manage its flags, or browse all flags below.</p>
+				<p class="text-muted mb-0">Select a project to manage its labels, or browse all labels below.</p>
 				<div class="d-flex gap-2 mt-2">
 					{% for proj in projects %}
-						<a class="btn btn-sm btn-outline-primary" href="{% url 'flag_list' pk=proj.pk %}">{{ proj.key }}</a>
+						<a class="btn btn-sm btn-outline-primary" href="{% url 'label_list' pk=proj.pk %}">{{ proj.key }}</a>
 					{% endfor %}
 				</div>
 			</div>
@@ -43,22 +43,22 @@
 				</tr>
 			</thead>
 			<tbody>
-				{% for flag in flags %}
+				{% for label in labels %}
 					<tr>
 						{% if not project %}
-							<td>{% #badge %}{{ flag.project.key }}{% /badge %}</td>
+							<td>{% #badge %}{{ label.project.key }}{% /badge %}</td>
 						{% endif %}
 						<td>
-							<span class="badge bg-{{ flag.color }} me-1">{{ flag.name }}</span>
+							<span class="badge bg-{{ label.color }} me-1">{{ label.name }}</span>
 						</td>
 						<td>
-							{% #badge %}{{ flag.color }}{% /badge %}
+							{% #badge %}{{ label.color }}{% /badge %}
 						</td>
-						<td class="text-muted">{{ flag.description|default:"—" }}</td>
+						<td class="text-muted">{{ label.description|default:"—" }}</td>
 						<td class="text-end">
 							<div class="d-flex gap-2 justify-content-end">
-								<a href="{% url 'flag_update' pk=flag.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
-								<a href="{% url 'flag_delete' pk=flag.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+								<a href="{% url 'label_update' pk=label.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
+								<a href="{% url 'label_delete' pk=label.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
 							</div>
 						</td>
 					</tr>
@@ -66,9 +66,9 @@
 					<tr>
 						<td colspan="{% if not project %}5{% else %}4{% endif %}" class="text-muted text-center py-4">
 							{% if project %}
-								No flags yet. <a href="{% url 'flag_create' pk=project.pk %}">Create one.</a>
+								No labels yet. <a href="{% url 'label_create' pk=project.pk %}">Create one.</a>
 							{% else %}
-								No flags found.
+								No labels found.
 							{% endif %}
 						</td>
 					</tr>

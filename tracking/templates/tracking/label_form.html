@@ -5,18 +5,18 @@
 		<ol class="breadcrumb">
 			<li class="breadcrumb-item"><a href="{% url 'ticket_list' %}">Tickets</a></li>
 			<li class="breadcrumb-item"><a href="{% url 'ticket_list' %}?project={{ project.key }}">{{ project.key }}</a></li>
-			<li class="breadcrumb-item"><a href="{% url 'flag_list' pk=project.pk %}">Flags</a></li>
-			{% if flag %}
-				<li class="breadcrumb-item active">Edit "{{ flag.name }}"</li>
+			<li class="breadcrumb-item"><a href="{% url 'label_list' pk=project.pk %}">Labels</a></li>
+			{% if label %}
+				<li class="breadcrumb-item active">Edit "{{ label.name }}"</li>
 			{% else %}
-				<li class="breadcrumb-item active">New flag</li>
+				<li class="breadcrumb-item active">New label</li>
 			{% endif %}
 		</ol>
 	</nav>
 
 	<div class="card" style="max-width: 500px">
 		<div class="card-body">
-			<h1 class="h4 mb-3">{% if flag %}Edit flag{% else %}New flag{% endif %}</h1>
+			<h1 class="h4 mb-3">{% if label %}Edit label{% else %}New label{% endif %}</h1>
 			<form method="post">
 				{% csrf_token %}
 				<div class="mb-3">
@@ -42,9 +42,9 @@
 				</div>
 				<div class="d-flex gap-2">
 					<button type="submit" class="btn btn-primary">
-						{% if flag %}Save changes{% else %}Create flag{% endif %}
+						{% if label %}Save changes{% else %}Create label{% endif %}
 					</button>
-					<a href="{% url 'flag_list' pk=project.pk %}" class="btn btn-secondary">Cancel</a>
+					<a href="{% url 'label_list' pk=project.pk %}" class="btn btn-secondary">Cancel</a>
 				</div>
 			</form>
 		</div>

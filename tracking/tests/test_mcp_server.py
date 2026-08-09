@@ -105,11 +105,11 @@ class McpToolTests(TestCase):
 			json={"title": "Updated"},
 		)
 
-	def test_update_ticket_with_flags(self, mock_req):
-		mcp_mod.update_ticket(1, flags=["urgent"])
+	def test_update_ticket_with_labels(self, mock_req):
+		mcp_mod.update_ticket(1, labels=["urgent"])
 		mock_req.assert_called_once_with(
 			"PATCH", "/tickets/1/",
-			json={"flags": ["urgent"]},
+			json={"labels": ["urgent"]},
 		)
 
 	def test_update_ticket_with_components(self, mock_req):
@@ -122,7 +122,7 @@ class McpToolTests(TestCase):
 	def test_update_ticket_all_fields(self, mock_req):
 		mcp_mod.update_ticket(
 			1, title="T", description="D", type="bug", priority=3,
-			flags=["urgent"], components=["api"],
+			labels=["urgent"], components=["api"],
 		)
 		mock_req.assert_called_once_with(
 			"PATCH", "/tickets/1/",
@@ -131,7 +131,7 @@ class McpToolTests(TestCase):
 				"description": "D",
 				"type": "bug",
 				"priority": 3,
-				"flags": ["urgent"],
+				"labels": ["urgent"],
 				"components": ["api"],
 			},
 		)
@@ -143,7 +143,7 @@ class McpToolTests(TestCase):
 		self.assertNotIn("description", payload)
 		self.assertNotIn("type", payload)
 		self.assertNotIn("priority", payload)
-		self.assertNotIn("flags", payload)
+		self.assertNotIn("labels", payload)
 		self.assertNotIn("components", payload)
 
 	def test_transition_ticket(self, mock_req):
@@ -152,11 +152,11 @@ class McpToolTests(TestCase):
 			"POST", "/tickets/42/transition/", json={"state": "in_progress"},
 		)
 
-	# --- Flags & Components --------------------------------------------------
+	# --- Labels & Components --------------------------------------------------
 
-	def test_list_flags(self, mock_req):
-		mcp_mod.list_flags("SMT")
-		mock_req.assert_called_once_with("GET", "/flags/", params={"project": "SMT"})
+	def test_list_labels(self, mock_req):
+		mcp_mod.list_labels("SMT")
+		mock_req.assert_called_once_with("GET", "/labels/", params={"project": "SMT"})
 
 	def test_list_components(self, mock_req):
 		mcp_mod.list_components("SMT")
@@ -176,16 +176,16 @@ class McpToolTests(TestCase):
 			json={"project": "SMT", "name": "backend", "description": ""},
 		)
 
-	def test_create_flag(self, mock_req):
-		mcp_mod.create_flag("SMT", "urgent", "red", "Needs immediate attention")
+	def test_create_label(self, mock_req):
+		mcp_mod.create_label("SMT", "urgent", "red", "Needs immediate attention")
 		mock_req.assert_called_once_with(
-			"POST", "/flags/",
+			"POST", "/labels/",
 			json={"project": "SMT", "name": "urgent", "color": "red", "description": "Needs immediate attention"},
 		)
 
-	def test_create_flag_defaults(self, mock_req):
-		mcp_mod.create_flag("SMT", "blocked")
+	def test_create_label_defaults(self, mock_req):
+		mcp_mod.create_label("SMT", "blocked")
 		mock_req.assert_called_once_with(
-			"POST", "/flags/",
+			"POST", "/labels/",
 			json={"project": "SMT", "name": "blocked", "color": "secondary", "description": ""},
 		)

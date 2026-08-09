@@ -22,7 +22,7 @@ from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import Comment, Component, Flag, Project, Ticket
+from .models import Comment, Component, Label, Project, Ticket
 
 
 # --- Authentication --------------------------------------------------------
@@ -88,8 +88,8 @@ def serialize_ticket(ticket):
 		"components": [
 			serialize_component(c) for c in ticket.components.all()
 		],
-		"flags": [
-			serialize_flag(f) for f in ticket.flags.all()
+		"labels": [
+			serialize_label(l) for l in ticket.labels.all()
 		],
 		"allowed_transitions": [s.value for s in ticket.allowed_transitions()],
 		"comments": [
@@ -122,14 +122,14 @@ def serialize_component(component):
 	}
 
 
-def serialize_flag(flag):
+def serialize_label(label):
 	return {
-		"id": flag.pk,
-		"project": flag.project.key,
-		"name": flag.name,
-		"color": flag.color,
-		"description": flag.description,
-		"created_at": flag.created_at.isoformat(),
+		"id": label.pk,
+		"project": label.project.key,
+		"name": label.name,
+		"color": label.color,
+		"description": label.description,
+		"created_at": label.created_at.isoformat(),
 	}
 
 
@@ -222,9 +222,9 @@ def ticket_collection(request):
 		component = request.GET.get("component")
 		if component:
 			tickets = tickets.filter(components__name=component)
-		flag = request.GET.get("flag")
-		if flag:
-			tickets = tickets.filter(flags__name=flag)
+		label = request.GET.get("label")
+		if label:
+			tickets = tickets.filter(labels__name=label)
 		return JsonResponse(
 			{"tickets": [serialize_ticket(t) for t in tickets]}
 		)
@@ -264,7 +264,7 @@ def ticket_collection(request):
 		ticket.reporter = request.user
 	ticket.save()
 
-	# Set components and flags if provided
+	# Set components and labels if provided
 	component_names = data.get("components", [])
 	if component_names:
 		for name in component_names:
@@ -274,14 +274,14 @@ def ticket_collection(request):
 			except Component.DoesNotExist:
 				pass  # silently ignore unknown component names
 
-	flag_names = data.get("flags", [])
-	if flag_names:
-		for name in flag_names:
+	label_names = data.get("labels", [])
+	if label_names:
+		for name in label_names:
 			try:
-				flag = Flag.objects.get(project=project, name=name)
-				ticket.flags.add(flag)
-			except Flag.DoesNotExist:
-				pass  # silently ignore unknown flag names
+				label = Label.objects.get(project=project, name=name)
+				ticket.labels.add(label)
+			except Label.DoesNotExist:
+				pass  # silently ignore unknown label names
 
 	ticket.save()
 	return JsonResponse(serialize_ticket(ticket), status=201)
@@ -319,16 +319,16 @@ def ticket_detail(request, pk):
 		setattr(ticket, field, value)
 		changed.append(field)
 
-	# Handle flags (ManyToMany)
-	if "flags" in data:
-		flag_names = data.get("flags", [])
-		ticket.flags.clear()
-		for name in flag_names:
+	# Handle labels (ManyToMany)
+	if "labels" in data:
+		label_names = data.get("labels", [])
+		ticket.labels.clear()
+		for name in label_names:
 			try:
-				flag = Flag.objects.get(project=ticket.project, name=name)
-				ticket.flags.add(flag)
-			except Flag.DoesNotExist:
-				pass  # silently ignore unknown flag names
+				label = Label.objects.get(project=ticket.project, name=name)
+				ticket.labels.add(label)
+			except Label.DoesNotExist:
+				pass  # silently ignore unknown label names
 
 	# Handle components (ManyToMany)
 	if "components" in data:
@@ -448,22 +448,22 @@ def component_collection(request):
 	return JsonResponse(serialize_component(component), status=201)
 
 
-# --- Flags ------------------------------------------------------------------
+# --- Labels ------------------------------------------------------------------
 
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "POST"])
-def flag_collection(request):
-	"""List or create flags for a project."""
+def label_collection(request):
+	"""List or create labels for a project."""
 	project_key = request.GET.get("project")
 	if not project_key:
 		return _error("Query parameter 'project' is required.")
 	project = get_object_or_404(Project, key=project_key.upper())
 
 	if request.method == "GET":
-		flags = project.flags.all()
+		labels = project.labels.all()
 		return JsonResponse(
-			{"flags": [serialize_flag(f) for f in flags]}
+			{"labels": [serialize_label(l) for l in labels]}
 		)
 
 	# POST -> create
@@ -475,16 +475,16 @@ def flag_collection(request):
 	name = (data.get("name") or "").strip()
 	if not name:
 		return _error("Field 'name' is required.")
-	if Flag.objects.filter(project=project, name=name).exists():
-		return _error(f"Flag '{name}' already exists in project '{project.key}'.", status=409)
+	if Label.objects.filter(project=project, name=name).exists():
+		return _error(f"Label '{name}' already exists in project '{project.key}'.", status=409)
 
-	flag = Flag.objects.create(
+	label = Label.objects.create(
 		project=project,
 		name=name,
 		color=data.get("color", "secondary"),
 		description=data.get("description", ""),
 	)
-	return JsonResponse(serialize_flag(flag), status=201)
+	return JsonResponse(serialize_label(label), status=201)
 
 
 # --- URL patterns (included from tracking/urls.py) -------------------------
@@ -498,5 +498,5 @@ urlpatterns = [
 	path("tickets/<int:pk>/transition/", ticket_transition, name="api_ticket_transition"),
 	path("comments/", comment_collection, name="api_comment_collection"),
 	path("components/", component_collection, name="api_component_collection"),
-	path("flags/", flag_collection, name="api_flag_collection"),
+	path("labels/", label_collection, name="api_label_collection"),
 ]

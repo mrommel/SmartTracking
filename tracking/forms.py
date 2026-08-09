@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Comment, Component, Flag, Project, Ticket
+from .models import Comment, Component, Label, Project, Ticket
 
 
 class ProjectForm(forms.ModelForm):
@@ -35,12 +35,12 @@ class TicketForm(forms.ModelForm):
 			"priority",
 			"assignee",
 			"components",
-			"flags",
+			"labels",
 		]
 		widgets = {
 			"description": forms.Textarea(attrs={"rows": 4}),
 			"components": forms.SelectMultiple(attrs={"class": "form-select"}),
-			"flags": forms.SelectMultiple(attrs={"class": "form-select"}),
+			"labels": forms.SelectMultiple(attrs={"class": "form-select"}),
 		}
 
 
@@ -76,8 +76,8 @@ class CommentForm(forms.ModelForm):
 			"body": forms.Textarea(attrs={"rows": 3}),
 		}
 
-class FlagForm(forms.ModelForm):
-	"""Create / edit a flag."""
+class LabelForm(forms.ModelForm):
+	"""Create / edit a label."""
 
 	color = forms.ChoiceField(
 		choices=[
@@ -94,7 +94,7 @@ class FlagForm(forms.ModelForm):
 	)
 
 	class Meta:
-		model = Flag
+		model = Label
 		fields = [
 			"name",
 			"color",
@@ -113,17 +113,17 @@ class FlagForm(forms.ModelForm):
 	def clean_name(self):
 		name = self.cleaned_data["name"]
 		if self.instance.pk is None and self.project is not None:
-			if Flag.objects.filter(project=self.project, name=name).exists():
-				raise forms.ValidationError(f"A flag named '{name}' already exists.")
+			if Label.objects.filter(project=self.project, name=name).exists():
+				raise forms.ValidationError(f"A label named '{name}' already exists.")
 		return name
 
 
-class FlagDeleteForm(forms.Form):
-	"""Delete a flag."""
+class LabelDeleteForm(forms.Form):
+	"""Delete a label."""
 
-	flag = forms.ModelChoiceField(queryset=Flag.objects.none(), label="Flag")
+	label = forms.ModelChoiceField(queryset=Label.objects.none(), label="Label")
 
 	def __init__(self, *args, project=None, **kwargs):
 		super().__init__(*args, **kwargs)
 		if project is not None:
-			self.fields["flag"].queryset = project.flags.all()
+			self.fields["label"].queryset = project.labels.all()

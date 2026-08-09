@@ -44,13 +44,13 @@ class Component(models.Model):
 		return f"{self.project.key} / {self.name}"
 
 
-class Flag(models.Model):
-	"""A flag within a project, used to group or highlight tickets."""
+class Label(models.Model):
+	"""A label within a project, used to group or highlight tickets."""
 
 	project = models.ForeignKey(
 		Project,
 		on_delete=models.CASCADE,
-		related_name="flags",
+		related_name="labels",
 		verbose_name=_("project"),
 	)
 	name = models.CharField(_("name"), max_length=50)
@@ -59,8 +59,8 @@ class Flag(models.Model):
 	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
 
 	class Meta:
-		verbose_name = _("flag")
-		verbose_name_plural = _("flags")
+		verbose_name = _("label")
+		verbose_name_plural = _("labels")
 		ordering = ["name"]
 		unique_together = ["project", "name"]
 
@@ -136,11 +136,11 @@ class Ticket(models.Model):
 		related_name="tickets",
 		verbose_name=_("components"),
 	)
-	flags = models.ManyToManyField(
-		Flag,
+	labels = models.ManyToManyField(
+		Label,
 		blank=True,
 		related_name="tickets",
-		verbose_name=_("flags"),
+		verbose_name=_("labels"),
 	)
 	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
 	updated_at = models.DateTimeField(_("updated at"), auto_now=True)
