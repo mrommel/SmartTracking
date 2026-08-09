@@ -460,6 +460,37 @@ def component_collection(request):
 	return JsonResponse(serialize_component(component), status=201)
 
 
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def component_detail(request, pk):
+	"""Retrieve, update, or delete a single component."""
+	component = get_object_or_404(Component, pk=pk)
+
+	if request.method == "GET":
+		return JsonResponse(serialize_component(component))
+
+	if request.method == "PATCH":
+		try:
+			data = _parse_json(request)
+		except (ValueError, json.JSONDecodeError):
+			return _error("Request body must be valid JSON.")
+
+		changed = []
+		for field in ("name", "description"):
+			if field in data:
+				setattr(component, field, data[field])
+				changed.append(field)
+
+		if changed:
+			component.save(update_fields=changed)
+		return JsonResponse(serialize_component(component))
+
+	# DELETE
+	component.delete()
+	return JsonResponse({"status": "deleted"})
+
+
 # --- Labels ------------------------------------------------------------------
 
 @csrf_exempt
@@ -566,6 +597,7 @@ urlpatterns = [
 	path("tickets/<int:pk>/transition/", ticket_transition, name="api_ticket_transition"),
 	path("comments/", comment_collection, name="api_comment_collection"),
 	path("components/", component_collection, name="api_component_collection"),
+	path("components/<int:pk>/", component_detail, name="api_component_detail"),
 	path("labels/", label_collection, name="api_label_collection"),
 	path("attachments/", attachment_collection, name="api_attachment_collection"),
 	path("attachments/<int:pk>/", attachment_detail, name="api_attachment_detail"),

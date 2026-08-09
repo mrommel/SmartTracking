@@ -7,7 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from tracking.models import Attachment, Label, Project, Ticket
+from tracking.models import Attachment, Component, Label, Project, Ticket
 
 User = get_user_model()
 
@@ -386,3 +386,77 @@ class ApiEndpointTests(TestCase):
 	def test_list_attachments_requires_ticket_param(self):
 		response = self._get(reverse("api_attachment_collection"))
 		self.assertEqual(response.status_code, 400)
+
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
+class ComponentApiTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.component = Component.objects.create(
+			project=cls.project, name="frontend", description="UI layer",
+		)
+
+	def _auth(self):
+		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
+
+	def _post(self, url, payload):
+		return self.client.post(
+			url, data=json.dumps(payload), content_type="application/json", **self._auth(),
+		)
+
+	def _patch(self, url, payload):
+		return self.client.patch(
+			url, data=json.dumps(payload), content_type="application/json", **self._auth(),
+		)
+
+	def test_get_component_detail(self):
+		response = self.client.get(
+			reverse("api_component_detail", args=[self.component.pk]), **self._auth(),
+		)
+		self.assertEqual(response.status_code, 200)
+		data = response.json()
+		self.assertEqual(data["id"], self.component.pk)
+		self.assertEqual(data["name"], "frontend")
+		self.assertEqual(data["description"], "UI layer")
+		self.assertEqual(data["project"], "SMT")
+
+	def test_get_component_detail_not_found(self):
+		response = self.client.get(
+			reverse("api_component_detail", args=[999]), **self._auth(),
+		)
+		self.assertEqual(response.status_code, 404)
+
+	def test_patch_component(self):
+		response = self._patch(
+			reverse("api_component_detail", args=[self.component.pk]),
+			{"description": "Frontend UI layer", "name": "frontend-v2"},
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["description"], "Frontend UI layer")
+		self.assertEqual(response.json()["name"], "frontend-v2")
+		self.component.refresh_from_db()
+		self.assertEqual(self.component.description, "Frontend UI layer")
+		self.assertEqual(self.component.name, "frontend-v2")
+
+	def test_patch_component_partial(self):
+		response = self._patch(
+			reverse("api_component_detail", args=[self.component.pk]),
+			{"description": "Only description"},
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["name"], "frontend")
+
+	def test_delete_component(self):
+		response = self.client.delete(
+			reverse("api_component_detail", args=[self.component.pk]), **self._auth(),
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.json()["status"], "deleted")
+		self.assertEqual(Component.objects.filter(pk=self.component.pk).count(), 0)
+
+	def test_delete_component_not_found(self):
+		response = self.client.delete(
+			reverse("api_component_detail", args=[999]), **self._auth(),
+		)
+		self.assertEqual(response.status_code, 404)

@@ -176,6 +176,31 @@ class McpToolTests(TestCase):
 			json={"project": "SMT", "name": "backend", "description": ""},
 		)
 
+	def test_update_component(self, mock_req):
+		mcp_mod.update_component(1, name="frontend-v2")
+		mock_req.assert_called_once_with(
+			"PATCH", "/components/1/",
+			json={"name": "frontend-v2"},
+		)
+
+	def test_update_component_all_fields(self, mock_req):
+		mcp_mod.update_component(1, name="new", description="desc")
+		mock_req.assert_called_once_with(
+			"PATCH", "/components/1/",
+			json={"name": "new", "description": "desc"},
+		)
+
+	def test_update_component_no_fields(self, mock_req):
+		mcp_mod.update_component(1)
+		mock_req.assert_called_once_with(
+			"PATCH", "/components/1/",
+			json={},
+		)
+
+	def test_delete_component(self, mock_req):
+		mcp_mod.delete_component(42)
+		mock_req.assert_called_once_with("DELETE", "/components/42/")
+
 	def test_create_label(self, mock_req):
 		mcp_mod.create_label("SMT", "urgent", "red", "Needs immediate attention")
 		mock_req.assert_called_once_with(

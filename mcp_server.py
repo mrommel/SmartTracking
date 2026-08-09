@@ -209,6 +209,29 @@ def create_component(
 
 
 @mcp.tool()
+def update_component(
+	component_id: int,
+	name: Optional[str] = None,
+	description: Optional[str] = None,
+) -> Any:
+	"""Partially update a component's fields. Any field not provided is left
+	unchanged. Returns 404 if the component does not exist."""
+	payload = {
+		k: v
+		for k, v in {"name": name, "description": description}.items()
+		if v is not None
+	}
+	return _request("PATCH", f"/components/{component_id}/", json=payload)
+
+
+@mcp.tool()
+def delete_component(component_id: int) -> Any:
+	"""Delete a component. Tickets that referenced this component will no longer
+	have it assigned."""
+	return _request("DELETE", f"/components/{component_id}/")
+
+
+@mcp.tool()
 def create_label(
 	project: str,
 	name: str,
