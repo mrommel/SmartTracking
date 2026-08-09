@@ -136,6 +136,33 @@ def ticket_detail(request, pk):
 
 
 @login_required
+def ticket_edit(request, pk):
+	"""Edit an existing ticket."""
+	ticket = get_object_or_404(Ticket, pk=pk)
+	if request.method == "POST":
+		form = TicketForm(request.POST)
+		if form.is_valid():
+			for field in ["title", "description", "type", "priority", "assignee"]:
+				setattr(ticket, field, form.cleaned_data[field])
+			ticket.save(update_fields=["title", "description", "type", "priority", "assignee", "updated_at"])
+			ticket.components.set(form.cleaned_data.get("components", []))
+			ticket.labels.set(form.cleaned_data.get("labels", []))
+			messages.success(request, "Ticket updated.")
+			return redirect("ticket_detail", pk=ticket.pk)
+	else:
+		form = TicketForm(instance=ticket)
+		project_key = ticket.project.key
+		form.fields["components"].queryset = Component.objects.filter(project=ticket.project)
+		form.fields["labels"].queryset = Label.objects.filter(project=ticket.project)
+
+	return render(request, "tracking/ticket_form.html", {
+		"title": f"Edit — {ticket.title}",
+		"form": form,
+		"ticket": ticket,
+	})
+
+
+@login_required
 def ticket_create(request):
 	"""Create a new ticket."""
 	if request.method == "POST":

@@ -11,7 +11,9 @@
 						{% csrf_token %}
 						{{ form|crispy }}
 						<div class="d-flex gap-2">
-							<button type="submit" class="btn btn-primary">Create ticket</button>
+							<button type="submit" class="btn btn-primary">
+								{% if ticket %}Save changes{% else %}Create ticket{% endif %}
+							</button>
 							<a href="{% url 'ticket_list' %}" class="btn btn-outline-secondary">Cancel</a>
 						</div>
 					</form>
