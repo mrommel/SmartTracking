@@ -25,7 +25,10 @@
 						</td>
 						<td class="text-end">{{ project.ticket_count }}</td>
 						<td class="text-end">
-							<a href="{% url 'label_list' pk=project.pk %}" class="btn btn-sm btn-outline-secondary">Manage labels</a>
+							<div class="d-flex gap-2 justify-content-end">
+								<a href="{% url 'label_list' pk=project.pk %}" class="btn btn-sm btn-outline-secondary">Manage labels</a>
+								<a href="{% url 'component_list' pk=project.pk %}" class="btn btn-sm btn-outline-secondary">Manage components</a>
+							</div>
 						</td>
 					</tr>
 				{% empty %}

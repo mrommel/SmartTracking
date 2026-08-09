@@ -27,6 +27,12 @@ urlpatterns = [
     path('projects/<int:pk>/labels/new/', views.label_create, name='label_create'),
     path('labels/<int:pk>/edit/', views.label_update, name='label_update'),
     path('labels/<int:pk>/delete/', views.label_delete, name='label_delete'),
+    # Component management (per-project).
+    path('projects/<int:pk>/components/', views.component_list, name='component_list'),
+    path('components/', views.component_list, name='component_list_all'),
+    path('projects/<int:pk>/components/new/', views.component_create, name='component_create'),
+    path('components/<int:pk>/edit/', views.component_update, name='component_update'),
+    path('components/<int:pk>/delete/', views.component_delete, name='component_delete'),
 ]
 
 # JSON REST API for MCP integration (see tracking/api.py).

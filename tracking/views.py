@@ -10,7 +10,10 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from .forms import AttachmentForm, CommentForm, LabelDeleteForm, LabelForm, ProjectForm, TicketForm, TicketTransitionForm
+from .forms import (
+	AttachmentForm, CommentForm, ComponentDeleteForm, ComponentForm,
+	LabelDeleteForm, LabelForm, ProjectForm, TicketForm, TicketTransitionForm,
+)
 from .models import Attachment, Comment, Component, Label, Project, Ticket
 
 
@@ -318,6 +321,96 @@ def label_delete(request, pk):
 		"form": form,
 		"project": project,
 		"label": label,
+	})
+
+
+@login_required
+def component_list(request, pk=None):
+	"""List and manage components for a project."""
+	if pk is not None:
+		project = get_object_or_404(Project, pk=pk)
+	else:
+		project_key = request.GET.get("project")
+		if project_key:
+			project = get_object_or_404(Project, key=project_key.upper())
+		else:
+			return render(request, "tracking/component_list.html", {
+				"title": "Components",
+				"project": None,
+				"components": Component.objects.all().order_by("project__key", "name"),
+				"projects": Project.objects.all(),
+			})
+	return render(request, "tracking/component_list.html", {
+		"title": f"Components — {project.key}",
+		"project": project,
+		"components": project.components.all().order_by("name"),
+	})
+
+
+@login_required
+def component_create(request, pk):
+	"""Create a new component for a project."""
+	project = get_object_or_404(Project, pk=pk)
+	if request.method == "POST":
+		form = ComponentForm(request.POST, project=project)
+		if form.is_valid():
+			component = form.save(commit=False)
+			component.project = project
+			component.save()
+			messages.success(request, f"Component '{component.name}' created.")
+			return redirect("component_list", pk=project.pk)
+	else:
+		form = ComponentForm(project=project)
+
+	return render(request, "tracking/component_form.html", {
+		"title": f"New component — {project.key}",
+		"form": form,
+		"project": project,
+	})
+
+
+@login_required
+def component_update(request, pk):
+	"""Edit an existing component."""
+	component = get_object_or_404(Component, pk=pk)
+	if request.method == "POST":
+		form = ComponentForm(request.POST, instance=component, project=component.project)
+		if form.is_valid():
+			component = form.save()
+			messages.success(request, f"Component '{component.name}' updated.")
+			return redirect("component_list", pk=component.project.pk)
+	else:
+		form = ComponentForm(instance=component, project=component.project)
+
+	return render(request, "tracking/component_form.html", {
+		"title": f"Edit component — {component.project.key}",
+		"form": form,
+		"project": component.project,
+		"component": component,
+	})
+
+
+@login_required
+def component_delete(request, pk):
+	"""Delete a component."""
+	component = get_object_or_404(Component, pk=pk)
+	project = component.project
+	if request.method == "POST":
+		form = ComponentDeleteForm(request.POST, project=project)
+		if form.is_valid():
+			selected_component = form.cleaned_data["component"]
+			name = selected_component.name
+			selected_component.delete()
+			messages.success(request, f"Component '{name}' deleted.")
+			return redirect("component_list", pk=project.pk)
+	else:
+		form = ComponentDeleteForm(project=project)
+
+	return render(request, "tracking/component_delete.html", {
+		"title": f"Delete component — {project.key}",
+		"form": form,
+		"project": project,
+		"component": component,
 	})
 
 

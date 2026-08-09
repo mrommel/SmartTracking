@@ -6,6 +6,7 @@
 		<div class="d-flex gap-2">
 			{% if current_project %}
 				<a class="btn btn-outline-secondary" href="{% url 'label_list_all' %}?project={{ current_project }}">Manage labels</a>
+				<a class="btn btn-outline-secondary" href="{% url 'component_list_all' %}?project={{ current_project }}">Manage components</a>
 			{% endif %}
 			<a class="btn btn-primary" href="{% url 'ticket_create' %}">+ New ticket</a>
 		</div>
