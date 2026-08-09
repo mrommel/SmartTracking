@@ -54,6 +54,18 @@
 				{% endfor %}
 			</select>
 		</div>
+		<div class="col-auto">
+			<select name="assignee" class="form-select" onchange="this.form.submit()">
+				<option value="">All assignees</option>
+				<option value="me" {% if current_assignee == "me" %}selected{% endif %}>Assigned to me</option>
+				<option value="unassigned" {% if current_assignee == "unassigned" %}selected{% endif %}>Unassigned</option>
+				{% for user in users %}
+					<option value="{{ user.pk }}" {% if user.pk|stringformat:"d" == current_assignee %}selected{% endif %}>
+						{{ user }}
+					</option>
+				{% endfor %}
+			</select>
+		</div>
 	</form>
 
 	<div class="card">

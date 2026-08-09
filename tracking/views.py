@@ -4,6 +4,7 @@ from django.http import HttpResponse
 from django.shortcuts import render
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
@@ -46,6 +47,9 @@ def dashboard(request):
 		tickets.select_related("project", "assignee").order_by("-created_at")[:8]
 	)
 
+	my_tickets = tickets.filter(assignee=request.user).count()
+	unassigned = tickets.filter(assignee__isnull=True).count()
+
 	return render(request, "tracking/dashboard.html", {
 		"title": "Dashboard",
 		"total_tickets": total_tickets,
@@ -54,6 +58,8 @@ def dashboard(request):
 		"critical_count": priority_counts.get(Ticket.Priority.CRITICAL.value, 0),
 		"state_breakdown": state_breakdown,
 		"recent_tickets": recent_tickets,
+		"my_tickets": my_tickets,
+		"unassigned": unassigned,
 	})
 
 
@@ -112,6 +118,14 @@ def ticket_list(request):
 	if label:
 		tickets = tickets.filter(labels__name=label)
 
+	assignee = request.GET.get("assignee")
+	if assignee == "me":
+		tickets = tickets.filter(assignee=request.user)
+	elif assignee == "unassigned":
+		tickets = tickets.filter(assignee__isnull=True)
+	elif assignee:
+		tickets = tickets.filter(assignee__pk=assignee)
+
 	return render(request, "tracking/ticket_list.html", {
 		"title": "Tickets",
 		"tickets": tickets,
@@ -121,9 +135,13 @@ def ticket_list(request):
 		"current_state": state or "",
 		"current_component": component or "",
 		"current_label": label or "",
+		"current_assignee": assignee or "",
 		"current_query": query or "",
 		"components": Component.objects.all().order_by("name"),
 		"labels": Label.objects.all().order_by("name"),
+		"users": get_user_model().objects.filter(
+			id__in=Ticket.objects.values_list("assignee", flat=True).distinct()
+		).order_by("username"),
 	})
 
 

@@ -231,6 +231,13 @@ def ticket_collection(request):
 		state = request.GET.get("state")
 		if state:
 			tickets = tickets.filter(state=state)
+		assignee = request.GET.get("assignee")
+		if assignee == "me":
+			tickets = tickets.filter(assignee=request.user)
+		elif assignee == "unassigned":
+			tickets = tickets.filter(assignee__isnull=True)
+		elif assignee:
+			tickets = tickets.filter(assignee__pk=assignee)
 		component = request.GET.get("component")
 		if component:
 			tickets = tickets.filter(components__name=component)
@@ -320,7 +327,17 @@ def ticket_detail(request, pk):
 			"Use the /transition/ endpoint to change 'state'.", status=400
 		)
 
-	updatable = {"title", "description", "type", "priority"}
+	updatable = {"title", "description", "type", "priority", "assignee"}
+	if "assignee" in data:
+		assignee_value = data["assignee"]
+		if assignee_value is not None and assignee_value != "":
+			from django.contrib.auth import get_user_model
+			try:
+				data["assignee"] = get_user_model().objects.get(username=assignee_value)
+			except get_user_model().DoesNotExist:
+				return _error(f"Unknown user '{assignee_value}'.")
+		else:
+			data["assignee"] = None
 	changed = []
 	for field in updatable & set(data):
 		value = data[field]

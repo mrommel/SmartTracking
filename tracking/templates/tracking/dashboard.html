@@ -44,6 +44,27 @@
 		</div>
 	</div>
 
+	<div class="row g-3 mb-4">
+		<div class="col-6 col-lg-3">
+			<div class="card h-100 border-info">
+				<div class="card-body">
+					<div class="text-muted small text-uppercase">Assigned to me</div>
+					<div class="display-6">{{ my_tickets }}</div>
+					<a class="stretched-link" href="{% url 'ticket_list' %}?assignee=me"></a>
+				</div>
+			</div>
+		</div>
+		<div class="col-6 col-lg-3">
+			<div class="card h-100 border-secondary">
+				<div class="card-body">
+					<div class="text-muted small text-uppercase">Unassigned</div>
+					<div class="display-6">{{ unassigned }}</div>
+					<a class="stretched-link" href="{% url 'ticket_list' %}?assignee=unassigned"></a>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<div class="row g-3">
 		<div class="col-lg-5">
 			<div class="card h-100">
