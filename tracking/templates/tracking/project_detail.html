@@ -1,0 +1,115 @@
+{% extends "tracking/base.html" %}
+{% load humanize %}
+
+{% block content %}
+	<nav aria-label="breadcrumb">
+		<ol class="breadcrumb">
+			<li class="breadcrumb-item"><a href="{% url 'project_list' %}">Projects</a></li>
+			<li class="breadcrumb-item active">{{ project.key }}</li>
+		</ol>
+	</nav>
+
+	<div class="d-flex justify-content-between align-items-center mb-3">
+		<h1 class="h4 mb-0">{% #badge %}{{ project.key }}{% /badge %} {{ project.name }}</h1>
+		<div class="d-flex gap-2">
+			<a class="btn btn-sm btn-outline-secondary" href="{% url 'label_list' pk=project.pk %}">Manage labels</a>
+			<a class="btn btn-sm btn-outline-secondary" href="{% url 'component_list' pk=project.pk %}">Manage components</a>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col-lg-8">
+			<div class="card mb-3">
+				<div class="card-body">
+					<h2 class="h6 text-muted mb-2">Description</h2>
+					<p>{{ project.description|default:"No description provided."|linebreaks }}</p>
+				</div>
+			</div>
+
+			<div class="card">
+				<div class="card-body">
+					<div class="d-flex justify-content-between align-items-center mb-3">
+						<h2 class="h6 text-muted mb-0">Tickets ({{ tickets|length }})</h2>
+					</div>
+
+					<div class="card">
+						<table class="table table-hover mb-0 align-middle">
+							<thead>
+								<tr>
+									<th>Title</th>
+									<th style="width: 7rem">Type</th>
+									<th style="width: 9rem">State</th>
+									<th style="width: 7rem">Priority</th>
+									<th style="width: 10rem">Assignee</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for ticket in tickets %}
+									<tr>
+										<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></td>
+										<td>{{ ticket.get_type_display }}</td>
+										<td>{% state_badge ticket=ticket %}</td>
+										<td>{{ ticket.get_priority_display }}</td>
+										<td>{{ ticket.assignee|default:"—" }}</td>
+									</tr>
+								{% empty %}
+									<tr><td colspan="5" class="text-muted">No tickets yet. <a href="{% url 'ticket_create' %}?project={{ project.key }}">Create one.</a></td></tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="col-lg-4">
+			<div class="card mb-3">
+				<div class="card-body">
+					<dl class="row mb-0">
+						<dt class="col-5">Key</dt><dd class="col-7">{{ project.key }}</dd>
+						<dt class="col-5">Created</dt><dd class="col-7">{{ project.created_at|naturaltime }}</dd>
+						<dt class="col-5">Tickets</dt><dd class="col-7">{{ project.ticket_count }}</dd>
+					</dl>
+				</div>
+			</div>
+
+			<div class="card mb-3">
+				<div class="card-body">
+					<h2 class="h6 text-muted mb-2">Components ({{ components|length }})</h2>
+					{% if components %}
+						<ul class="list-group list-group-flush mb-0">
+							{% for component in components %}
+								<li class="list-group-item px-0 py-1">
+									<div class="d-flex justify-content-between">
+										<strong>{{ component.name }}</strong>
+										<small class="text-muted">{{ component.tickets.count }} ticket{{ component.tickets.count|pluralize }}</small>
+									</div>
+									{% if component.description %}
+										<small class="text-muted">{{ component.description|truncatewords:15 }}</small>
+									{% endif %}
+								</li>
+							{% endfor %}
+						</ul>
+					{% else %}
+						<p class="text-muted mb-0 small">No components. <a href="{% url 'component_create' pk=project.pk %}">Add one.</a></p>
+					{% endif %}
+				</div>
+			</div>
+
+			<div class="card">
+				<div class="card-body">
+					<h2 class="h6 text-muted mb-2">Labels ({{ labels|length }})</h2>
+					{% if labels %}
+						<div class="d-flex flex-wrap gap-1 mb-0">
+							{% for label in labels %}
+								<span class="badge bg-{{ label.color }}">{{ label.name }}</span>
+							{% endfor %}
+						</div>
+					{% else %}
+						<p class="text-muted mb-0 small">No labels. <a href="{% url 'label_create' pk=project.pk %}">Add one.</a></p>
+					{% endif %}
+				</div>
+			</div>
+		</div>
+	</div>
+{% endblock %}

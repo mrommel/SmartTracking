@@ -74,6 +74,24 @@ def project_list(request):
 
 
 @login_required
+def project_detail(request, pk):
+	"""Show a project with its tickets, components, and labels."""
+	project = get_object_or_404(
+		Project.objects.annotate(ticket_count=Count("tickets")), pk=pk
+	)
+	tickets = Ticket.objects.select_related("project", "assignee").filter(project=project)
+	components = project.components.all()
+	labels = project.labels.all()
+	return render(request, "tracking/project_detail.html", {
+		"title": project.key,
+		"project": project,
+		"tickets": tickets,
+		"components": components,
+		"labels": labels,
+	})
+
+
+@login_required
 def project_create(request):
 	"""Create a new project."""
 	if request.method == "POST":

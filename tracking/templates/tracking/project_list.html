@@ -21,7 +21,7 @@
 					<tr>
 						<td>{% #badge %}{{ project.key }}{% /badge %}</td>
 						<td>
-							<a href="{% url 'ticket_list' %}?project={{ project.key }}">{{ project.name }}</a>
+							<a href="{% url 'project_detail' project.pk %}">{{ project.name }}</a>
 						</td>
 						<td class="text-end">{{ project.ticket_count }}</td>
 						<td class="text-end">
