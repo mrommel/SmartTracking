@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketRelation
 
 
 class ProjectForm(forms.ModelForm):

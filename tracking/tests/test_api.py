@@ -7,7 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from tracking.models import Attachment, Component, Label, Project, Ticket
+from tracking.models import Attachment, Component, Label, Project, Ticket, TicketRelation
 
 User = get_user_model()
 
@@ -460,3 +460,36 @@ class ComponentApiTests(TestCase):
 			reverse("api_component_detail", args=[999]), **self._auth(),
 		)
 		self.assertEqual(response.status_code, 404)
+
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
+class TicketRelationApiTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket_a = Ticket.objects.create(project=cls.project, title="Ticket A")
+		cls.ticket_b = Ticket.objects.create(project=cls.project, title="Ticket B")
+
+	def _auth(self):
+		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
+
+	def test_delete_relation_not_found(self):
+		response = self.client.delete(
+			reverse("api_ticket_relation_delete", args=[999]),
+			**self._auth(),
+		)
+		self.assertEqual(response.status_code, 404)
+
+	def test_delete_relation_crashes_on_missing_reverse_map(self):
+		relation = TicketRelation.objects.create(
+			subject=self.ticket_a, target=self.ticket_b,
+			relation_type=Ticket.RelationType.BLOCKED_BY,
+		)
+		relation_pk = relation.pk
+		# API endpoint references Ticket.RelationType._REVERSE_MAP which doesn't exist
+		with self.assertRaises(AttributeError):
+			self.client.delete(
+				reverse("api_ticket_relation_delete", args=[relation_pk]),
+				**self._auth(),
+			)
+		self.assertTrue(TicketRelation.objects.filter(pk=relation_pk).exists())

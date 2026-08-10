@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
 
 
@@ -143,6 +144,17 @@ class Ticket(models.Model):
 		MEDIUM = 2, _("Medium")
 		HIGH = 3, _("High")
 		CRITICAL = 4, _("Critical")
+	class RelationType(models.TextChoices):
+		RELATED_TO = "related_to", _("Related to")
+		BLOCKED_BY = "blocked_by", _("Blocked by")
+		TESTED_WITH = "tested_with", _("Found during testing of")
+
+	_REVERSE_LABELS = {
+		"related_to": "related_to",
+		"blocked_by": "blocks",
+		"tested_with": "tested_by",
+	}
+
 
 	project = models.ForeignKey(
 		Project,
@@ -200,6 +212,15 @@ class Ticket(models.Model):
 		related_name="tickets",
 		verbose_name=_("labels"),
 	)
+	relation_tickets = models.ManyToManyField(
+		"self",
+		blank=True,
+		through="TicketRelation",
+		through_fields=("subject", "target"),
+		symmetrical=False,
+		related_name="related_to",
+		verbose_name=_("related tickets"),
+	)
 	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
 	updated_at = models.DateTimeField(_("updated at"), auto_now=True)
 
@@ -218,6 +239,38 @@ class Ticket(models.Model):
 	def can_transition_to(self, new_state):
 		"""Return True if moving to ``new_state`` is a permitted transition."""
 		return self.State(new_state) in self.allowed_transitions()
+	def _get_reverse_label(value):
+		"""Return the symmetric label for a relation type."""
+		return _(_REVERSE_LABELS.get(value, value))
+
+	@property
+	def relations(self):
+		return TicketRelation.objects.filter(
+			Q(subject=self) | Q(target=self)
+		).select_related('subject', 'target')
+
+	def available_rels_for(self, scope):
+		related = TicketRelation.objects.filter(
+			Q(subject=self) | Q(target=self)
+		)
+		related_pks = set()
+		for r in related:
+			related_pks.add(r.subject_id)
+			related_pks.add(r.target_id)
+		related_pks.add(self.pk)
+		qs = Ticket.objects.exclude(pk__in=related_pks)
+		if scope == 'current_project':
+			qs = qs.filter(project=self.project)
+		return qs
+
+	def get_relation_label(self, relation):
+		if relation.subject_id == self.pk:
+			return str(relation.get_relation_type_display())
+		return self._get_reverse_label(relation.relation_type)
+
+	def get_other_ticket(self, relation):
+		return relation.target if relation.subject_id == self.pk else relation.subject
+
 
 
 class Comment(models.Model):
@@ -323,4 +376,50 @@ class Attachment(models.Model):
 			raise ValidationError(
 				_("MIME type '%(mime)s' is not allowed."),
 				params={"mime": self.mime_type},
+			)
+
+
+class TicketRelation(models.Model):
+	"""One direction of a symmetric relation between two tickets."""
+
+	subject = models.ForeignKey(
+		Ticket,
+		on_delete=models.CASCADE,
+		related_name="subject_relations",
+		verbose_name=_("subject ticket"),
+	)
+	target = models.ForeignKey(
+		Ticket,
+		on_delete=models.CASCADE,
+		related_name="target_relations",
+		verbose_name=_("target ticket"),
+	)
+	relation_type = models.CharField(
+		_("relation type"),
+		max_length=20,
+		choices=Ticket.RelationType.choices,
+	)
+	created_at = models.DateTimeField(
+		_("created at"), auto_now_add=True, editable=False,
+	)
+	updated_at = models.DateTimeField(
+		_("updated at"), auto_now=True, editable=False,
+	)
+
+	class Meta:
+		ordering = ["created_at"]
+		unique_together = ["subject", "target", "relation_type"]
+
+	def __str__(self):
+		return (f"[{self.subject}] {self.get_relation_type_display()} "
+				f"{self.target}")
+
+	def save(self, *args, **kwargs):
+		"""Create the symmetric counterpart on save."""
+		super().save(*args, **kwargs)
+		if self.relation_type in Ticket._REVERSE_LABELS:
+			TicketRelation.objects.get_or_create(
+				subject=self.target,
+				target=self.subject,
+				relation_type=Ticket._REVERSE_LABELS[self.relation_type],
 			)

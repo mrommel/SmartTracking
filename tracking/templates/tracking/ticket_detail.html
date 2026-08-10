@@ -72,6 +72,55 @@
 					{% endif %}
 				</div>
 			</div>
+
+			<!-- Relations section -->
+			<div class="card">
+				<div class="card-body">
+					<h2 class="h6 text-muted">Relations</h2>
+					{% if relations %}
+						<ul class="list-group list-group-flush mb-3">
+							{% for rel in relations %}
+								<li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+									{% if rel.subject_id == ticket.pk %}
+										<a href="{% url 'ticket_detail' rel.target.pk %}">{{ rel.target.title }}</a>
+									{% else %}
+										<a href="{% url 'ticket_detail' rel.subject.pk %}">{{ rel.subject.title }}</a>
+									{% endif %}
+									<div class="d-flex gap-2 align-items-center">
+										<span class="badge bg-info rounded-pill text-dark">{{ rel.label }}</span>
+										<form method="post" action="{% url 'ticket_relation_delete' rel.pk %}">
+											{% csrf_token %}
+											<button type="submit" class="btn btn-sm btn-outline-danger py-0">×</button>
+										</form>
+									</div>
+								</li>
+							{% endfor %}
+						</ul>
+					{% endif %}
+					<hr>
+					<h2 class="h6 text-muted">Add relation</h2>
+					<form method="post" action="{% url 'ticket_relation_add' ticket.pk %}">
+						{% csrf_token %}
+						<div class="mb-2">
+							<select name="target_ticket" class="form-select form-select-sm">
+								<option value="">Select a related ticket…</option>
+								{% for t in available_tickets %}
+									<option value="{{ t.pk }}">{{ t.title }}</option>
+								{% endfor %}
+							</select>
+						</div>
+						<div class="mb-2">
+							<select name="relation_type" class="form-select form-select-sm">
+								<option value="">Select relation type…</option>
+								{% for value, label in relation_types %}
+									<option value="{{ value }}">{{ label }}</option>
+								{% endfor %}
+							</select>
+						</div>
+						<button type="submit" class="btn btn-sm btn-outline-primary">Add relation</button>
+					</form>
+				</div>
+			</div>
 		</div>
 	</div>
 

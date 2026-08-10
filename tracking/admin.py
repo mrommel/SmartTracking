@@ -1,13 +1,21 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Attachment, Comment, Component, Label, Project, Ticket
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketRelation
 
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
 	list_display = ("key", "name", "created_at")
 	search_fields = ("key", "name")
+
+
+class TicketRelationInline(admin.TabularInline):
+	model = TicketRelation
+	extra = 0
+	raw_id_fields = ("subject", "target")
+	fk_name = "subject"
+	can_delete = True
 
 
 @admin.register(Ticket)
@@ -17,6 +25,15 @@ class TicketAdmin(admin.ModelAdmin):
 	search_fields = ("title", "description")
 	autocomplete_fields = ("project", "reporter", "assignee")
 	readonly_fields = ("created_at", "updated_at")
+	inlines = (TicketRelationInline,)
+
+
+@admin.register(TicketRelation)
+class TicketRelationAdmin(admin.ModelAdmin):
+	list_display = ("subject", "target", "relation_type")
+	list_filter = ("relation_type",)
+	search_fields = ("subject__title", "target__title")
+	autocomplete_fields = ("subject", "target")
 
 
 @admin.register(Comment)

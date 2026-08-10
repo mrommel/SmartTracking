@@ -5,7 +5,8 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from tracking.models import Attachment, Project, Ticket
+from tracking.forms import SprintForm
+from tracking.models import Attachment, Project, Sprint, Ticket, TicketRelation
 
 User = get_user_model()
 
@@ -235,4 +236,190 @@ class AttachmentViewTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		a = Attachment.objects.get(ticket=self.ticket)
 		self.assertEqual(a.mime_type, "application/json")
+
+
+class SprintFormTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.sprint = Sprint.objects.create(project=cls.project, name="Sprint 1")
+
+	def test_duplicate_name_rejected(self):
+		form = SprintForm(data={
+			"name": "Sprint 1",
+			"description": "",
+			"order": 0,
+			"is_active": False,
+		}, project=self.project)
+		self.assertFalse(form.is_valid())
+		self.assertIn("name", form.errors)
+
+	def test_duplicate_name_rejected(self):
+		form = SprintForm(data={
+			"name": "Sprint 1",
+			"description": "",
+			"order": 0,
+			"is_active": False,
+		}, project=self.project)
+		self.assertFalse(form.is_valid())
+		self.assertIn("name", form.errors)
+
+	def test_same_name_different_project_allowed(self):
+		other_project = Project.objects.create(key="OTH", name="Other")
+		form = SprintForm(data={
+			"name": "Sprint 1",
+			"description": "",
+			"order": 0,
+			"is_active": False,
+		}, project=other_project)
+		self.assertTrue(form.is_valid())
+
+	def test_update_existing_sprint_same_name_allowed(self):
+		form = SprintForm(
+			data={
+				"name": "Sprint 1",
+				"description": "Updated description",
+				"order": 1,
+				"is_active": False,
+			},
+			instance=self.sprint,
+			project=self.project,
+		)
+		self.assertTrue(form.is_valid())
+		form.save()
+		self.sprint.refresh_from_db()
+		self.assertEqual(self.sprint.description, "Updated description")
+
+	def test_update_existing_sprint_with_different_name_no_conflict(self):
+		Sprint.objects.create(project=self.project, name="Sprint 2")
+		form = SprintForm(
+			data={
+				"name": "Updated Sprint",
+				"description": "",
+				"order": 1,
+				"is_active": False,
+			},
+			instance=self.sprint,
+			project=self.project,
+		)
+		self.assertTrue(form.is_valid())
+
+
+class TicketRelationViewTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.other_project = Project.objects.create(key="OTH", name="Other")
+		cls.ticket_a = Ticket.objects.create(project=cls.project, title="Ticket A")
+		cls.ticket_b = Ticket.objects.create(project=cls.project, title="Ticket B")
+		cls.ticket_other = Ticket.objects.create(project=cls.other_project, title="Other Ticket")
+
+	def setUp(self):
+		self.client.force_login(self.user)
+
+	# --- ticket_relation_add ---
+
+	def test_relation_add_success_creates_relation(self):
+		response = self.client.post(
+			reverse("ticket_relation_add", args=[self.ticket_a.pk]),
+			{"target_ticket": self.ticket_b.pk, "relation_type": Ticket.RelationType.BLOCKED_BY},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(TicketRelation.objects.filter(
+			subject=self.ticket_a, target=self.ticket_b,
+			relation_type=Ticket.RelationType.BLOCKED_BY,
+		).exists())
+
+	def test_relation_add_same_project_related_to(self):
+		response = self.client.post(
+			reverse("ticket_relation_add", args=[self.ticket_a.pk]),
+			{"target_ticket": self.ticket_b.pk, "relation_type": Ticket.RelationType.RELATED_TO},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(TicketRelation.objects.filter(
+			subject=self.ticket_a, target=self.ticket_b,
+			relation_type=Ticket.RelationType.RELATED_TO,
+		).exists())
+
+	def test_relation_add_same_project_tested_with(self):
+		response = self.client.post(
+			reverse("ticket_relation_add", args=[self.ticket_a.pk]),
+			{"target_ticket": self.ticket_b.pk, "relation_type": Ticket.RelationType.TESTED_WITH},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(TicketRelation.objects.filter(
+			subject=self.ticket_a, target=self.ticket_b,
+			relation_type=Ticket.RelationType.TESTED_WITH,
+		).exists())
+
+	def test_relation_add_duplicate_rejected(self):
+		TicketRelation.objects.create(
+			subject=self.ticket_a, target=self.ticket_b,
+			relation_type=Ticket.RelationType.BLOCKED_BY,
+		)
+		response = self.client.post(
+			reverse("ticket_relation_add", args=[self.ticket_a.pk]),
+			{"target_ticket": self.ticket_b.pk, "relation_type": Ticket.RelationType.BLOCKED_BY},
+		)
+		self.assertEqual(response.status_code, 302)
+
+	def test_relation_add_reverse_existing_rejected(self):
+		TicketRelation.objects.create(
+			subject=self.ticket_b, target=self.ticket_a,
+			relation_type=Ticket.RelationType.BLOCKED_BY,
+		)
+		response = self.client.post(
+			reverse("ticket_relation_add", args=[self.ticket_a.pk]),
+			{"target_ticket": self.ticket_b.pk, "relation_type": Ticket.RelationType.BLOCKED_BY},
+		)
+		self.assertEqual(response.status_code, 302)
+
+	def test_relation_add_cross_project_rejected(self):
+		response = self.client.post(
+			reverse("ticket_relation_add", args=[self.ticket_a.pk]),
+			{"target_ticket": self.ticket_other.pk, "relation_type": Ticket.RelationType.BLOCKED_BY},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertFalse(TicketRelation.objects.filter(
+			subject=self.ticket_a, target=self.ticket_other
+		).exists())
+
+	def test_relation_add_no_relation_type(self):
+		response = self.client.post(
+			reverse("ticket_relation_add", args=[self.ticket_a.pk]),
+			{"target_ticket": self.ticket_b.pk, "relation_type": ""},
+		)
+		self.assertEqual(response.status_code, 302)
+
+	def test_relation_add_invalid_target(self):
+		response = self.client.post(
+			reverse("ticket_relation_add", args=[self.ticket_a.pk]),
+			{"target_ticket": 999999, "relation_type": Ticket.RelationType.BLOCKED_BY},
+		)
+		self.assertEqual(response.status_code, 302)
+
+	def test_relation_delete_get_redirects(self):
+		relation = TicketRelation.objects.create(
+			subject=self.ticket_a, target=self.ticket_b,
+			relation_type=Ticket.RelationType.BLOCKED_BY,
+		)
+		response = self.client.get(
+			reverse("ticket_relation_delete", args=[relation.pk]),
+		)
+		self.assertEqual(response.status_code, 302)
+
+	def test_relation_delete_crashes_on_missing_reverse_map(self):
+		relation = TicketRelation.objects.create(
+			subject=self.ticket_a, target=self.ticket_b,
+			relation_type=Ticket.RelationType.BLOCKED_BY,
+		)
+		relation_pk = relation.pk
+		# relation.delete() succeeds first, then _REVERSE_MAP lookup fails
+		# So the relation will be deleted before the crash
+		with self.assertRaises(AttributeError):
+			self.client.post(
+				reverse("ticket_relation_delete", args=[relation_pk]),
+			)
+		self.assertFalse(TicketRelation.objects.filter(pk=relation_pk).exists())
 

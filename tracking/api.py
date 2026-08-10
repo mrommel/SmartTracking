@@ -16,13 +16,14 @@ import json
 from functools import wraps
 
 from django.conf import settings
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import Attachment, Comment, Component, Label, Project, Ticket
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketRelation
 
 
 # --- Authentication --------------------------------------------------------
@@ -92,6 +93,12 @@ def serialize_ticket(ticket):
 		"labels": [
 			serialize_label(l) for l in ticket.labels.all()
 		],
+		"relations": [
+			serialize_relation(r)
+			for r in TicketRelation.objects.filter(
+				(Q(subject=ticket) | Q(target=ticket))
+			).select_related("subject", "target")
+		],
 		"allowed_transitions": [s.value for s in ticket.allowed_transitions()],
 		"comments": [
 			serialize_comment(c)
@@ -99,6 +106,17 @@ def serialize_ticket(ticket):
 		],
 		"created_at": ticket.created_at.isoformat(),
 		"updated_at": ticket.updated_at.isoformat(),
+	}
+
+
+def serialize_relation(relation):
+	return {
+		"id": relation.pk,
+		"subject": relation.subject.pk,
+		"target": relation.target.pk,
+		"relation_type": relation.relation_type,
+		"relation_type_display": relation.get_relation_type_display(),
+		"created_at": relation.created_at.isoformat(),
 	}
 
 
@@ -172,6 +190,10 @@ def meta(request):
 		"states": [{"value": s.value, "label": str(s.label)} for s in Ticket.State],
 		"priorities": [
 			{"value": p.value, "label": str(p.label)} for p in Ticket.Priority
+		],
+		"relations": [
+			{"value": r.value, "label": str(r.label)}
+			for r in Ticket.RelationType
 		],
 		"transitions": {
 			state.value: [s.value for s in targets]
@@ -605,6 +627,148 @@ def attachment_detail(request, pk):
 	return JsonResponse({"status": "deleted"})
 
 
+# --- Sprints --------------------------------------------------------------
+
+def serialize_sprint(sprint):
+	"""Return a dict for a sprint."""
+	return {
+		"id": sprint.pk,
+		"project": sprint.project.key,
+		"name": sprint.name,
+		"description": sprint.description,
+		"start_date": sprint.start_date.isoformat() if sprint.start_date else None,
+		"end_date": sprint.end_date.isoformat() if sprint.end_date else None,
+		"order": sprint.order,
+		"is_active": sprint.is_active,
+		"created_at": sprint.created_at.isoformat(),
+	}
+
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET"])
+def sprint_collection(request, project_key):
+	"""Return all sprints for a project."""
+	project = get_object_or_404(Project, key=project_key.upper())
+	return JsonResponse({
+		"sprints": [
+			serialize_sprint(s)
+			for s in project.sprints.all()
+		],
+	})
+
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["POST"])
+def sprint_create(request, project_key):
+	"""Create a sprint in a project."""
+	project = get_object_or_404(Project, key=project_key.upper())
+	try:
+		body = json.loads(request.body)
+	except (ValueError, KeyError):
+		return _error("Request body must be valid JSON and must include 'name'.")
+	name = body.get("name", "").strip()
+	if not name:
+		return _error("'name' is required.")
+	if Sprint.objects.filter(project=project, name=name).exists():
+		return _error(f"A sprint named '{name}' already exists.", status=409)
+	sprint = Sprint(
+		project=project,
+		name=name,
+		description=body.get("description", ""),
+		start_date=body.get("start_date"),
+		end_date=body.get("end_date"),
+		order=body.get("order", 0),
+		is_active=bool(body.get("is_active", False)),
+	)
+	sprint.save()
+	return JsonResponse(serialize_sprint(sprint), status=201)
+
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET", "PATCH", "DELETE"])
+def sprint_detail(request, pk):
+	"""Retrive, update, or delete a single sprint."""
+	sprint = get_object_or_404(Sprint, pk=pk)
+	if request.method == "GET":
+		return JsonResponse(serialize_sprint(sprint))
+	if request.method == "PATCH":
+		try:
+			body = json.loads(request.body)
+		except ValueError:
+			return _error("Request body must be valid JSON.")
+		for field in ("name", "description", "start_date", "end_date", "order", "is_active"):
+			if field in body:
+				setattr(sprint, field, body[field])
+		sprint.save()
+		return JsonResponse(serialize_sprint(sprint))
+	# DELETE
+	if sprint.pk == 1:
+		return _error("Cannot delete the backlog pseudo-sprint.", status=403)
+	sprint.delete()
+	return JsonResponse({"status": "deleted"})
+
+
+# --- Relations ----------------------------------------------------------
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["POST"])
+def ticket_relation_create(request, ticket_id):
+	"""Create a relation from one ticket to another."""
+	ticket = get_object_or_404(Ticket, pk=ticket_id)
+	try:
+		body = json.loads(request.body)
+	except (ValueError, KeyError):
+		return _error("Request body must be valid JSON and must include 'target_id' and 'relation_type'.")
+	target_id = body.get("target_id")
+	relation_type = body.get("relation_type", "").strip()
+	if not target_id or not relation_type:
+		return _error("'target_id' and 'relation_type' are required.")
+	try:
+		target = Ticket.objects.get(pk=target_id)
+	except Ticket.DoesNotExist:
+		return _error("Target ticket not found.", status=404)
+	if target.project != ticket.project:
+		return _error("Target ticket must be in the same project.", status=409)
+	if TicketRelation.objects.filter(
+		subject=ticket, target=target, relation_type=relation_type,
+	).exists():
+		return _error("This relation already exists.", status=409)
+	if TicketRelation.objects.filter(
+		subject=target, target=ticket, relation_type=relation_type,
+	).exists():
+		return _error("This relation already exists.", status=409)
+	if relation_type not in dict(Ticket.RelationType.choices):
+		return _error(f"Invalid relation type: {relation_type}", status=400)
+	relation = TicketRelation.objects.create(
+		subject=ticket, target=target, relation_type=relation_type,
+	)
+	return JsonResponse(serialize_relation(relation), status=201)
+
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["DELETE"])
+def ticket_relation_delete_api(request, pk):
+	"""Delete a ticket relation by its ID."""
+	relation = get_object_or_404(TicketRelation, pk=pk)
+	rev_types = Ticket.RelationType._REVERSE_MAP or {}
+	if relation.relation_type in rev_types:
+		try:
+			TicketRelation.objects.get(
+				subject=relation.target,
+				target=relation.subject,
+				relation_type=rev_types[relation.relation_type],
+			).delete()
+		except TicketRelation.DoesNotExist:
+			pass
+	relation.delete()
+	return JsonResponse({"status": "deleted"})
+
+
 # --- URL patterns (included from tracking/urls.py) -------------------------
 
 urlpatterns = [
@@ -614,10 +778,15 @@ urlpatterns = [
 	path("tickets/", ticket_collection, name="api_ticket_collection"),
 	path("tickets/<int:pk>/", ticket_detail, name="api_ticket_detail"),
 	path("tickets/<int:pk>/transition/", ticket_transition, name="api_ticket_transition"),
+	path("tickets/<int:pk>/relations/add/", ticket_relation_create, name="api_ticket_relation_create"),
 	path("comments/", comment_collection, name="api_comment_collection"),
 	path("components/", component_collection, name="api_component_collection"),
 	path("components/<int:pk>/", component_detail, name="api_component_detail"),
 	path("labels/", label_collection, name="api_label_collection"),
 	path("attachments/", attachment_collection, name="api_attachment_collection"),
 	path("attachments/<int:pk>/", attachment_detail, name="api_attachment_detail"),
+	path("sprints/<str:project_key>/", sprint_collection, name="api_sprint_collection"),
+	path("sprints/<str:project_key>/create/", sprint_create, name="api_sprint_create"),
+	path("sprints/<int:pk>/", sprint_detail, name="api_sprint_detail"),
+	path("tickets/relations/<int:pk>/delete/", ticket_relation_delete_api, name="api_ticket_relation_delete"),
 ]

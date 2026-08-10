@@ -13,10 +13,10 @@ from django.views.decorators.http import require_POST
 
 from .forms import (
 	AttachmentForm, CommentForm, ComponentDeleteForm, ComponentForm,
-	LabelDeleteForm, LabelForm, ProjectForm, SprintDeleteForm, SprintForm,
+	LabelDeleteForm, LabelForm, ProjectForm, SprintDeleteForm,
 	TicketForm, TicketTransitionForm,
 )
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketRelation
 
 
 @login_required
@@ -172,6 +172,12 @@ def ticket_detail(request, pk):
 	)
 	comments = ticket.comments.select_related("author").all()
 	attachments = ticket.attachments.all()
+	relations = list(ticket.relations.prefetch_related("subject", "target").all())
+	for rel in relations:
+		if rel.subject_id == ticket.pk:
+			rel.label = str(rel.get_relation_type_display())
+		else:
+			rel.label = ticket._get_reverse_label(rel.relation_type)
 	return render(request, "tracking/ticket_detail.html", {
 		"title": ticket.title,
 		"ticket": ticket,
@@ -179,6 +185,9 @@ def ticket_detail(request, pk):
 		"comment_form": CommentForm(),
 		"comments": comments,
 		"attachments": attachments,
+		"relations": relations,
+		"available_tickets": ticket.available_rels_for("current_project"),
+		"relation_types": Ticket.RelationType.choices,
 	})
 
 
@@ -267,6 +276,72 @@ def ticket_comment_create(request, pk):
 			comment.save()
 			messages.success(request, "Comment added.")
 			return redirect("ticket_detail", pk=ticket.pk)
+	return redirect("ticket_detail", pk=ticket.pk)
+
+
+@login_required
+def ticket_relation_add(request, pk):
+	"""Add a relation from the current ticket to another ticket."""
+	ticket = get_object_or_404(Ticket, pk=pk)
+	if request.method == "POST":
+		target_id = request.POST.get("target_ticket")
+		relation_type = request.POST.get("relation_type")
+		try:
+			target = Ticket.objects.get(pk=target_id)
+		except (ValueError, Ticket.DoesNotExist):
+			messages.error(request, "Invalid target ticket.")
+			return redirect("ticket_detail", pk=ticket.pk)
+		if target.project != ticket.project:
+			messages.error(request, "Target ticket must be in the same project.")
+			return redirect("ticket_detail", pk=ticket.pk)
+		if not relation_type:
+			messages.error(request, "Please select a relation type.")
+			return redirect("ticket_detail", pk=ticket.pk)
+		# Check if the relation already exists
+		if TicketRelation.objects.filter(
+			subject=ticket, target=target, relation_type=relation_type
+		).exists():
+			messages.info(request, "This relation already exists.")
+			return redirect("ticket_detail", pk=ticket.pk)
+		# Also check the reverse direction
+		if TicketRelation.objects.filter(
+			subject=target, target=ticket, relation_type=relation_type
+		).exists():
+			messages.info(request, "This relation already exists.")
+			return redirect("ticket_detail", pk=ticket.pk)
+		TicketRelation.objects.create(
+			subject=ticket,
+			target=target,
+			relation_type=relation_type,
+		)
+		messages.success(request, "Relation added.")
+		return redirect("ticket_detail", pk=ticket.pk)
+	return redirect("ticket_detail", pk=ticket.pk)
+
+
+@login_required
+def ticket_relation_delete(request, pk):
+	"""Delete a relation."""
+	relation = get_object_or_404(TicketRelation, pk=pk)
+	# Ensure the relation's tickets are in the same project
+	if relation.subject.project != relation.target.project:
+		messages.error(request, "Cannot delete relation between tickets in different projects.")
+		return redirect("ticket_detail", pk=relation.subject.pk)
+	ticket = relation.subject
+	if request.method == "POST":
+		relation.delete()
+		# Also delete the symmetric counterpart if it exists
+		reverse_map = Ticket.RelationType._REVERSE_MAP or {}
+		if relation.relation_type in reverse_map:
+			try:
+				TicketRelation.objects.get(
+					subject=relation.target,
+					target=relation.subject,
+					relation_type=reverse_map[relation.relation_type],
+				).delete()
+			except TicketRelation.DoesNotExist:
+				pass
+		messages.success(request, "Relation removed.")
 	return redirect("ticket_detail", pk=ticket.pk)
 
 

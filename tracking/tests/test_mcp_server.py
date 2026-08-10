@@ -216,3 +216,122 @@ class McpToolTests(TestCase):
 			"POST", "/labels/",
 			json={"project": "SMT", "name": "blocked", "color": "secondary", "description": ""},
 		)
+
+	# --- Attachments ----------------------------------------------------------
+
+	def test_list_attachments(self, mock_req):
+		mcp_mod.list_attachments(42)
+		mock_req.assert_called_once_with("GET", "/attachments/", params={"ticket": 42})
+
+	def test_get_attachment(self, mock_req):
+		mcp_mod.get_attachment(7)
+		mock_req.assert_called_once_with("GET", "/attachments/7/")
+
+	def test_delete_attachment(self, mock_req):
+		mcp_mod.delete_attachment(7)
+		mock_req.assert_called_once_with("DELETE", "/attachments/7/")
+
+	# --- Sprints --------------------------------------------------------------
+
+	def test_list_sprints(self, mock_req):
+		mcp_mod.list_sprints("SMT")
+		mock_req.assert_called_once_with("GET", "/sprints/SMT/")
+
+	def test_create_sprint_defaults(self, mock_req):
+		mcp_mod.create_sprint("SMT", "Sprint 1")
+		mock_req.assert_called_once_with(
+			"POST", "/sprints/SMT/create/",
+			json={
+				"name": "Sprint 1",
+				"description": "",
+				"start_date": None,
+				"end_date": None,
+				"order": 0,
+				"is_active": False,
+			},
+		)
+
+	def test_create_sprint_full(self, mock_req):
+		mcp_mod.create_sprint(
+			"SMT", "Sprint 2",
+			description="Q2 planning",
+			start_date="2025-04-01",
+			end_date="2025-04-14",
+			order=2,
+			is_active=True,
+		)
+		mock_req.assert_called_once_with(
+			"POST", "/sprints/SMT/create/",
+			json={
+				"name": "Sprint 2",
+				"description": "Q2 planning",
+				"start_date": "2025-04-01",
+				"end_date": "2025-04-14",
+				"order": 2,
+				"is_active": True,
+			},
+		)
+
+	def test_update_sprint_minimal(self, mock_req):
+		mcp_mod.update_sprint(1, name="Updated Sprint")
+		mock_req.assert_called_once_with(
+			"PATCH", "/sprints/1/",
+			json={"name": "Updated Sprint"},
+		)
+
+	def test_update_sprint_all_fields(self, mock_req):
+		mcp_mod.update_sprint(
+			1, description="New", start_date="2025-05-01",
+			end_date="2025-05-14", order=3, is_active=True,
+		)
+		mock_req.assert_called_once_with(
+			"PATCH", "/sprints/1/",
+			json={
+				"description": "New",
+				"start_date": "2025-05-01",
+				"end_date": "2025-05-14",
+				"order": 3,
+				"is_active": True,
+			},
+		)
+
+	def test_update_sprint_omits_none(self, mock_req):
+		"""Only non-None fields should appear in the payload."""
+		mcp_mod.update_sprint(1, name="T")
+		payload = mock_req.call_args[1]["json"]
+		self.assertNotIn("description", payload)
+		self.assertNotIn("start_date", payload)
+		self.assertNotIn("end_date", payload)
+		self.assertNotIn("order", payload)
+		self.assertNotIn("is_active", payload)
+
+	def test_update_sprint_all_none(self, mock_req):
+		mcp_mod.update_sprint(1)
+		mock_req.assert_called_once_with(
+			"PATCH", "/sprints/1/",
+			json={},
+		)
+
+	def test_delete_sprint(self, mock_req):
+		mcp_mod.delete_sprint(42)
+		mock_req.assert_called_once_with("DELETE", "/sprints/42/")
+
+	# --- Relations ------------------------------------------------------------
+
+	def test_add_relation(self, mock_req):
+		mcp_mod.add_relation(1, 2, "blocked_by")
+		mock_req.assert_called_once_with(
+			"POST", "/tickets/1/relations/add/",
+			json={"target_id": 2, "relation_type": "blocked_by"},
+		)
+
+	def test_add_relation_related_to(self, mock_req):
+		mcp_mod.add_relation(5, 10, "related_to")
+		mock_req.assert_called_once_with(
+			"POST", "/tickets/5/relations/add/",
+			json={"target_id": 10, "relation_type": "related_to"},
+		)
+
+	def test_delete_relation(self, mock_req):
+		mcp_mod.delete_relation(99)
+		mock_req.assert_called_once_with("DELETE", "/tickets/relations/99/delete/")

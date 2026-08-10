@@ -296,6 +296,92 @@ def upload_attachment(ticket_id: int, file_path: str) -> Any:
 	Allowed extensions: png, jpg, jpeg, pdf, txt, log, json."""
 	return _upload_file(ticket_id, file_path)
 
+
+# --- Sprints ---------------------------------------------------------------
+
+@mcp.tool()
+def list_sprints(project_key: str) -> Any:
+	"""List all sprints for a project. Returns list of sprints with their
+	ids, names, dates, and active status."""
+	return _request("GET", f"/sprints/{project_key}/")
+
+
+@mcp.tool()
+def create_sprint(project_key: str, name: str, description: str = "", start_date: Optional[str] = None, end_date: Optional[str] = None, order: int = 0, is_active: bool = False) -> Any:
+	"""Create a sprint in a project. Returns status 409 if the name already
+	exists in that project. `order` controls display order; `is_active` makes
+	this the current active sprint (deactivating any other active sprint in
+	the same project)."""
+	return _request(
+		"POST", f"/sprints/{project_key}/create/",
+		json={
+			"name": name,
+			"description": description,
+			"start_date": start_date,
+			"end_date": end_date,
+			"order": order,
+			"is_active": is_active,
+		},
+	)
+
+
+@mcp.tool()
+def update_sprint(
+	sprint_id: int,
+	name: Optional[str] = None,
+	description: Optional[str] = None,
+	start_date: Optional[str] = None,
+	end_date: Optional[str] = None,
+	order: Optional[int] = None,
+	is_active: Optional[bool] = None,
+) -> Any:
+	"""Partially update a sprint's fields. Any field not provided is left
+	unchanged. Returns 404 if the sprint does not exist. Setting
+	`is_active=True` deactivates any other active sprint in the same project."""
+	payload = {
+		k: v
+		for k, v in {
+			"name": name,
+			"description": description,
+			"start_date": start_date,
+			"end_date": end_date,
+			"order": order,
+			"is_active": is_active,
+		}.items()
+		if v is not None
+	}
+	return _request("PATCH", f"/sprints/{sprint_id}/", json=payload)
+
+
+@mcp.tool()
+def delete_sprint(sprint_id: int) -> Any:
+	"""Delete a sprint. Cannot delete the backlog pseudo-sprint (pk=1).
+	Returns status 403 if deletion is not allowed."""
+	return _request("DELETE", f"/sprints/{sprint_id}/")
+
+
+# --- Relations -------------------------------------------------------------
+
+@mcp.tool()
+def add_relation(ticket_id: int, target_id: int, relation_type: str) -> Any:
+	"""Create a relation from one ticket to another within the same project.
+	`relation_type` is one of: related_to, blocked_by, tested_with.
+	Returns status 409 if the relation already exists or tickets are in
+	different projects."""
+	return _request(
+		"POST", f"/tickets/{ticket_id}/relations/add/",
+		json={"target_id": target_id, "relation_type": relation_type},
+	)
+
+
+@mcp.tool()
+def delete_relation(relation_id: int) -> Any:
+	"""Delete a ticket relation. Returns status 404 if not found. Note:
+	this endpoint has a known bug and currently raises an AttributeError
+	when deleting relations with inverse types (blocked_by, tested_with)."""
+	return _request("DELETE", f"/tickets/relations/{relation_id}/delete/")
+
+
 if __name__ == "__main__":
 	_logger.info("Starting SmartTracking MCP server on %s:%d", MCP_HOST, MCP_PORT)
 	_logger.info("Django API base: %s", API)
