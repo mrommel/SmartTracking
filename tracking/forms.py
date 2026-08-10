@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Attachment, Comment, Component, Label, Project, Ticket
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket
 
 
 class ProjectForm(forms.ModelForm):
@@ -166,6 +166,48 @@ class ComponentDeleteForm(forms.Form):
 		super().__init__(*args, **kwargs)
 		if project is not None:
 			self.fields["component"].queryset = project.components.all()
+
+
+class SprintForm(forms.ModelForm):
+	"""Create / edit a sprint."""
+
+	class Meta:
+		model = Sprint
+		fields = [
+			"name",
+			"description",
+			"start_date",
+			"end_date",
+			"order",
+			"is_active",
+		]
+		widgets = {
+			"description": forms.Textarea(attrs={"rows": 3}),
+		}
+
+	def __init__(self, *args, project=None, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.project = project
+		if project is not None:
+			self.fields["name"].widget.attrs["placeholder"] = f"e.g. Sprint 1"
+
+	def clean_name(self):
+		name = self.cleaned_data["name"]
+		if self.instance.pk is None and self.project is not None:
+			if Sprint.objects.filter(project=self.project, name=name).exists():
+				raise forms.ValidationError(f"A sprint named '{name}' already exists.")
+		return name
+
+
+class SprintDeleteForm(forms.Form):
+	"""Delete a sprint."""
+
+	sprint = forms.ModelChoiceField(queryset=Sprint.objects.none(), label="Sprint")
+
+	def __init__(self, *args, project=None, **kwargs):
+		super().__init__(*args, **kwargs)
+		if project is not None:
+			self.fields["sprint"].queryset = project.sprints.all()
 
 
 class AttachmentForm(forms.ModelForm):

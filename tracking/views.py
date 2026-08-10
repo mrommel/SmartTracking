@@ -13,9 +13,10 @@ from django.views.decorators.http import require_POST
 
 from .forms import (
 	AttachmentForm, CommentForm, ComponentDeleteForm, ComponentForm,
-	LabelDeleteForm, LabelForm, ProjectForm, TicketForm, TicketTransitionForm,
+	LabelDeleteForm, LabelForm, ProjectForm, SprintDeleteForm, SprintForm,
+	TicketForm, TicketTransitionForm,
 )
-from .models import Attachment, Comment, Component, Label, Project, Ticket
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket
 
 
 @login_required

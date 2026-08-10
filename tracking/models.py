@@ -21,6 +21,53 @@ class Project(models.Model):
 		return f"{self.key} - {self.name}"
 
 
+class Sprint(models.Model):
+	"""A sprint within a project, used as a time-boxed iteration tracker.
+
+	Every project has a special "Backlog" pseudo-sprint (pk=1) that all tickets
+	default to.  ``sprint.pk is None`` in the template means "Backlog".
+	"""
+
+	project = models.ForeignKey(
+		Project,
+		on_delete=models.CASCADE,
+		related_name="sprints",
+		verbose_name=_("project"),
+	)
+	name = models.CharField(_("name"), max_length=100)
+	description = models.TextField(_("description"), blank=True)
+	start_date = models.DateField(_("start date"), null=True, blank=True)
+	end_date = models.DateField(_("end date"), null=True, blank=True)
+	order = models.PositiveIntegerField(_("order"), default=0)
+	is_active = models.BooleanField(_("is active"), default=False)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+
+	class Meta:
+		verbose_name = _("sprint")
+		verbose_name_plural = _("sprints")
+		ordering = ["order", "pk"]
+		unique_together = ["project", "name"]
+
+	def __str__(self):
+		return f"{self.project.key} / {self.name}"
+
+	def save(self, *args, **kwargs):
+		super().save(*args, **kwargs)
+
+		# At most one active sprint per project at a time.
+		if self.is_active and self.pk is not None:
+			Sprint.objects.filter(
+				project=self.project,
+				is_active=True,
+			).exclude(pk=self.pk).update(is_active=False)
+
+	def is_active_sprint(self):
+		"""Return True if this sprint is actively active in its project."""
+		return self.is_active and Sprint.objects.filter(
+			project=self.project, is_active=True, pk=self.pk
+		).exists()
+
+
 class Component(models.Model):
 	"""A component within a project, used to group tickets."""
 
@@ -124,6 +171,14 @@ class Ticket(models.Model):
 		blank=True,
 		related_name="reported_tickets",
 		verbose_name=_("reporter"),
+	)
+	sprint = models.ForeignKey(
+		"Sprint",
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name="tickets",
+		verbose_name=_("sprint"),
 	)
 	assignee = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
