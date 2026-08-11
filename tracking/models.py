@@ -266,9 +266,10 @@ class Ticket(models.Model):
 			return f"{self.parent_epic.project.key} - {self.parent_epic.title}"
 		return ""
 
+	@staticmethod
 	def _get_reverse_label(value):
 		"""Return the symmetric label for a relation type."""
-		return _(_REVERSE_LABELS.get(value, value))
+		return _(Ticket._REVERSE_LABELS.get(value, value))
 
 	@property
 	def relations(self):

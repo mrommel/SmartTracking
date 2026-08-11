@@ -480,19 +480,24 @@ class TicketRelationApiTests(TestCase):
 		)
 		self.assertEqual(response.status_code, 404)
 
-	def test_delete_relation_crashes_on_missing_reverse_map(self):
+	def test_delete_relation_removes_relation_and_reverse(self):
 		relation = TicketRelation.objects.create(
 			subject=self.ticket_a, target=self.ticket_b,
 			relation_type=Ticket.RelationType.BLOCKED_BY,
 		)
 		relation_pk = relation.pk
-		# API endpoint references Ticket.RelationType._REVERSE_MAP which doesn't exist
-		with self.assertRaises(AttributeError):
-			self.client.delete(
-				reverse("api_ticket_relation_delete", args=[relation_pk]),
-				**self._auth(),
-			)
-		self.assertTrue(TicketRelation.objects.filter(pk=relation_pk).exists())
+		# The symmetric "blocks" counterpart is created on save()
+		reverse_rel = TicketRelation.objects.get(
+			subject=self.ticket_b, target=self.ticket_a,
+			relation_type=Ticket._REVERSE_LABELS[Ticket.RelationType.BLOCKED_BY],
+		)
+		response = self.client.delete(
+			reverse("api_ticket_relation_delete", args=[relation_pk]),
+			**self._auth(),
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertFalse(TicketRelation.objects.filter(pk=relation_pk).exists())
+		self.assertFalse(TicketRelation.objects.filter(pk=reverse_rel.pk).exists())
 
 
 @override_settings(TRACKING_API_TOKEN=TOKEN)

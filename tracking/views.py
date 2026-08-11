@@ -611,7 +611,7 @@ def ticket_relation_delete(request, pk):
 	if request.method == "POST":
 		relation.delete()
 		# Also delete the symmetric counterpart if it exists
-		reverse_map = Ticket.RelationType._REVERSE_MAP or {}
+		reverse_map = Ticket._REVERSE_LABELS or {}
 		if relation.relation_type in reverse_map:
 			try:
 				TicketRelation.objects.get(

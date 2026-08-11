@@ -405,10 +405,9 @@ class TicketRelationPropertyTests(TestCase):
 			target=self.ticket_b,
 			relation_type=Ticket.RelationType.BLOCKED_BY,
 		)
-		# _get_reverse_label is defined without self parameter (models.py:242)
-		# so calling it through ticket_b raises TypeError
-		with self.assertRaises(TypeError):
-			self.ticket_b.get_relation_label(relation)
+		# From the target's perspective the symmetric (reverse) label is returned.
+		label = self.ticket_b.get_relation_label(relation)
+		self.assertEqual(label, "blocks")
 
 
 class EpicTests(TestCase):

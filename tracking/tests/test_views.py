@@ -409,19 +409,23 @@ class TicketRelationViewTests(TestCase):
 		)
 		self.assertEqual(response.status_code, 302)
 
-	def test_relation_delete_crashes_on_missing_reverse_map(self):
+	def test_relation_delete_removes_relation_and_reverse(self):
 		relation = TicketRelation.objects.create(
 			subject=self.ticket_a, target=self.ticket_b,
 			relation_type=Ticket.RelationType.BLOCKED_BY,
 		)
 		relation_pk = relation.pk
-		# relation.delete() succeeds first, then _REVERSE_MAP lookup fails
-		# So the relation will be deleted before the crash
-		with self.assertRaises(AttributeError):
-			self.client.post(
-				reverse("ticket_relation_delete", args=[relation_pk]),
-			)
+		# The symmetric "blocks" counterpart is created on save()
+		reverse_rel = TicketRelation.objects.get(
+			subject=self.ticket_b, target=self.ticket_a,
+			relation_type=Ticket._REVERSE_LABELS[Ticket.RelationType.BLOCKED_BY],
+		)
+		response = self.client.post(
+			reverse("ticket_relation_delete", args=[relation_pk]),
+		)
+		self.assertEqual(response.status_code, 302)
 		self.assertFalse(TicketRelation.objects.filter(pk=relation_pk).exists())
+		self.assertFalse(TicketRelation.objects.filter(pk=reverse_rel.pk).exists())
 
 
 class TicketDeleteViewTests(TestCase):

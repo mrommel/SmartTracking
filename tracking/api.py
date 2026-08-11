@@ -801,7 +801,7 @@ def ticket_relation_create(request, ticket_id):
 def ticket_relation_delete_api(request, pk):
 	"""Delete a ticket relation by its ID."""
 	relation = get_object_or_404(TicketRelation, pk=pk)
-	rev_types = Ticket.RelationType._REVERSE_MAP or {}
+	rev_types = Ticket._REVERSE_LABELS or {}
 	if relation.relation_type in rev_types:
 		try:
 			TicketRelation.objects.get(
