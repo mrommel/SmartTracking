@@ -423,3 +423,44 @@ class TicketRelationViewTests(TestCase):
 			)
 		self.assertFalse(TicketRelation.objects.filter(pk=relation_pk).exists())
 
+
+class TicketDeleteViewTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket = Ticket.objects.create(project=cls.project, title="To delete")
+
+	def setUp(self):
+		self.client.force_login(self.user)
+
+	def test_ticket_delete_get_shows_confirmation(self):
+		response = self.client.get(
+			reverse("ticket_delete", args=[self.project.pk, self.ticket.pk])
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Are you sure you want to delete")
+		self.assertContains(response, "To delete")
+		self.assertContains(response, "Delete ticket")
+		self.assertContains(response, "Cancel")
+
+	def test_ticket_delete_post_deletes_ticket(self):
+		response = self.client.post(
+			reverse("ticket_delete", args=[self.project.pk, self.ticket.pk]),
+			follow=True,
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertFalse(Ticket.objects.filter(pk=self.ticket.pk).exists())
+		self.assertIn("deleted.", response.content.decode())
+
+	def test_ticket_delete_wrong_project_redirects(self):
+		other_project = Project.objects.create(key="OTH", name="Other")
+		ticket = Ticket.objects.create(project=other_project, title="Other ticket")
+		response = self.client.post(
+			reverse("ticket_delete", args=[self.project.pk, ticket.pk]),
+			follow=True,
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertTrue(Ticket.objects.filter(pk=ticket.pk).exists())
+
+

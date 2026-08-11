@@ -13,7 +13,7 @@ $(VENV)/bin/activate: requirements.txt
 venv: $(VENV)/bin/activate
 
 run: venv
-	./$(VENV)/bin/pip3.12 install --no-cache-dir -r requirements.txt
+	./$(VENV)/bin/pip3.12 install -r requirements.txt
 	# Load .env in the same subshell as runserver. POSIX `.` works on macOS /bin/sh
 	# (bash-only `source` does not). `set -a` auto-exports every variable defined
 	# while sourcing; `[ -f .env ]` keeps a missing .env silently ok.

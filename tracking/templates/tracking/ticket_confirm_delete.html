@@ -1,0 +1,29 @@
+{% extends "tracking/base.html" %}
+
+{% block content %}
+	<nav aria-label="breadcrumb">
+		<ol class="breadcrumb">
+			<li class="breadcrumb-item"><a href="{% url 'ticket_list' %}">Tickets</a></li>
+			<li class="breadcrumb-item"><a href="{% url 'ticket_list' %}?project={{ ticket.project.key }}">{{ ticket.project.key }}</a></li>
+			<li class="breadcrumb-item"><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></li>
+			<li class="breadcrumb-item active">Delete</li>
+		</ol>
+	</nav>
+
+	<div class="card" style="max-width: 500px">
+		<div class="card-body">
+			<h1 class="h4 mb-3">Delete ticket</h1>
+			<p class="mb-3">
+				Are you sure you want to delete the ticket <strong>"{{ ticket.title }}"</strong> ({{ ticket.project.key }})?
+				This action cannot be undone.
+			</p>
+			<form method="post">
+				{% csrf_token %}
+				<div class="d-flex gap-2">
+					<button type="submit" class="btn btn-danger">Delete ticket</button>
+					<a href="{% url 'ticket_detail' ticket.pk %}" class="btn btn-secondary">Cancel</a>
+				</div>
+			</form>
+		</div>
+	</div>
+{% endblock %}

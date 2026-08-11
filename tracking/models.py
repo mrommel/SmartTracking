@@ -52,11 +52,16 @@ class Sprint(models.Model):
 	def __str__(self):
 		return f"{self.project.key} / {self.name}"
 
+	@property
+	def is_backlog(self):
+		"""Return True if this is the Backlog pseudo-sprint."""
+		return self.pk == 1 and self.name == "Backlog"
+
 	def save(self, *args, **kwargs):
 		super().save(*args, **kwargs)
 
 		# At most one active sprint per project at a time.
-		if self.is_active and self.pk is not None:
+		if self.is_active and not self.is_backlog:
 			Sprint.objects.filter(
 				project=self.project,
 				is_active=True,

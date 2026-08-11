@@ -1,5 +1,4 @@
-{% extends "tracking/base.html" %}
-{% load humanize %}
+{% extends "tracking/base.html" %}{% load humanize %}
 
 {% block content %}
 	<nav aria-label="breadcrumb">
@@ -12,104 +11,414 @@
 	<div class="d-flex justify-content-between align-items-center mb-3">
 		<h1 class="h4 mb-0">{% #badge %}{{ project.key }}{% /badge %} {{ project.name }}</h1>
 		<div class="d-flex gap-2">
-			<a class="btn btn-sm btn-outline-secondary" href="{% url 'label_list' pk=project.pk %}">Manage labels</a>
-			<a class="btn btn-sm btn-outline-secondary" href="{% url 'component_list' pk=project.pk %}">Manage components</a>
+			<a class="btn btn-sm btn-outline-secondary" href="{% url 'project_edit' project.pk %}">Manage project</a>
+			<a class="btn btn-sm btn-primary" href="{% url 'ticket_create' %}?project={{ project.key }}">{{ project.key }} + Ticket</a>
 		</div>
 	</div>
 
-	<div class="row">
-		<div class="col-lg-8">
-			<div class="card mb-3">
-				<div class="card-body">
-					<h2 class="h6 text-muted mb-2">Description</h2>
-					<p>{{ project.description|default:"No description provided."|linebreaks }}</p>
+	<nav class="nav nav-tabs mb-4">
+		<a class="nav-link {% if tab == 'overview' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=overview">Overview</a>
+		<a class="nav-link {% if tab == 'backlog' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=backlog">Backlog</a>
+		<a class="nav-link {% if tab == 'active_sprint' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=active_sprint">Active Sprint</a>
+		<a class="nav-link {% if tab == 'reports' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=reports">Reports</a>
+		<a class="nav-link {% if tab == 'components' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=components">Components</a>
+		<a class="nav-link {% if tab == 'releases' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=releases">Releases</a>
+	</nav>
+
+	{% if tab == 'overview' %}
+		<div class="row g-3 mb-4">
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-success">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Closed (last 7 days)</div>
+						<div class="display-6">{{ closed_last_7 }}</div>
+					</div>
 				</div>
 			</div>
-
-			<div class="card">
-				<div class="card-body">
-					<div class="d-flex justify-content-between align-items-center mb-3">
-						<h2 class="h6 text-muted mb-0">Tickets ({{ tickets|length }})</h2>
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-info">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Updated (last 7 days)</div>
+						<div class="display-6">{{ updated_last_7 }}</div>
 					</div>
-
-					<div class="card">
-						<table class="table table-hover mb-0 align-middle">
-							<thead>
-								<tr>
-									<th>Title</th>
-									<th style="width: 7rem">Type</th>
-									<th style="width: 9rem">State</th>
-									<th style="width: 7rem">Priority</th>
-									<th style="width: 10rem">Assignee</th>
-								</tr>
-							</thead>
-							<tbody>
-								{% for ticket in tickets %}
-									<tr>
-										<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></td>
-										<td>{{ ticket.get_type_display }}</td>
-										<td>{% state_badge ticket=ticket %}</td>
-										<td>{{ ticket.get_priority_display }}</td>
-										<td>{{ ticket.assignee|default:"—" }}</td>
-									</tr>
-								{% empty %}
-									<tr><td colspan="5" class="text-muted">No tickets yet. <a href="{% url 'ticket_create' %}?project={{ project.key }}">Create one.</a></td></tr>
-								{% endfor %}
-							</tbody>
-						</table>
+				</div>
+			</div>
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-primary">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Created (last 7 days)</div>
+						<div class="display-6">{{ created_last_7 }}</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-warning">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Due (next 7 days)</div>
+						<div class="display-6">{{ due_next_7 }}</div>
 					</div>
 				</div>
 			</div>
 		</div>
 
-		<div class="col-lg-4">
-			<div class="card mb-3">
-				<div class="card-body">
-					<dl class="row mb-0">
-						<dt class="col-5">Key</dt><dd class="col-7">{{ project.key }}</dd>
-						<dt class="col-5">Created</dt><dd class="col-7">{{ project.created_at|naturaltime }}</dd>
-						<dt class="col-5">Tickets</dt><dd class="col-7">{{ project.ticket_count }}</dd>
-					</dl>
+		<div class="row g-3 mb-4">
+			<div class="col-md-6">
+				<div class="card h-100">
+					<div class="card-header">Status of {{ project.key }} tickets</div>
+					<div class="card-body">
+						<canvas id="statusChart"></canvas>
+					</div>
+				</div>
+			</div>
+			<div class="col-md-6">
+				<div class="card h-100">
+					<div class="card-header">Priority of {{ project.key }} tickets</div>
+					<div class="card-body">
+						<canvas id="priorityChart"></canvas>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="row g-3 mb-4">
+			<div class="col-md-6">
+				<div class="card h-100">
+					<div class="card-header">Type of {{ project.key }} tickets</div>
+					<div class="card-body">
+						<canvas id="typeChart"></canvas>
+					</div>
+				</div>
+			</div>
+			<div class="col-md-6">
+				<div class="card h-100">
+					<div class="card-header">Epics of {{ project.key }} tickets</div>
+					<div class="card-body">
+						<canvas id="epicChart"></canvas>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="row g-3">
+			<div class="col-lg-5">
+				<div class="card h-100">
+					<div class="card-header">Tickets by state</div>
+					<ul class="list-group list-group-flush">
+						{% for value, label, count in state_breakdown %}
+							<li class="list-group-item d-flex justify-content-between align-items-center">
+								<a href="{% url 'ticket_list' %}?project={{ project.key }}&state={{ value }}" class="text-decoration-none">{{ label }}</a>
+								{% #badge pill=True %}{{ count }}{% /badge %}
+							</li>
+						{% endfor %}
+					</ul>
 				</div>
 			</div>
 
-			<div class="card mb-3">
-				<div class="card-body">
-					<h2 class="h6 text-muted mb-2">Components ({{ components|length }})</h2>
-					{% if components %}
-						<ul class="list-group list-group-flush mb-0">
-							{% for component in components %}
-								<li class="list-group-item px-0 py-1">
-									<div class="d-flex justify-content-between">
-										<strong>{{ component.name }}</strong>
-										<small class="text-muted">{{ component.tickets.count }} ticket{{ component.tickets.count|pluralize }}</small>
-									</div>
-									{% if component.description %}
-										<small class="text-muted">{{ component.description|truncatewords:15 }}</small>
-									{% endif %}
-								</li>
+			<div class="col-lg-7">
+				<div class="card h-100">
+					<div class="card-header">Recent tickets for {{ project.key }}</div>
+					<table class="table table-hover mb-0 align-middle">
+						<tbody>
+							{% for ticket in recent_tickets %}
+								<tr>
+									<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></td>
+									<td style="width: 9rem">{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
+								</tr>
+							{% empty %}
+								<tr><td class="text-muted">No tickets yet. <a href="{% url 'ticket_create' %}?project={{ project.key }}">Create the first one.</a></td></tr>
 							{% endfor %}
-						</ul>
-					{% else %}
-						<p class="text-muted mb-0 small">No components. <a href="{% url 'component_create' pk=project.pk %}">Add one.</a></p>
-					{% endif %}
+						</tbody>
+					</table>
 				</div>
 			</div>
+		</div>
 
-			<div class="card">
-				<div class="card-body">
-					<h2 class="h6 text-muted mb-2">Labels ({{ labels|length }})</h2>
-					{% if labels %}
-						<div class="d-flex flex-wrap gap-1 mb-0">
-							{% for label in labels %}
-								<span class="badge bg-{{ label.color }}">{{ label.name }}</span>
+	{% elif tab == 'backlog' %}
+		<div class="card">
+			<div class="card-header">
+				<h5 class="mb-0">Backlog - Tickets without Sprint</h5>
+				<span class="badge bg-secondary">{{ tickets_without_sprint|length }} tickets</span>
+			</div>
+			<div class="card-body p-0">
+				{% if tickets_without_sprint %}
+				<table class="table table-hover mb-0 align-middle">
+					<thead class="table-light">
+						<tr>
+							<th>Title</th>
+							<th>Type</th>
+							<th>State</th>
+							<th>Priority</th>
+							<th>Assignee</th>
+							<th>Due</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for ticket in tickets_without_sprint %}
+						<tr>
+							<td>
+								<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
+								<span class="text-muted small ms-1">({{ ticket.project.key }}-{{ ticket.pk }})</span>
+							</td>
+							<td>{% #badge %}{{ ticket.get_type_display }}{% /badge %}</td>
+							<td>{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
+							<td>{{ ticket.get_priority_display }}</td>
+							<td>{{ ticket.assignee|default:"-" }}</td>
+							<td>{{ ticket.due_date|naturalday|default:"-" }}</td>
+						</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+				{% else %}
+				<div class="text-center text-muted py-5">No tickets without a sprint.</div>
+				{% endif %}
+			</div>
+		</div>
+
+		{% for sprint, tickets in sprint_ticket_list %}
+		<div class="card mt-4">
+			<div class="card-header d-flex justify-content-between align-items-center">
+				<h5 class="mb-0">{{ sprint.name }}</h5>
+				<div class="d-flex align-items-center gap-2">
+					<a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'sprint_edit' project.pk sprint.pk %}">Edit</a>
+					<span class="badge bg-info">{{ tickets|length }} tickets</span>
+				</div>
+			</div>
+			<div class="card-body p-0">
+				{% if tickets %}
+				<table class="table table-hover mb-0 align-middle">
+					<thead class="table-light">
+						<tr>
+							<th>Title</th>
+							<th>Type</th>
+							<th>State</th>
+							<th>Priority</th>
+							<th>Assignee</th>
+							<th>Due</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for ticket in tickets %}
+						<tr>
+							<td>
+								<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
+								<span class="text-muted small ms-1">({{ ticket.project.key }}-{{ ticket.pk }})</span>
+							</td>
+							<td>{% #badge %}{{ ticket.get_type_display }}{% /badge %}</td>
+							<td>{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
+							<td>{{ ticket.get_priority_display }}</td>
+							<td>{{ ticket.assignee|default:"-" }}</td>
+							<td>{{ ticket.due_date|naturalday|default:"-" }}</td>
+						</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+				{% else %}
+				<div class="text-center text-muted py-3">No tickets in this sprint.</div>
+				{% endif %}
+			</div>
+		</div>
+		{% endfor %}
+
+	{% elif tab == 'active_sprint' %}
+		<div class="d-flex justify-content-between align-items-center mb-4">
+			<h4 class="mb-0">Sprints</h4>
+			<a class="btn btn-outline-primary btn-sm" href="{% url 'sprint_create' project.pk %}">+ Add Sprint</a>
+		</div>
+
+		{% if active_sprint %}
+			<div class="mb-4">
+				<div class="d-flex justify-content-between align-items-center mb-3">
+					<h4 class="mb-0">{{ active_sprint.name }}</h4>
+					<div>
+						{% if active_sprint.start_date %}
+							<span class="badge bg-secondary">Start: {{ active_sprint.start_date }}</span>
+						{% endif %}
+						{% if active_sprint.end_date %}
+							<span class="badge bg-secondary">End: {{ active_sprint.end_date }}</span>
+						{% endif %}
+					</div>
+				</div>
+				<p class="text-muted">{{ active_sprint.description }}</p>
+			</div>
+
+			<div class="row g-3">
+				{% for state, tickets in state_ticket_tuples %}
+				<div class="col-md-3">
+					<div class="card h-100">
+						<div class="card-header d-flex justify-content-between align-items-center">
+							<span>{{ state.label }}</span>
+							<span class="badge bg-secondary">{{ tickets|length }}</span>
+						</div>
+						<div class="card-body p-0">
+							{% for ticket in tickets %}
+								<div class="d-flex align-items-center py-2 {% if not forloop.last %}border-bottom{% endif %}">
+									<div class="ps-3">
+										<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
+									</div>
+									<div class="ms-auto pe-3">
+										{% #badge size="sm" variant="secondary" %}{{ ticket.get_priority_display }}{% /badge %}
+										{% #badge size="sm" variant="secondary" %}{{ ticket.get_type_display }}{% /badge %}
+										<i class="text-muted small ms-2">{{ ticket.assignee|default:"Unassigned" }}</i>
+									</div>
+								</div>
+							{% empty %}
+								<div class="text-muted text-center py-3">No tickets</div>
 							{% endfor %}
 						</div>
-					{% else %}
-						<p class="text-muted mb-0 small">No labels. <a href="{% url 'label_create' pk=project.pk %}">Add one.</a></p>
-					{% endif %}
+					</div>
 				</div>
+				{% endfor %}
+			</div>
+		{% else %}
+			<div class="text-center py-5">
+				<h4>No active sprint selected</h4>
+				<p class="text-muted">Please set up a sprint and make it active for this project.</p>
+				<a class="btn btn-outline-primary" href="{% url 'project_detail' project.pk %}?tab=backlog">View all tickets</a>
+			</div>
+		{% endif %}
+
+	{% elif tab == 'reports' %}
+		<div class="card">
+			<div class="card-body text-center py-5">
+				<h3>Coming soon</h3>
+				<p class="text-muted">Reports will be available here for {{ project.key }}.</p>
 			</div>
 		</div>
-	</div>
+
+	{% elif tab == 'components' %}
+		<div class="card">
+			<div class="card-body">
+				<h2 class="h6 text-muted mb-2">Components ({{ components|length }})</h2>
+				{% if components %}
+					<ul class="list-group list-group-flush mb-0">
+						{% for component in components %}
+							<li class="list-group-item px-0 py-1">
+								<div class="d-flex justify-content-between">
+									<strong>{{ component.name }}</strong>
+									<small class="text-muted">{{ component.tickets.count }} ticket{{ component.tickets.count|pluralize }}</small>
+								</div>
+								{% if component.description %}
+									<small class="text-muted">{{ component.description|truncatewords:15 }}</small>
+								{% endif %}
+							</li>
+						{% endfor %}
+					</ul>
+				{% else %}
+					<p class="text-muted mb-0 small">No components. <a href="{% url 'component_create' pk=project.pk %}">Add one.</a></p>
+				{% endif %}
+			</div>
+		</div>
+
+	{% elif tab == 'releases' %}
+		<div class="card">
+			<div class="card-body text-center py-5">
+				<h3>Coming soon</h3>
+				<p class="text-muted">Releases will be available here for {{ project.key }}.</p>
+			</div>
+		</div>
+
+	{% endif %}
+
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+	<script>
+	{% if tab == 'overview' %}
+	(function() {
+		const stateLabels = [
+			{% for label, count in state_chart_data %}'{{ label }}',{% endfor %}
+		];
+		const stateData = [
+			{% for label, count in state_chart_data %}{{ count }},{% endfor %}
+		];
+
+		// Status chart (doughnut)
+		new Chart(document.getElementById('statusChart'), {
+			type: 'doughnut',
+			data: {
+				labels: stateLabels,
+				datasets: [{
+					data: stateData,
+					backgroundColor: ['#6c757d', '#0d6efd', '#ffc107', '#198754']
+				}]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { position: 'bottom' } }
+			}
+		});
+
+		// Priority chart (bar)
+		const priorityLabels = [
+			{% for label, count in priority_chart_data %}'{{ label }}',{% endfor %}
+		];
+		const priorityData = [
+			{% for label, count in priority_chart_data %}{{ count }},{% endfor %}
+		];
+		new Chart(document.getElementById('priorityChart'), {
+			type: 'bar',
+			data: {
+				labels: priorityLabels,
+				datasets: [{
+					label: 'Tickets',
+					data: priorityData,
+					backgroundColor: ['#198754', '#0d6efd', '#ffc107', '#dc3545']
+				}]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { display: false }, title: { display: true, text: 'Count' } },
+				scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+			}
+		});
+
+		// Type chart (bar)
+		const typeLabels = [
+			{% for label, count in type_chart_data %}'{{ label }}',{% endfor %}
+		];
+		const typeData = [
+			{% for label, count in type_chart_data %}{{ count }},{% endfor %}
+		];
+		new Chart(document.getElementById('typeChart'), {
+			type: 'bar',
+			data: {
+				labels: typeLabels,
+				datasets: [{
+					label: 'Tickets',
+					data: typeData,
+					backgroundColor: ['#0d6efd', '#dc3545', '#198754', '#6f42c1']
+				}]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { display: false }, title: { display: true, text: 'Count' } },
+				scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+			}
+		});
+
+		// Epic chart (horizontal bar)
+		const epicLabels = [
+			{% for epic in epic_data %}'{{ epic.title|truncatechars:30 }}',{% endfor %}
+		];
+		const epicData = [
+			{% for epic in epic_data %}{{ epic.child_count }},{% endfor %}
+		];
+		new Chart(document.getElementById('epicChart'), {
+			type: 'bar',
+			data: {
+				labels: epicLabels,
+				datasets: [{
+					label: 'Child tickets',
+					data: epicData,
+					backgroundColor: '#6f42c1'
+				}]
+			},
+			options: {
+				indexAxis: 'y',
+				responsive: true,
+				plugins: { legend: { display: false } },
+				scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+			}
+		});
+	})();
+	{% endif %}
+	</script>
 {% endblock %}

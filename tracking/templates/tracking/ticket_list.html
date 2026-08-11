@@ -80,6 +80,7 @@
 					<th style="width: 7rem">Priority</th>
 					<th style="width: 10rem">Assignee</th>
 					<th style="width: 7rem">Due date</th>
+					<th style="width: 5rem"></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -93,9 +94,13 @@
 						<td>{{ ticket.get_priority_display }}</td>
 						<td>{{ ticket.assignee|default:"—" }}</td>
 						<td>{{ ticket.due_date|default:"—" }}</td>
+							<form method="post" action="{% url 'ticket_delete' ticket.project.pk ticket.pk %}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this ticket?');">
+								{% csrf_token %}
+								<button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Delete ticket">Delete</button>
+							</form>
 					</tr>
 				{% empty %}
-					<tr><td colspan="8" class="text-muted">No tickets found.</td></tr>
+					<tr><td colspan="9" class="text-muted">No tickets found.</td></tr>
 				{% endfor %}
 			</tbody>
 		</table>

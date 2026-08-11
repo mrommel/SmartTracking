@@ -722,7 +722,7 @@ def sprint_detail(request, pk):
 		sprint.save()
 		return JsonResponse(serialize_sprint(sprint))
 	# DELETE
-	if sprint.pk == 1:
+	if sprint.is_backlog:
 		return _error("Cannot delete the backlog pseudo-sprint.", status=403)
 	sprint.delete()
 	return JsonResponse({"status": "deleted"})

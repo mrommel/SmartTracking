@@ -1,111 +1,31 @@
 {% extends "tracking/base.html" %}
 
 {% block content %}
-	<div class="d-flex justify-content-between align-items-center mb-4">
-		<h1 class="h3 mb-0">Dashboard</h1>
-		<a class="btn btn-primary" href="{% url 'ticket_create' %}">+ New ticket</a>
+	<div class="d-flex justify-content-between align-items-center mb-3">
+		<h1 class="h3 mb-0">Projects</h1>
+		<a class="btn btn-primary" href="{% url 'project_create' %}">+ New project</a>
 	</div>
 
-	<div class="row g-3 mb-4">
-		<div class="col-6 col-lg-3">
-			<div class="card h-100">
-				<div class="card-body">
-					<div class="text-muted small text-uppercase">Total tickets</div>
-					<div class="display-6">{{ total_tickets }}</div>
-					<a class="stretched-link" href="{% url 'ticket_list' %}"></a>
-				</div>
-			</div>
-		</div>
-		<div class="col-6 col-lg-3">
-			<div class="card h-100 border-warning">
-				<div class="card-body">
-					<div class="text-muted small text-uppercase">Open</div>
-					<div class="display-6">{{ open_tickets }}</div>
-					<a class="stretched-link" href="{% url 'ticket_list' %}?state=open"></a>
-				</div>
-			</div>
-		</div>
-		<div class="col-6 col-lg-3">
-			<div class="card h-100 border-danger">
-				<div class="card-body">
-					<div class="text-muted small text-uppercase">Critical</div>
-					<div class="display-6">{{ critical_count }}</div>
-				</div>
-			</div>
-		</div>
-		<div class="col-6 col-lg-3">
-			<div class="card h-100">
-				<div class="card-body">
-					<div class="text-muted small text-uppercase">Projects</div>
-					<div class="display-6">{{ project_count }}</div>
-					<a class="stretched-link" href="{% url 'project_list' %}"></a>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<div class="row g-3 mb-4">
-		<div class="col-6 col-lg-3">
-			<div class="card h-100 border-info">
-				<div class="card-body">
-					<div class="text-muted small text-uppercase">Assigned to me</div>
-					<div class="display-6">{{ my_tickets }}</div>
-					<a class="stretched-link" href="{% url 'ticket_list' %}?assignee=me"></a>
-				</div>
-			</div>
-		</div>
-		<div class="col-6 col-lg-3">
-			<div class="card h-100 border-secondary">
-				<div class="card-body">
-					<div class="text-muted small text-uppercase">Unassigned</div>
-					<div class="display-6">{{ unassigned }}</div>
-					<a class="stretched-link" href="{% url 'ticket_list' %}?assignee=unassigned"></a>
-				</div>
-			</div>
-		</div>
-		<div class="col-6 col-lg-3">
-			<div class="card h-100 border-warning">
-				<div class="card-body">
-					<div class="text-muted small text-uppercase">Overdue</div>
-					<div class="display-6">{{ overdue_count }}</div>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<div class="row g-3">
-		<div class="col-lg-5">
-			<div class="card h-100">
-				<div class="card-header">Tickets by state</div>
-				<ul class="list-group list-group-flush">
-					{% for value, label, count in state_breakdown %}
-						<li class="list-group-item d-flex justify-content-between align-items-center">
-							<a href="{% url 'ticket_list' %}?state={{ value }}" class="text-decoration-none">{{ label }}</a>
-							{% #badge pill=True %}{{ count }}{% /badge %}
-						</li>
-					{% endfor %}
-				</ul>
-			</div>
-		</div>
-
-		<div class="col-lg-7">
-			<div class="card h-100">
-				<div class="card-header">Recent tickets</div>
-				<table class="table table-hover mb-0 align-middle">
-					<tbody>
-						{% for ticket in recent_tickets %}
-							<tr>
-								<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></td>
-								<td style="width: 5rem">{% #badge %}{{ ticket.project.key }}{% /badge %}</td>
-								<td style="width: 9rem">{% state_badge ticket=ticket %}</td>
-							</tr>
-						{% empty %}
-							<tr><td class="text-muted">No tickets yet. <a href="{% url 'ticket_create' %}">Create the first one.</a></td></tr>
-						{% endfor %}
-					</tbody>
-				</table>
-			</div>
-		</div>
+	<div class="card">
+		<table class="table table-hover mb-0 align-middle">
+			<thead>
+				<tr>
+					<th style="width: 8rem">Key</th>
+					<th>Name</th>
+					<th class="text-end" style="width: 10%">Tickets</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for project in projects %}
+					<tr>
+						<td>{% #badge %}{{ project.key }}{% /badge %}</td>
+						<td><a href="{% url 'project_detail' project.pk %}">{{ project.name }}</a></td>
+						<td class="text-end">{{ project.ticket_count }}</td>
+					</tr>
+				{% empty %}
+					<tr><td colspan="3" class="text-muted">No projects yet. <a href="{% url 'project_create' %}">Create one.</a></td></tr>
+				{% endfor %}
+			</tbody>
+		</table>
 	</div>
 {% endblock %}
-

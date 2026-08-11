@@ -87,6 +87,27 @@
 				</div>
 			</div>
 
+			<div class="card">
+				<div class="card-body">
+					<h2 class="h6 text-muted">Change sprint</h2>
+					<form method="post" action="{% url 'ticket_sprint_assign' ticket.pk %}" class="d-flex gap-2">
+						{% csrf_token %}
+						<select name="sprint" class="form-select">
+							<option value="">— None —</option>
+							{% for sprint in sprints %}
+								<option value="{{ sprint.pk }}" {% if ticket.sprint and ticket.sprint.pk == sprint.pk %}selected{% endif %}>{{ sprint.name }}</option>
+							{% endfor %}
+						</select>
+						<button type="submit" class="btn btn-primary">Assign</button>
+					</form>
+					{% if ticket.sprint %}
+						<p class="text-muted small mb-0 mt-2">Currently assigned to: <strong>{{ ticket.sprint.name }}</strong></p>
+					{% else %}
+						<p class="text-muted small mb-0 mt-2">Not assigned to any sprint.</p>
+					{% endif %}
+				</div>
+			</div>
+
 			<!-- Child Tickets section -->
 			<div class="card">
 				<div class="card-body">
