@@ -155,11 +155,13 @@ def update_ticket(
 	priority: Optional[int] = None,
 	labels: Optional[list[str]] = None,
 	components: Optional[list[str]] = None,
+	sprint: Optional[int] = None,
 ) -> Any:
 	"""Partially update a ticket's fields. To change the state, use
 	`transition_ticket` instead (this endpoint rejects a 'state' key).
 	`labels` and `components` accept a list of label/component names for the
-	project; unknown names are silently ignored."""
+	project; unknown names are silently ignored. `sprint` accepts a sprint
+	pk to assign the ticket to a specific sprint."""
 	payload = {
 		k: v
 		for k, v in {
@@ -170,6 +172,7 @@ def update_ticket(
 			"priority": priority,
 			"labels": labels,
 			"components": components,
+			"sprint": sprint,
 		}.items()
 		if v is not None
 	}

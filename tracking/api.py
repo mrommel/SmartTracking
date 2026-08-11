@@ -355,7 +355,7 @@ def ticket_detail(request, pk):
 			"Use the /transition/ endpoint to change 'state'.", status=400
 		)
 
-	updatable = {"title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "due_date"}
+	updatable = {"title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "due_date", "sprint"}
 	if "assignee" in data:
 		assignee_value = data["assignee"]
 		if assignee_value is not None and assignee_value != "":
@@ -386,6 +386,12 @@ def ticket_detail(request, pk):
 			return _error(f"Invalid type '{value}'.")
 		if field == "priority" and value not in Ticket.Priority.values:
 			return _error(f"Invalid priority '{value}'.")
+		if field == "sprint":
+			if value is not None:
+				try:
+					value = Sprint.objects.get(pk=value)
+				except Sprint.DoesNotExist:
+					return _error(f"Unknown sprint id '{value}'.")
 		setattr(ticket, field, value)
 		changed.append(field)
 
