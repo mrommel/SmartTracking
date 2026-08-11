@@ -48,6 +48,8 @@ Configuration (all optional, read from the environment / `.env`):
 | `create_ticket`     | `POST /tracking/api/tickets/`                  | `project`, `title`, `type?`, `priority?`, `estimation?`, `description?` |
 | `update_ticket`     | `PATCH /tracking/api/tickets/<id>/`            | fields only (incl. `estimation`); **not** `state` |
 | `transition_ticket` | `POST /tracking/api/tickets/<id>/transition/`  | `state`; 409 + `allowed_transitions` if illegal |
+| `list_sprints`      | `GET /tracking/api/sprints/<key>/`             | all sprints of a project |
+| `get_active_sprint_tickets` | `GET /tracking/api/sprints/<key>/active/tickets/` | tickets of the project's active sprint; `sprint: null` + empty list when none is active |
 
 State changes go **only** through `transition_ticket` (mirroring the API);
 `update_ticket` rejects a `state` key. API errors are returned to the agent as

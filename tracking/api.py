@@ -683,6 +683,29 @@ def sprint_collection(request, project_key):
 
 @csrf_exempt
 @require_api_auth
+@require_http_methods(["GET"])
+def active_sprint_tickets(request, project_key):
+	"""Return the tickets of the project's active sprint.
+
+	A project has at most one active sprint. When no sprint is active, this
+	returns ``sprint: null`` and an empty ``tickets`` list.
+	"""
+	project = get_object_or_404(Project, key=project_key.upper())
+	sprint = project.sprints.filter(is_active=True).first()
+	tickets = []
+	if sprint is not None:
+		ticket_qs = Ticket.objects.filter(sprint=sprint).select_related(
+			"project", "assignee", "reporter"
+		)
+		tickets = [serialize_ticket(t) for t in ticket_qs]
+	return JsonResponse({
+		"sprint": serialize_sprint(sprint) if sprint else None,
+		"tickets": tickets,
+	})
+
+
+@csrf_exempt
+@require_api_auth
 @require_http_methods(["POST"])
 def sprint_create(request, project_key):
 	"""Create a sprint in a project."""
@@ -809,6 +832,7 @@ urlpatterns = [
 	path("attachments/", attachment_collection, name="api_attachment_collection"),
 	path("attachments/<int:pk>/", attachment_detail, name="api_attachment_detail"),
 	path("sprints/<str:project_key>/", sprint_collection, name="api_sprint_collection"),
+	path("sprints/<str:project_key>/active/tickets/", active_sprint_tickets, name="api_active_sprint_tickets"),
 	path("sprints/<str:project_key>/create/", sprint_create, name="api_sprint_create"),
 	path("sprints/<int:pk>/", sprint_detail, name="api_sprint_detail"),
 	path("tickets/relations/<int:pk>/delete/", ticket_relation_delete_api, name="api_ticket_relation_delete"),

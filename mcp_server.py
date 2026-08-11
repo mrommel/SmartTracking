@@ -310,6 +310,14 @@ def list_sprints(project_key: str) -> Any:
 
 
 @mcp.tool()
+def get_active_sprint_tickets(project_key: str) -> Any:
+	"""Return the tickets of the project's active sprint. A project has at
+	most one active sprint; when none is active, returns `sprint: null` and
+	an empty `tickets` list."""
+	return _request("GET", f"/sprints/{project_key}/active/tickets/")
+
+
+@mcp.tool()
 def create_sprint(project_key: str, name: str, description: str = "", start_date: Optional[str] = None, end_date: Optional[str] = None, order: int = 0, is_active: bool = False) -> Any:
 	"""Create a sprint in a project. Returns status 409 if the name already
 	exists in that project. `order` controls display order; `is_active` makes

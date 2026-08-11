@@ -37,7 +37,7 @@ Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` pro
 
 ## REST API (`tracking/api.py`, `/tracking/api/`)
 - Plain-Django JSON views (no DRF), function-based, CSRF-exempt, own `urlpatterns` `include()`d from `tracking/urls.py`. URL names are `api_`-prefixed.
-- Endpoints: `GET /api/meta/` (enums + transition graph for discovery), `GET|POST /api/projects/`, `GET /api/projects/<key>/`, `GET|POST /api/tickets/` (filter `?project=&state=`), `GET|PATCH /api/tickets/<pk>/`, `POST /api/tickets/<pk>/transition/`.
+- Endpoints: `GET /api/meta/` (enums + transition graph for discovery), `GET|POST /api/projects/`, `GET /api/projects/<key>/`, `GET|POST /api/tickets/` (filter `?project=&state=`), `GET|PATCH /api/tickets/<pk>/`, `POST /api/tickets/<pk>/transition/`, `GET /api/sprints/<key>/` (project sprints), `GET /api/sprints/<key>/active/tickets/` (tickets of the project's single active sprint — `sprint: null` + empty list when none is active).
 - State changes go **only** through `/transition/`, which reuses `ticket.can_transition_to()` (returns 409 + `allowed_transitions` on illegal moves); `PATCH` rejects a `state` key. Mirror the HTML views' state-machine discipline for any new endpoint.
 - MCP integration: `make run` also starts a bundled MCP server (see Workflows above) wrapping these endpoints as agent tools. See `mcp_server.md` for client config (VS Code / Claude Desktop); ports/URL are configurable via `MCP_HOST`/`MCP_PORT`/`SMARTTRACKING_URL`.
 

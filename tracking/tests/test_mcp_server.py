@@ -237,6 +237,10 @@ class McpToolTests(TestCase):
 		mcp_mod.list_sprints("SMT")
 		mock_req.assert_called_once_with("GET", "/sprints/SMT/")
 
+	def test_get_active_sprint_tickets(self, mock_req):
+		mcp_mod.get_active_sprint_tickets("SMT")
+		mock_req.assert_called_once_with("GET", "/sprints/SMT/active/tickets/")
+
 	def test_create_sprint_defaults(self, mock_req):
 		mcp_mod.create_sprint("SMT", "Sprint 1")
 		mock_req.assert_called_once_with(

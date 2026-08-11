@@ -7,7 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from tracking.models import Attachment, Component, Label, Project, Ticket, TicketRelation
+from tracking.models import Attachment, Component, Label, Project, Sprint, Ticket, TicketRelation
 
 User = get_user_model()
 
@@ -557,3 +557,68 @@ class EpicApiTests(TestCase):
 		ticket_data = {t["id"]: t for t in tickets}
 		self.assertEqual(ticket_data[self.child.pk]["parent_epic"], self.epic.pk)
 		self.assertEqual(ticket_data[self.epic.pk]["parent_epic"], None)
+
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
+class ActiveSprintTicketsApiTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+
+	def _auth(self):
+		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
+
+	def _get(self, url):
+		return self.client.get(url, **self._auth())
+
+	def test_active_sprint_returns_its_tickets(self):
+		sprint = Sprint.objects.create(
+			project=self.project, name="Sprint 1", is_active=True
+		)
+		other = Sprint.objects.create(
+			project=self.project, name="Sprint 2", is_active=False
+		)
+		in_sprint = Ticket.objects.create(
+			project=self.project, title="in active", sprint=sprint
+		)
+		Ticket.objects.create(
+			project=self.project, title="in other", sprint=other
+		)
+		Ticket.objects.create(project=self.project, title="no sprint")
+
+		resp = self._get(
+			reverse("api_active_sprint_tickets", args=["SMT"])
+		)
+		self.assertEqual(resp.status_code, 200)
+		body = resp.json()
+		self.assertEqual(body["sprint"]["name"], "Sprint 1")
+		titles = [t["title"] for t in body["tickets"]]
+		self.assertEqual(titles, ["in active"])
+		self.assertEqual(body["tickets"][0]["id"], in_sprint.pk)
+
+	def test_no_active_sprint_returns_no_tickets(self):
+		Sprint.objects.create(
+			project=self.project, name="Sprint 1", is_active=False
+		)
+		Ticket.objects.create(project=self.project, title="a")
+
+		resp = self._get(
+			reverse("api_active_sprint_tickets", args=["SMT"])
+		)
+		self.assertEqual(resp.status_code, 200)
+		body = resp.json()
+		self.assertIsNone(body["sprint"])
+		self.assertEqual(body["tickets"], [])
+
+	def test_unknown_project_returns_404(self):
+		resp = self._get(
+			reverse("api_active_sprint_tickets", args=["NOPE"])
+		)
+		self.assertEqual(resp.status_code, 404)
+
+	def test_requires_auth(self):
+		resp = self.client.get(
+			reverse("api_active_sprint_tickets", args=["SMT"])
+		)
+		self.assertEqual(resp.status_code, 401)
+
