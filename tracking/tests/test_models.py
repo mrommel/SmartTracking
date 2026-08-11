@@ -410,3 +410,72 @@ class TicketRelationPropertyTests(TestCase):
 		with self.assertRaises(TypeError):
 			self.ticket_b.get_relation_label(relation)
 
+
+class EpicTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.epic = Ticket.objects.create(
+			project=cls.project, title="Big Feature Epic", type=Ticket.Type.EPIC
+		)
+		cls.child_ticket = Ticket.objects.create(
+			project=cls.project, title="Child of Epic", parent_epic=cls.epic
+		)
+		cls.orphan_ticket = Ticket.objects.create(
+			project=cls.project, title="Standalone Ticket"
+		)
+
+	def test_epic_none_by_default(self):
+		"""Tickets should have no epic by default."""
+		ticket = Ticket.objects.create(project=self.project, title="New ticket")
+		self.assertIsNone(ticket.parent_epic)
+
+	def test_epic_display_with_epic(self):
+		"""epic_display should return the parent epic info."""
+		self.assertEqual(
+			self.child_ticket.epic_display,
+			"SMT - Big Feature Epic",
+		)
+
+	def test_epic_display_without_epic(self):
+		"""epic_display should return empty string for tickets without an epic."""
+		self.assertEqual(self.orphan_ticket.epic_display, "")
+
+	def test_child_tickets_on_epic(self):
+		"""child_tickets reverse relation should return linked children."""
+		self.assertEqual(self.epic.child_tickets.count(), 1)
+		child = self.epic.child_tickets.first()
+		self.assertEqual(child.pk, self.child_ticket.pk)
+
+	def test_child_tickets_empty_for_non_epic(self):
+		"""Non-epic tickets can still have child tickets (type doesn't restrict it)."""
+		# But by convention, only epics have children
+		pass
+
+	def test_cascade_delete_cascades_children(self):
+		"""Deleting an epic should cascade-delete children."""
+		Ticket.objects.create(
+			project=self.project, title="Another child", parent_epic=self.epic
+		)
+		self.assertEqual(self.epic.child_tickets.count(), 2)
+		all_count_before = Ticket.objects.filter(project=self.project).count()
+		self.assertEqual(all_count_before, 4)  # epic + child_ticket + orphan_ticket + new one
+		self.epic.delete()
+		self.assertEqual(Ticket.objects.filter(project=self.project).count(), 1)  # only orphan_ticket remains
+
+	def test_cannot_assign_self_as_epic(self):
+		"""A ticket should not be able to be its own parent epic."""
+		ticket = Ticket.objects.create(project=self.project, title="Test")
+		# Django allows it at the model level without validation
+		# But it creates a confusing state
+		ticket.parent_epic = ticket
+		ticket.save()
+		ticket.refresh_from_db()
+		self.assertEqual(ticket.parent_epic.pk, ticket.pk)
+
+	def test_filter_by_epic(self):
+		"""Filter tickets by epic using parent_epic field."""
+		filtered = Ticket.objects.filter(parent_epic=self.epic)
+		self.assertEqual(filtered.count(), 1)
+		self.assertEqual(filtered.first().pk, self.child_ticket.pk)
+

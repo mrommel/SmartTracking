@@ -35,6 +35,7 @@ class TicketForm(forms.ModelForm):
 			"estimation",
 			"priority",
 			"assignee",
+			"parent_epic",
 			"components",
 			"labels",
 		]
@@ -42,6 +43,7 @@ class TicketForm(forms.ModelForm):
 			"description": forms.Textarea(attrs={"rows": 4}),
 			"components": forms.SelectMultiple(attrs={"class": "form-select"}),
 			"labels": forms.SelectMultiple(attrs={"class": "form-select"}),
+			"parent_epic": forms.Select(attrs={"class": "form-select"}),
 		}
 
 

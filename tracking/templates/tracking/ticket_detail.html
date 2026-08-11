@@ -38,6 +38,13 @@
 						<dt class="col-5">Priority</dt><dd class="col-7">{{ ticket.get_priority_display }}</dd>
 						<dt class="col-5">Reporter</dt><dd class="col-7">{{ ticket.reporter|default:"—" }}</dd>
 						<dt class="col-5">Assignee</dt><dd class="col-7">{{ ticket.assignee|default:"—" }}</dd>
+						<dt class="col-5">Epic</dt><dd class="col-7">
+							{% if ticket.parent_epic %}
+								<a href="{% url 'ticket_detail' ticket.parent_epic.pk %}">{{ ticket.epic_display }}</a>
+							{% else %}
+								—
+							{% endif %}
+						</dd>
 						<dt class="col-5">Components</dt><dd class="col-7">
 							{% for component in ticket.components.all %}
 								{% #badge %}{{ component.name }}{% /badge %}
@@ -73,7 +80,28 @@
 				</div>
 			</div>
 
-			<!-- Relations section -->
+			<!-- Child Tickets section -->
+			<div class="card">
+				<div class="card-body">
+					<h2 class="h6 text-muted">Child Tickets ({{ child_tickets|length }})</h2>
+					{% if child_tickets %}
+						<ul class="list-group list-group-flush">
+							{% for ct in child_tickets %}
+								<li class="list-group-item px-0">
+									<a href="{% url 'ticket_detail' ct.pk %}">{{ ct.title }}</a>
+									<span class="text-muted float-end">
+										{% state_badge ticket=ct %}
+										· {{ ct.get_type_display }}
+									</span>
+								</li>
+							{% endfor %}
+						</ul>
+					{% else %}
+						<p class="text-muted mb-0">No child tickets.</p>
+					{% endif %}
+				</div>
+			</div>
+
 			<div class="card">
 				<div class="card-body">
 					<h2 class="h6 text-muted">Relations</h2>

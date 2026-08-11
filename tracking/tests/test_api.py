@@ -493,3 +493,67 @@ class TicketRelationApiTests(TestCase):
 				**self._auth(),
 			)
 		self.assertTrue(TicketRelation.objects.filter(pk=relation_pk).exists())
+
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
+class EpicApiTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.epic = Ticket.objects.create(
+			project=cls.project, title="Big Epic", type=Ticket.Type.EPIC
+		)
+		cls.child = Ticket.objects.create(
+			project=cls.project, title="Child Ticket", parent_epic=cls.epic
+		)
+
+	def _auth(self):
+		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
+
+	def _get(self, url):
+		return self.client.get(url, **self._auth())
+
+	def _patch(self, url, payload):
+		return self.client.patch(
+			url, data=json.dumps(payload), content_type="application/json", **self._auth(),
+		)
+
+	def test_serialization_includes_parent_epic(self):
+		data = self._get(reverse("api_ticket_detail", args=[self.child.pk])).json()
+		self.assertEqual(data["parent_epic"], self.epic.pk)
+		self.assertEqual(data["parent_epic_display"], "SMT - Big Epic")
+
+	def test_serialization_none_for_orphan(self):
+		ticket = Ticket.objects.create(project=self.project, title="Standalone")
+		data = self._get(reverse("api_ticket_detail", args=[ticket.pk])).json()
+		self.assertIsNone(data["parent_epic"])
+		self.assertEqual(data["parent_epic_display"], "")
+
+	def test_patch_parent_epic(self):
+		orphan = Ticket.objects.create(project=self.project, title="To assign")
+		resp = self._patch(
+			reverse("api_ticket_detail", args=[orphan.pk]),
+			{"parent_epic": self.epic.pk},
+		)
+		self.assertEqual(resp.status_code, 200)
+		body = resp.json()
+		self.assertEqual(body["parent_epic"], self.epic.pk)
+		orphan.refresh_from_db()
+		self.assertEqual(orphan.parent_epic.pk, self.epic.pk)
+
+	def test_patch_clear_parent_epic(self):
+		resp = self._patch(
+			reverse("api_ticket_detail", args=[self.child.pk]),
+			{"parent_epic": None},
+		)
+		self.assertEqual(resp.status_code, 200)
+		self.child.refresh_from_db()
+		self.assertIsNone(self.child.parent_epic)
+
+	def test_list_endpoint_includes_epic(self):
+		url = reverse("api_ticket_collection") + "?project=SMT"
+		resp = self._get(url)
+		tickets = resp.json()["tickets"]
+		ticket_data = {t["id"]: t for t in tickets}
+		self.assertEqual(ticket_data[self.child.pk]["parent_epic"], self.epic.pk)
+		self.assertEqual(ticket_data[self.epic.pk]["parent_epic"], None)

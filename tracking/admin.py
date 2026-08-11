@@ -23,7 +23,7 @@ class TicketAdmin(admin.ModelAdmin):
 	list_display = ("title", "project", "type", "state", "estimation", "priority", "assignee", "created_at")
 	list_filter = ("project", "type", "state", "priority")
 	search_fields = ("title", "description")
-	autocomplete_fields = ("project", "reporter", "assignee")
+	autocomplete_fields = ("project", "reporter", "assignee", "parent_epic")
 	readonly_fields = ("created_at", "updated_at")
 	inlines = (TicketRelationInline,)
 

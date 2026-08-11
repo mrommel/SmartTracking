@@ -168,10 +168,11 @@ def ticket_list(request):
 def ticket_detail(request, pk):
 	"""Show a single ticket with its allowed state transitions, comments, and attachments."""
 	ticket = get_object_or_404(
-		Ticket.objects.select_related("project", "assignee", "reporter"), pk=pk
+		Ticket.objects.select_related("project", "assignee", "reporter", "parent_epic"), pk=pk
 	)
 	comments = ticket.comments.select_related("author").all()
 	attachments = ticket.attachments.all()
+	child_tickets = Ticket.objects.filter(parent_epic=ticket).select_related("project", "assignee").all()
 	relations = list(ticket.relations.prefetch_related("subject", "target").all())
 	for rel in relations:
 		if rel.subject_id == ticket.pk:
@@ -188,6 +189,7 @@ def ticket_detail(request, pk):
 		"relations": relations,
 		"available_tickets": ticket.available_rels_for("current_project"),
 		"relation_types": Ticket.RelationType.choices,
+		"child_tickets": child_tickets,
 	})
 
 
@@ -198,9 +200,9 @@ def ticket_edit(request, pk):
 	if request.method == "POST":
 		form = TicketForm(request.POST)
 		if form.is_valid():
-			for field in ["title", "description", "type", "estimation", "priority", "assignee"]:
+			for field in ["title", "description", "type", "estimation", "priority", "assignee", "parent_epic"]:
 				setattr(ticket, field, form.cleaned_data[field])
-			ticket.save(update_fields=["title", "description", "type", "estimation", "priority", "assignee", "updated_at"])
+			ticket.save(update_fields=["title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "updated_at"])
 			ticket.components.set(form.cleaned_data.get("components", []))
 			ticket.labels.set(form.cleaned_data.get("labels", []))
 			messages.success(request, "Ticket updated.")
@@ -208,6 +210,7 @@ def ticket_edit(request, pk):
 	else:
 		form = TicketForm(instance=ticket)
 		project_key = ticket.project.key
+		form.fields["parent_epic"].queryset = Ticket.objects.filter(project=ticket.project, type=Ticket.Type.EPIC).exclude(pk=ticket.pk)
 		form.fields["components"].queryset = Component.objects.filter(project=ticket.project)
 		form.fields["labels"].queryset = Label.objects.filter(project=ticket.project)
 

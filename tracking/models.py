@@ -144,6 +144,7 @@ class Ticket(models.Model):
 		MEDIUM = 2, _("Medium")
 		HIGH = 3, _("High")
 		CRITICAL = 4, _("Critical")
+
 	class RelationType(models.TextChoices):
 		RELATED_TO = "related_to", _("Related to")
 		BLOCKED_BY = "blocked_by", _("Blocked by")
@@ -196,6 +197,14 @@ class Ticket(models.Model):
 		related_name="tickets",
 		verbose_name=_("sprint"),
 	)
+	parent_epic = models.ForeignKey(
+		"self",
+		on_delete=models.CASCADE,
+		null=True,
+		blank=True,
+		related_name="child_tickets",
+		verbose_name=_("epic"),
+	)
 	assignee = models.ForeignKey(
 		settings.AUTH_USER_MODEL,
 		on_delete=models.SET_NULL,
@@ -243,6 +252,14 @@ class Ticket(models.Model):
 	def can_transition_to(self, new_state):
 		"""Return True if moving to ``new_state`` is a permitted transition."""
 		return self.State(new_state) in self.allowed_transitions()
+
+	@property
+	def epic_display(self):
+		"""Return the display string for the epic this ticket belongs to."""
+		if self.parent_epic:
+			return f"{self.parent_epic.project.key} - {self.parent_epic.title}"
+		return ""
+
 	def _get_reverse_label(value):
 		"""Return the symmetric label for a relation type."""
 		return _(_REVERSE_LABELS.get(value, value))

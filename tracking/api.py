@@ -85,6 +85,8 @@ def serialize_ticket(ticket):
 		"priority": ticket.priority,
 		"priority_display": ticket.get_priority_display(),
 		"estimation": ticket.estimation,
+		"parent_epic": ticket.parent_epic_id,
+		"parent_epic_display": ticket.epic_display,
 		"reporter": str(ticket.reporter) if ticket.reporter else None,
 		"assignee": str(ticket.assignee) if ticket.assignee else None,
 		"components": [
@@ -351,7 +353,7 @@ def ticket_detail(request, pk):
 			"Use the /transition/ endpoint to change 'state'.", status=400
 		)
 
-	updatable = {"title", "description", "type", "estimation", "priority", "assignee"}
+	updatable = {"title", "description", "type", "estimation", "priority", "assignee", "parent_epic"}
 	if "assignee" in data:
 		assignee_value = data["assignee"]
 		if assignee_value is not None and assignee_value != "":
@@ -362,6 +364,15 @@ def ticket_detail(request, pk):
 				return _error(f"Unknown user '{assignee_value}'.")
 		else:
 			data["assignee"] = None
+	if "parent_epic" in data:
+		epic_value = data["parent_epic"]
+		if epic_value is not None:
+			try:
+				data["parent_epic"] = Ticket.objects.get(pk=epic_value)
+			except Ticket.DoesNotExist:
+				return _error(f"Parent epic ticket not found.", status=404)
+		else:
+			data["parent_epic"] = None
 	changed = []
 	for field in updatable & set(data):
 		value = data[field]
