@@ -148,11 +148,15 @@ class Ticket(models.Model):
 		RELATED_TO = "related_to", _("Related to")
 		BLOCKED_BY = "blocked_by", _("Blocked by")
 		TESTED_WITH = "tested_with", _("Found during testing of")
+		IS_PARENT = "is_parent", _("Is parent")
+		IS_CHILD = "is_child", _("Is child")
 
 	_REVERSE_LABELS = {
 		"related_to": "related_to",
 		"blocked_by": "blocks",
 		"tested_with": "tested_by",
+		"is_parent": "is_child",
+		"is_child": "is_parent",
 	}
 
 
