@@ -100,8 +100,10 @@
 						</select>
 						<button type="submit" class="btn btn-primary">Assign</button>
 					</form>
-					{% if ticket.sprint %}
-						<p class="text-muted small mb-0 mt-2">Currently assigned to: <strong>{{ ticket.sprint.name }}</strong></p>
+					{% if ticket.sprint.is_active %}
+                        <p class="text-muted small mb-0 mt-2">Currently assigned to: <a href="{% url 'project_detail' ticket.project.pk %}?tab=active_sprint"><strong>{{ ticket.sprint.name }}</strong></a></p>
+                    {% elif ticket.sprint %}
+						<p class="text-muted small mb-0 mt-2">Currently assigned to: <a href="{% url 'project_detail' ticket.project.pk %}?tab=backlog"><strong>{{ ticket.sprint.name }}</strong></a></p>
 					{% else %}
 						<p class="text-muted small mb-0 mt-2">Not assigned to any sprint.</p>
 					{% endif %}
