@@ -57,6 +57,13 @@
 						</dd>
 						<dt class="col-5">Created</dt><dd class="col-7">{{ ticket.created_at|naturaltime }}</dd>
 						<dt class="col-5">Updated</dt><dd class="col-7">{{ ticket.updated_at|naturaltime }}</dd>
+						<dt class="col-5">Due date</dt><dd class="col-7">
+							{% if ticket.due_date %}
+								{{ ticket.due_date|date:"M d, Y" }}
+							{% else %}
+								—
+							{% endif %}
+						</dd>
 					</dl>
 				</div>
 			</div>

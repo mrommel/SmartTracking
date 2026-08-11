@@ -79,6 +79,7 @@
 					<th style="width: 6rem">Estimation</th>
 					<th style="width: 7rem">Priority</th>
 					<th style="width: 10rem">Assignee</th>
+					<th style="width: 7rem">Due date</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -91,9 +92,10 @@
 						<td>{{ ticket.estimation|default:"—" }}</td>
 						<td>{{ ticket.get_priority_display }}</td>
 						<td>{{ ticket.assignee|default:"—" }}</td>
+						<td>{{ ticket.due_date|default:"—" }}</td>
 					</tr>
 				{% empty %}
-					<tr><td colspan="7" class="text-muted">No tickets found.</td></tr>
+					<tr><td colspan="8" class="text-muted">No tickets found.</td></tr>
 				{% endfor %}
 			</tbody>
 		</table>

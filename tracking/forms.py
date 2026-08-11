@@ -38,9 +38,11 @@ class TicketForm(forms.ModelForm):
 			"parent_epic",
 			"components",
 			"labels",
+			"due_date",
 		]
 		widgets = {
 			"description": forms.Textarea(attrs={"rows": 4}),
+			"due_date": forms.DateInput(attrs={"type": "date"}),
 			"components": forms.SelectMultiple(attrs={"class": "form-select"}),
 			"labels": forms.SelectMultiple(attrs={"class": "form-select"}),
 			"parent_epic": forms.Select(attrs={"class": "form-select"}),

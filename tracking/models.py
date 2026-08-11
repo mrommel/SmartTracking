@@ -225,6 +225,7 @@ class Ticket(models.Model):
 		related_name="tickets",
 		verbose_name=_("labels"),
 	)
+	due_date = models.DateField(_("due date"), null=True, blank=True)
 	relation_tickets = models.ManyToManyField(
 		"self",
 		blank=True,

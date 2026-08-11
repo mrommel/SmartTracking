@@ -106,6 +106,7 @@ def serialize_ticket(ticket):
 			serialize_comment(c)
 			for c in ticket.comments.select_related("author").all()
 		],
+		"due_date": ticket.due_date.isoformat() if ticket.due_date else None,
 		"created_at": ticket.created_at.isoformat(),
 		"updated_at": ticket.updated_at.isoformat(),
 	}
@@ -304,6 +305,7 @@ def ticket_collection(request):
 		type=ticket_type,
 		priority=priority,
 		estimation=data.get("estimation"),
+		due_date=data.get("due_date") or None,
 	)
 	if request.user.is_authenticated:
 		ticket.reporter = request.user
@@ -353,7 +355,7 @@ def ticket_detail(request, pk):
 			"Use the /transition/ endpoint to change 'state'.", status=400
 		)
 
-	updatable = {"title", "description", "type", "estimation", "priority", "assignee", "parent_epic"}
+	updatable = {"title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "due_date"}
 	if "assignee" in data:
 		assignee_value = data["assignee"]
 		if assignee_value is not None and assignee_value != "":
@@ -364,6 +366,10 @@ def ticket_detail(request, pk):
 				return _error(f"Unknown user '{assignee_value}'.")
 		else:
 			data["assignee"] = None
+	if "due_date" in data:
+		due_value = data.get("due_date")
+		if due_value is None or due_value == "":
+			data["due_date"] = None
 	if "parent_epic" in data:
 		epic_value = data["parent_epic"]
 		if epic_value is not None:

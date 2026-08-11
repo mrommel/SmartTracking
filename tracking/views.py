@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse
 from django.shortcuts import render
+from django.utils import timezone
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
@@ -50,6 +51,12 @@ def dashboard(request):
 
 	my_tickets = tickets.filter(assignee=request.user).count()
 	unassigned = tickets.filter(assignee__isnull=True).count()
+	today = timezone.localdate()
+	overdue = tickets.filter(
+		due_date__isnull=False,
+		due_date__lt=today,
+		state__in=[Ticket.State.OPEN, Ticket.State.IN_PROGRESS],
+	).count()
 
 	return render(request, "tracking/dashboard.html", {
 		"title": "Dashboard",
@@ -61,6 +68,7 @@ def dashboard(request):
 		"recent_tickets": recent_tickets,
 		"my_tickets": my_tickets,
 		"unassigned": unassigned,
+		"overdue_count": overdue,
 	})
 
 
@@ -200,9 +208,9 @@ def ticket_edit(request, pk):
 	if request.method == "POST":
 		form = TicketForm(request.POST)
 		if form.is_valid():
-			for field in ["title", "description", "type", "estimation", "priority", "assignee", "parent_epic"]:
+			for field in ["title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "due_date"]:
 				setattr(ticket, field, form.cleaned_data[field])
-			ticket.save(update_fields=["title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "updated_at"])
+			ticket.save(update_fields=["title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "due_date", "updated_at"])
 			ticket.components.set(form.cleaned_data.get("components", []))
 			ticket.labels.set(form.cleaned_data.get("labels", []))
 			messages.success(request, "Ticket updated.")
