@@ -1,5 +1,5 @@
 {% extends "tracking/base.html" %}
-{% load humanize %}
+{% load humanize markdown_filters %}
 
 {% block content %}
 	<nav aria-label="breadcrumb">
@@ -24,7 +24,7 @@
 						{% #badge %}{{ ticket.project.key }}{% /badge %}
 						· {{ ticket.get_type_display }}
 					</p>
-					<p style="white-space: pre-wrap">{{ ticket.description|default:"No description provided." }}</p>
+					<p style="white-space: pre-wrap">{{ ticket.description|markdown|default:"No description provided." }}</p>
 				</div>
 			</div>
 		</div>
@@ -68,7 +68,7 @@
 				</div>
 			</div>
 
-			<div class="card">
+			<div class="card mb-3">
 				<div class="card-body">
 					<h2 class="h6 text-muted">Change state</h2>
 					{% if transition_form.fields.state.choices %}
@@ -87,7 +87,7 @@
 				</div>
 			</div>
 
-			<div class="card">
+			<div class="card mb-3">
 				<div class="card-body">
 					<h2 class="h6 text-muted">Change sprint</h2>
 					<form method="post" action="{% url 'ticket_sprint_assign' ticket.pk %}" class="d-flex gap-2">
@@ -109,7 +109,7 @@
 			</div>
 
 			<!-- Child Tickets section -->
-			<div class="card">
+			<div class="card mb-3">
 				<div class="card-body">
 					<h2 class="h6 text-muted">Child Tickets ({{ child_tickets|length }})</h2>
 					{% if child_tickets %}
@@ -130,7 +130,7 @@
 				</div>
 			</div>
 
-			<div class="card">
+			<div class="card mb-3">
 				<div class="card-body">
 					<h2 class="h6 text-muted">Relations</h2>
 					{% if relations %}
@@ -254,7 +254,7 @@
 						<strong>{{ comment.author.get_username|default:"—" }}</strong>
 						<small class="text-muted">{{ comment.created_at|naturaltime }}</small>
 					</div>
-					<p style="white-space: pre-wrap">{{ comment.body }}</p>
+					<p style="white-space: pre-wrap">{{ comment.body|markdown }}</p>
 				</div>
 			{% empty %}
 				<p class="text-muted">No comments yet.</p>
