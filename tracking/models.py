@@ -73,6 +73,33 @@ class Sprint(models.Model):
 			project=self.project, is_active=True, pk=self.pk
 		).exists()
 
+	def close(self):
+		"""Close this sprint: deactivate it and set end_date to today."""
+		from django.utils import timezone
+		self.is_active = False
+		self.end_date = timezone.localdate()
+		self.save(update_fields=["is_active", "end_date"])
+
+	def close_with_action(self, action="backlog", target_sprint_id=None):
+		"""Close this sprint with an action for its tickets.
+
+		`action` can be:
+		- "backlog": move unassigned tickets to backlog (sprint=None)
+		- "sprint": move unassigned tickets to target_sprint (needs target_sprint_id)
+		- "keep": leave tickets as-is
+		"""
+		from django.utils import timezone
+		tickets = self.tickets.filter(sprint=self)
+		if action == "backlog":
+			tickets.update(sprint=None)
+		elif action == "sprint":
+			if target_sprint_id:
+				tickets.update(sprint_id=target_sprint_id)
+		# "keep" does nothing to tickets
+		self.is_active = False
+		self.end_date = timezone.localdate()
+		self.save(update_fields=["is_active", "end_date"])
+
 
 class Component(models.Model):
 	"""A component within a project, used to group tickets."""

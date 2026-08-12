@@ -627,3 +627,130 @@ class ActiveSprintTicketsApiTests(TestCase):
 		)
 		self.assertEqual(resp.status_code, 401)
 
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
+class SprintCloseApiTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+
+	def _auth(self):
+		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
+
+	def _post(self, url, payload=None):
+		data = json.dumps(payload or {})
+		return self.client.post(
+			url,
+			data=data,
+			content_type="application/json",
+			**self._auth(),
+		)
+
+	def test_close_sprint_default_action_backlog(self):
+		sprint = Sprint.objects.create(
+			project=self.project, name="Sprint 1", is_active=True,
+		)
+		ticket = Ticket.objects.create(
+			project=self.project, title="sprint ticket", sprint=sprint,
+		)
+		resp = self._post(
+			reverse("api_sprint_close", args=["SMT", sprint.pk])
+		)
+		self.assertEqual(resp.status_code, 200)
+		body = resp.json()
+		self.assertFalse(body["is_active"])
+		self.assertIsNotNone(body["end_date"])
+		sprint.refresh_from_db()
+		self.assertFalse(sprint.is_active)
+		self.assertIsNotNone(sprint.end_date)
+		ticket.refresh_from_db()
+		self.assertIsNone(ticket.sprint)
+
+	def test_close_sprint_keep_action(self):
+		sprint = Sprint.objects.create(
+			project=self.project, name="Sprint 1", is_active=True,
+		)
+		ticket = Ticket.objects.create(
+			project=self.project, title="sprint ticket", sprint=sprint,
+		)
+		resp = self._post(
+			reverse("api_sprint_close", args=["SMT", sprint.pk]),
+			{"action": "keep"},
+		)
+		self.assertEqual(resp.status_code, 200)
+		ticket.refresh_from_db()
+		self.assertEqual(ticket.sprint, sprint)
+
+	def test_close_sprint_sprint_action(self):
+		target_sprint = Sprint.objects.create(
+			project=self.project, name="Next Sprint", is_active=True,
+		)
+		sprint = Sprint.objects.create(
+			project=self.project, name="Sprint 1", is_active=True,
+		)
+		ticket = Ticket.objects.create(
+			project=self.project, title="sprint ticket", sprint=sprint,
+		)
+		resp = self._post(
+			reverse("api_sprint_close", args=["SMT", sprint.pk]),
+			{"action": "sprint", "target_sprint": target_sprint.pk},
+		)
+		self.assertEqual(resp.status_code, 200)
+		ticket.refresh_from_db()
+		self.assertEqual(ticket.sprint, target_sprint)
+
+	def test_close_sprint_sprint_action_no_target_returns_400(self):
+		sprint = Sprint.objects.create(
+			project=self.project, name="Sprint 1", is_active=True,
+		)
+		resp = self._post(
+			reverse("api_sprint_close", args=["SMT", sprint.pk]),
+			{"action": "sprint"},
+		)
+		self.assertEqual(resp.status_code, 400)
+
+	def test_close_sprint_sprint_action_invalid_target_returns_404(self):
+		sprint = Sprint.objects.create(
+			project=self.project, name="Sprint 1", is_active=True,
+		)
+		resp = self._post(
+			reverse("api_sprint_close", args=["SMT", sprint.pk]),
+			{"action": "sprint", "target_sprint": 999},
+		)
+		self.assertEqual(resp.status_code, 404)
+
+	def test_close_sprint_sprint_action_same_sprint_returns_400(self):
+		sprint = Sprint.objects.create(
+			project=self.project, name="Sprint 1", is_active=True,
+		)
+		resp = self._post(
+			reverse("api_sprint_close", args=["SMT", sprint.pk]),
+			{"action": "sprint", "target_sprint": sprint.pk},
+		)
+		self.assertEqual(resp.status_code, 400)
+
+	def test_close_sprint_unknown_project_returns_404(self):
+		other_project = Project.objects.create(key="OTH", name="Other")
+		sprint = Sprint.objects.create(
+			project=other_project, name="Sprint 1", is_active=True,
+		)
+		resp = self._post(
+			reverse("api_sprint_close", args=["NOPE", sprint.pk])
+		)
+		self.assertEqual(resp.status_code, 404)
+
+	def test_close_sprint_unknown_sprint_returns_404(self):
+		resp = self._post(
+			reverse("api_sprint_close", args=["SMT", 999])
+		)
+		self.assertEqual(resp.status_code, 404)
+
+	def test_close_requires_auth(self):
+		sprint = Sprint.objects.create(
+			project=self.project, name="Sprint 1", is_active=True,
+		)
+		resp = self.client.post(
+			reverse("api_sprint_close", args=["SMT", sprint.pk])
+		)
+		self.assertEqual(resp.status_code, 401)
+

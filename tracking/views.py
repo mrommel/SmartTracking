@@ -16,8 +16,8 @@ from django.views.decorators.http import require_POST
 
 from .forms import (
 	AttachmentForm, CommentForm, ComponentDeleteForm, ComponentForm,
-	LabelDeleteForm, LabelForm, ProjectForm, SprintDeleteForm, SprintForm,
-	TicketForm, TicketTransitionForm,
+	LabelDeleteForm, LabelForm, ProjectForm, SprintCloseForm, SprintDeleteForm,
+	SprintForm, TicketForm, TicketTransitionForm,
 )
 from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketRelation
 
@@ -539,6 +539,31 @@ def sprint_edit(request, project_pk, sprint_pk):
 		form = SprintForm(project=project, instance=sprint)
 	return render(request, "tracking/sprint_form.html", {
 		"title": f"Edit sprint — {project.key}",
+		"form": form,
+		"sprint": sprint,
+		"project": project,
+	})
+
+
+@login_required
+def sprint_close(request, project_pk, sprint_pk):
+	"""Show close sprint confirmation form, or close the sprint with ticket handling options."""
+	sprint = get_object_or_404(Sprint, pk=sprint_pk)
+	project = sprint.project
+	if request.method == "POST":
+		form = SprintCloseForm(request.POST, project=project, exclude_sprint=sprint)
+		if form.is_valid():
+			action = form.cleaned_data["action"]
+			target_sprint_id = None
+			if action == "sprint":
+				target_sprint_id = form.cleaned_data["target_sprint"].pk
+			sprint.close_with_action(action, target_sprint_id)
+			messages.success(request, f"Sprint '{sprint.name}' closed.")
+			return redirect(reverse("project_detail", args=[project.pk]) + "?tab=active_sprint")
+	else:
+		form = SprintCloseForm(project=project, exclude_sprint=sprint)
+	return render(request, "tracking/sprint_close.html", {
+		"title": f"Close sprint — {project.key}",
 		"form": form,
 		"sprint": sprint,
 		"project": project,

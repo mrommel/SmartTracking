@@ -232,6 +232,51 @@ class SprintModelTests(TestCase):
 		ticket.refresh_from_db()
 		self.assertIsNone(ticket.sprint)
 
+	def test_close_deactivates_sprint(self):
+		from django.utils import timezone
+		sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+		sprint.close()
+		sprint.refresh_from_db()
+		self.assertFalse(sprint.is_active)
+		self.assertIsNotNone(sprint.end_date)
+		today = timezone.localdate()
+		self.assertEqual(sprint.end_date, today)
+
+	def test_close_backlog_raises(self):
+		from django.utils import timezone
+		sprint = Sprint.objects.create(project=self.project, name="Backlog")
+		self.assertTrue(sprint.is_backlog)
+		# Closing should set end_date without issues
+		sprint.close()
+		sprint.refresh_from_db()
+		self.assertEqual(sprint.end_date, timezone.localdate())
+
+	def test_close_with_action_backlog(self):
+		sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+		ticket = Ticket.objects.create(project=self.project, title="t", sprint=sprint)
+		sprint.close_with_action("backlog")
+		ticket.refresh_from_db()
+		self.assertIsNone(ticket.sprint)
+		sprint.refresh_from_db()
+		self.assertFalse(sprint.is_active)
+
+	def test_close_with_action_keep(self):
+		sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+		ticket = Ticket.objects.create(project=self.project, title="t", sprint=sprint)
+		ticket_id = ticket.pk
+		sprint.close_with_action("keep")
+		ticket = Ticket.objects.get(pk=ticket_id)
+		self.assertEqual(ticket.sprint, sprint)
+
+	def test_close_with_action_sprint(self):
+		target = Sprint.objects.create(project=self.project, name="Next Sprint", is_active=True)
+		sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+		ticket = Ticket.objects.create(project=self.project, title="t", sprint=sprint)
+		ticket_id = ticket.pk
+		sprint.close_with_action("sprint", target.pk)
+		ticket = Ticket.objects.get(pk=ticket_id)
+		self.assertEqual(ticket.sprint, target)
+
 	def test_multiple_projects_one_active_each(self):
 		other = Project.objects.create(key="OTH", name="Other")
 		sprint1 = Sprint.objects.create(project=self.project, name="Active Sprint", is_active=True)

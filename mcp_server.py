@@ -371,6 +371,24 @@ def delete_sprint(sprint_id: int) -> Any:
 	return _request("DELETE", f"/sprints/{sprint_id}/")
 
 
+@mcp.tool()
+def close_sprint(project_key: str, sprint_id: int, action: str = "backlog", target_sprint: Optional[int] = None) -> Any:
+	"""Close an active sprint (deactivate it and set end_date to today).
+
+	`action` controls what happens to unassigned tickets:
+	- "backlog" (default): move them to backlog (sprint=None)
+	- "sprint": move them to another sprint (requires `target_sprint`)
+	- "keep": leave tickets as-is
+
+	Returns status 403 if the sprint is the backlog pseudo-sprint,
+	or 404 if not found.
+	"""
+	return _request(
+		"POST", f"/sprints/{project_key}/{sprint_id}/close/",
+		json={"action": action, "target_sprint": target_sprint},
+	)
+
+
 # --- Relations -------------------------------------------------------------
 
 @mcp.tool()

@@ -239,6 +239,7 @@
 						{% if active_sprint.end_date %}
 							<span class="badge bg-secondary">End: {{ active_sprint.end_date }}</span>
 						{% endif %}
+						<a href="{% url 'sprint_close' project.pk active_sprint.pk %}" class="btn btn-sm btn-outline-danger">Close Sprint</a>
 					</div>
 				</div>
 				<p class="text-muted">{{ active_sprint.description }}</p>

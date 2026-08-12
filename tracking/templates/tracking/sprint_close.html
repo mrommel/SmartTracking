@@ -1,0 +1,72 @@
+{% extends "tracking/base.html" %}
+
+{% block content %}
+	<nav aria-label="breadcrumb">
+		<ol class="breadcrumb">
+			<li class="breadcrumb-item"><a href="{% url 'project_list' %}">Projects</a></li>
+			<li class="breadcrumb-item"><a href="{% url 'project_detail' project.pk %}?tab=active_sprint">{{ project.key }}</a></li>
+			<li class="breadcrumb-item active">Close Sprint</li>
+		</ol>
+	</nav>
+
+	<div class="d-flex justify-content-between align-items-center mb-4">
+		<h4 class="mb-0">Close Sprint: {{ sprint.name }}</h4>
+	</div>
+
+	<div class="card">
+		<div class="card-body">
+			<p class="text-muted mb-4">
+				Closing the sprint will deactivate it and set its end date to today.
+				Choose what should happen to the tickets assigned to this sprint:
+			</p>
+
+			<form method="post" action="{% url 'sprint_close' project.pk sprint.pk %}">
+				{% csrf_token %}
+
+				<div class="mb-4">
+					<div class="fw-medium mb-2">{{ form.action.label }}</div>
+					{% for subfield in form.action %}
+						<div class="form-check mb-2">
+							{{ subfield.tag }}
+							<label class="form-check-label" for="{{ subfield.id_for_label }}">
+								{{ subfield.choice_label }}
+							</label>
+						</div>
+					{% endfor %}
+					{% if form.action.errors %}
+						<div class="text-danger small">{{ form.action.errors }}</div>
+					{% endif %}
+				</div>
+
+				<div class="mb-4" id="target-sprint-field" style="display: none;">
+					<div class="fw-medium mb-2">{{ form.target_sprint.label }}</div>
+					{{ form.target_sprint }}
+					{% if form.target_sprint.errors %}
+						<div class="text-danger small">{{ form.target_sprint.errors }}</div>
+					{% endif %}
+				</div>
+
+				<div class="d-flex gap-2">
+					<button type="submit" class="btn btn-danger">Close Sprint</button>
+					<a href="{% url 'project_detail' project.pk %}?tab=active_sprint" class="btn btn-outline-secondary">Cancel</a>
+				</div>
+			</form>
+		</div>
+	</div>
+
+	<script>
+	(function() {
+		var actionField = document.querySelector('input[name="action"]');
+		var targetField = document.getElementById('target-sprint-field');
+		function toggleTarget() {
+			if (actionField && actionField.value) {
+				targetField.style.display = actionField.value === 'sprint' ? 'block' : 'none';
+			}
+		}
+		toggleTarget();
+		document.querySelectorAll('input[name="action"]').forEach(function(radio) {
+			radio.addEventListener('change', toggleTarget);
+		});
+	})();
+	</script>
+{% endblock %}

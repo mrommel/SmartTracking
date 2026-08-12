@@ -757,6 +757,44 @@ def sprint_detail(request, pk):
 	return JsonResponse({"status": "deleted"})
 
 
+# --- Sprint Close --------------------------------------------------------
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["POST"])
+def sprint_close(request, project_key, sprint_pk):
+	"""Close the active sprint (deactivate and set end_date to today).
+
+	Accepts optional JSON body with:
+	- action: one of "backlog", "sprint", "keep" (default "backlog")
+	- target_sprint: sprint id to move tickets to (required if action="sprint")
+	"""
+	project = get_object_or_404(Project, key=project_key.upper())
+	sprint = get_object_or_404(Sprint, pk=sprint_pk, project=project)
+	if sprint.is_backlog:
+		return _error("Cannot close the backlog pseudo-sprint.", status=403)
+	try:
+		body = json.loads(request.body) if request.body else {}
+	except ValueError:
+		return _error("Request body must be valid JSON.")
+	action = body.get("action", "backlog")
+	if action not in ("backlog", "sprint", "keep"):
+		return _error(f"Invalid action '{action}'. Must be backtrack, sprint, or keep.", status=400)
+	target_sprint_id = None
+	if action == "sprint":
+		target_sprint_id = body.get("target_sprint")
+		if not target_sprint_id:
+			return _error("'target_sprint' is required when action is 'sprint'.", status=400)
+		try:
+			target_sprint = Sprint.objects.get(pk=target_sprint_id, project=project)
+		except Sprint.DoesNotExist:
+			return _error("Unknown target sprint.", status=404)
+		if target_sprint.pk == sprint.pk:
+			return _error("Cannot move tickets to the same sprint.", status=400)
+	sprint.close_with_action(action, target_sprint_id)
+	return JsonResponse(serialize_sprint(sprint))
+
+
 # --- Relations ----------------------------------------------------------
 
 @csrf_exempt
@@ -834,6 +872,7 @@ urlpatterns = [
 	path("sprints/<str:project_key>/", sprint_collection, name="api_sprint_collection"),
 	path("sprints/<str:project_key>/active/tickets/", active_sprint_tickets, name="api_active_sprint_tickets"),
 	path("sprints/<str:project_key>/create/", sprint_create, name="api_sprint_create"),
+	path("sprints/<str:project_key>/<int:sprint_pk>/close/", sprint_close, name="api_sprint_close"),
 	path("sprints/<int:pk>/", sprint_detail, name="api_sprint_detail"),
 	path("tickets/relations/<int:pk>/delete/", ticket_relation_delete_api, name="api_ticket_relation_delete"),
 ]

@@ -41,6 +41,7 @@ urlpatterns = [
     path('projects/<int:pk>/components/new/', views.component_create, name='component_create'),
 	path('projects/<int:pk>/sprints/new/', views.sprint_create, name='sprint_create'),
 	path('projects/<int:project_pk>/sprints/<int:sprint_pk>/edit/', views.sprint_edit, name='sprint_edit'),
+	path('projects/<int:project_pk>/sprints/<int:sprint_pk>/close/', views.sprint_close, name='sprint_close'),
     path('components/<int:pk>/edit/', views.component_update, name='component_update'),
     path('components/<int:pk>/delete/', views.component_delete, name='component_delete'),
 ]
