@@ -129,15 +129,17 @@ def _dashboard_tab_context(project, tickets, request, tab):
 		))
 
 	if tab == "backlog":
-		tickets_without_sprint = (
-			Ticket.objects.select_related("project", "assignee")
-			.filter(sprint__isnull=True, project=project)
-			.order_by("state", "priority")
+		qs = Ticket.objects.select_related("project", "assignee").filter(
+			sprint__isnull=True, project=project,
 		)
+		if request.GET.get("show_closed") != "1":
+			qs = qs.exclude(state=Ticket.State.CLOSED)
+		tickets_without_sprint = qs.order_by("state", "priority")
 		return {
 			"tab": tab,
 			"tickets_without_sprint": tickets_without_sprint,
 			"sprint_ticket_list": sprint_ticket_list,
+			"show_closed": request.GET.get("show_closed") == "1",
 		}
 
 	if tab == "active_sprint":
