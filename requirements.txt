@@ -1,13 +1,13 @@
-crispy-bootstrap5==2025.6
+crispy-bootstrap5==2026.3
 django-admin-inline-paginator==0.4.0
-django-crispy-forms==2.5
+django-crispy-forms==2.7
 django-extensions==4.1
 django-liststyle==0.2b
 django==6.1.0
 pip==26.2.1
-slippers==0.6.3
+slippers==0.7.0
 django-autocomplete-light==3.12.1
 mistune==3.3.4
 # MCP server (served by `make run`) + its HTTP client
-mcp==1.12.0
+mcp==1.28.1
 httpx==0.28.1

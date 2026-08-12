@@ -13,13 +13,12 @@ $(VENV)/bin/activate: requirements.txt
 venv: $(VENV)/bin/activate
 
 run: venv
-	./$(VENV)/bin/pip3.12 install -r requirements.txt
 	# Load .env in the same subshell as runserver. POSIX `.` works on macOS /bin/sh
 	# (bash-only `source` does not). `set -a` auto-exports every variable defined
 	# while sourcing; `[ -f .env ]` keeps a missing .env silently ok.
 	# Start the MCP server (streamable HTTP, port 8091) in the background, then the
 	# Django dev server in the foreground. The trap stops the MCP server on exit.
-	set -a; [ -f .env ] && . ./.env; set +a; \
+	set -a; [ -f .env ] && . ./.env && set +a; \
 	./$(VENV)/bin/python3.12 mcp_server.py & \
 	MCP_PID=$$!; \
 	trap "kill $$MCP_PID 2>/dev/null" EXIT INT TERM; \
