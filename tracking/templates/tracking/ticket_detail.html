@@ -1,5 +1,5 @@
 {% extends "tracking/base.html" %}
-{% load humanize markdown_filters %}
+{% load humanize markdown_filters type_badge %}
 
 {% block content %}
 	<nav aria-label="breadcrumb">
@@ -22,7 +22,7 @@
 					</div>
 					<p class="text-muted mb-3">
 						{% #badge %}{{ ticket.project.key }}{% /badge %}
-						· {{ ticket.get_type_display }}
+ 					· {% type_badge ticket %}
 					</p>
 					<p style="white-space: pre-wrap">{{ ticket.description|markdown|default:"No description provided." }}</p>
 				</div>
@@ -121,7 +121,7 @@
 									<a href="{% url 'ticket_detail' ct.pk %}">{{ ct.title }}</a>
 									<span class="text-muted float-end">
 										{% state_badge ticket=ct %}
-										· {{ ct.get_type_display }}
+ 									· {% type_badge ct %}
 									</span>
 								</li>
 							{% endfor %}

@@ -1,4 +1,4 @@
-{% extends "tracking/base.html" %}{% load humanize %}
+{% extends "tracking/base.html" %}{% load humanize type_badge %}
 
 {% block content %}
 	<nav aria-label="breadcrumb">
@@ -161,18 +161,18 @@
 							<td>
 								<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
 								<span class="text-muted small ms-1">({{ ticket.project.key }}-{{ ticket.pk }})</span>
-							</td>
-							<td>{% #badge %}{{ ticket.get_type_display }}{% /badge %}</td>
-							<td>{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
-							<td>{{ ticket.get_priority_display }}</td>
-							<td>{{ ticket.assignee|default:"-" }}</td>
-							<td>{{ ticket.due_date|naturalday|default:"-" }}</td>
-						</tr>
-						{% endfor %}
-					</tbody>
-				</table>
-				{% else %}
-				<div class="text-center text-muted py-5">No tickets without a sprint.</div>
+ 							</td>
+ 							<td>{% type_badge ticket %}</td>
+ 							<td>{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
+ 							<td>{{ ticket.get_priority_display }}</td>
+ 							<td>{{ ticket.assignee|default:"-" }}</td>
+ 							<td>{{ ticket.due_date|naturalday|default:"-" }}</td>
+ 						</tr>
+ 						{% endfor %}
+ 					</tbody>
+ 				</table>
+ 				{% else %}
+ 				<div class="text-center text-muted py-5">No tickets without a sprint.</div>
 				{% endif %}
 			</div>
 		</div>
@@ -205,18 +205,18 @@
 							<td>
 								<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
 								<span class="text-muted small ms-1">({{ ticket.project.key }}-{{ ticket.pk }})</span>
-							</td>
-							<td>{% #badge %}{{ ticket.get_type_display }}{% /badge %}</td>
-							<td>{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
-							<td>{{ ticket.get_priority_display }}</td>
-							<td>{{ ticket.assignee|default:"-" }}</td>
-							<td>{{ ticket.due_date|naturalday|default:"-" }}</td>
-						</tr>
-						{% endfor %}
-					</tbody>
-				</table>
-				{% else %}
-				<div class="text-center text-muted py-3">No tickets in this sprint.</div>
+ 							</td>
+ 							<td>{% type_badge ticket %}</td>
+ 							<td>{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
+ 							<td>{{ ticket.get_priority_display }}</td>
+ 							<td>{{ ticket.assignee|default:"-" }}</td>
+ 							<td>{{ ticket.due_date|naturalday|default:"-" }}</td>
+ 						</tr>
+ 						{% endfor %}
+ 					</tbody>
+ 				</table>
+ 				{% else %}
+ 				<div class="text-center text-muted py-3">No tickets in this sprint.</div>
 				{% endif %}
 			</div>
 		</div>
@@ -258,11 +258,11 @@
 									<div class="ps-3">
 										<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
 									</div>
-									<div class="ms-auto pe-3">
-										{% #badge size="sm" variant="secondary" %}{{ ticket.get_priority_display }}{% /badge %}
-										{% #badge size="sm" variant="secondary" %}{{ ticket.get_type_display }}{% /badge %}
-										<i class="text-muted small ms-2">{{ ticket.assignee|default:"Unassigned" }}</i>
-									</div>
+ 									<div class="ms-auto pe-3">
+ 										{% #badge size="sm" variant="secondary" %}{{ ticket.get_priority_display }}{% /badge %}
+ 										{% type_badge ticket size="sm" %}
+ 										<i class="text-muted small ms-2">{{ ticket.assignee|default:"Unassigned" }}</i>
+ 									</div>
 								</div>
 							{% empty %}
 								<div class="text-muted text-center py-3">No tickets</div>

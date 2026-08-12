@@ -1,4 +1,4 @@
-{% extends "tracking/base.html" %}{% load humanize %}
+{% extends "tracking/base.html" %}{% load humanize type_badge %}
 
 {% block content %}
 	<div class="d-flex justify-content-between align-items-center mb-4">
@@ -60,7 +60,7 @@
 								</h6>
 								<div class="d-flex gap-1 mb-1">
 									{% #badge size="sm" variant="secondary" %}{{ ticket.get_priority_display }}{% /badge %}
-									{% #badge size="sm" variant="secondary" %}{{ ticket.get_type_display }}{% /badge %}
+ 								{% type_badge ticket size="sm" %}
 								</div>
 								<i class="text-muted small">{{ ticket.assignee|default:"Unassigned" }}</i>
 							</div>
