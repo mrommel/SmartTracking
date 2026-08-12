@@ -1,0 +1,914 @@
+/* SmartTracking - Atlassian Jira-inspired styling on Bootstrap 5 */
+
+/* ============================================================
+   Color palette (Atlassian/ Jira inspired)
+   ============================================================ */
+:root {
+	--atlas-blue: #0052cc;
+	--atlas-blue-hover: #0065ff;
+	--atlas-blue-light: #deebff;
+	--atlas-purple: #6554c0;
+	--atlas-purple-light: #eae6ff;
+	--atlas-green: #00875a;
+	--atlas-green-light: #e3fcef;
+	--atlas-teal: #0b7285;
+	--atlas-teal-light: #e1f2f5;
+	--atlas-yellow: #ffba00;
+	--atlas-yellow-light: #fff4ce;
+	--atlas-orange: #ff5630;
+	--atlas-orange-light: #fff0eb;
+	--atlas-grey-fg: #172b4d;
+	--atlas-grey-bg: #f4f5f7;
+	--atlas-grey-border: #dfe1e6;
+	--atlas-grey-line: #e4e4e4;
+	--atlas-grey-text: #505f79;
+	--atlas-grey-muted: #9499a4;
+}
+
+/* ============================================================
+   Body & overall layout
+   ============================================================ */
+body {
+	background: var(--atlas-grey-bg);
+	color: var(--atlas-grey-fg);
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+		'Oxygen', 'Ubuntu', 'Fira Sans', sans-serif;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   Navbar
+   ============================================================ */
+.navbar {
+	background-color: var(--atlas-blue) !important;
+	border-bottom: none;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+	height: 48px;
+	padding: 0 16px;
+}
+
+.navbar .navbar-brand {
+	font-weight: 600;
+	font-size: 1rem;
+	letter-spacing: -0.01em;
+	color: #fff !important;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.navbar .nav-link {
+	color: rgba(255, 255, 255, 0.85) !important;
+	font-size: 0.875rem;
+	font-weight: 500;
+	padding: 0 12px;
+	border-radius: 3px;
+	transition: background-color 0.1s ease;
+}
+
+.navbar .nav-link:hover,
+.navbar .nav-link:focus {
+	color: #fff !important;
+	background-color: rgba(255, 255, 255, 0.12);
+}
+
+.navbar .nav-link.active {
+	color: #fff !important;
+	background-color: rgba(255, 255, 255, 0.2);
+}
+
+.navbar-text {
+	font-size: 0.875rem;
+	color: rgba(255, 255, 255, 0.85);
+}
+
+/* Dropdown if nav items overflow in mobile */
+.navbar .dropdown-menu {
+	margin-top: 4px;
+	border-radius: 3px;
+	border: 1px solid var(--atlas-grey-border);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+	padding: 4px 0;
+}
+
+.navbar .dropdown-item {
+	font-size: 0.875rem;
+	padding: 6px 16px;
+	color: var(--atlas-grey-fg);
+}
+
+.navbar .dropdown-item:hover {
+	background-color: var(--atlas-blue-light);
+}
+
+/* ============================================================
+   Breadcrumb
+   ============================================================ */
+.breadcrumb {
+	background: transparent;
+	font-size: 0.75rem;
+	padding: 0;
+	margin-bottom: 16px;
+}
+
+.breadcrumb-item a {
+	color: var(--atlas-blue);
+	text-decoration: none;
+}
+
+.breadcrumb-item a:hover {
+	color: var(--atlas-blue-hover);
+	text-decoration: underline;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+	content: '›';
+	font-weight: 700;
+}
+
+.breadcrumb-item.active {
+	color: var(--atlas-grey-text);
+}
+
+/* ============================================================
+   Main container
+   ============================================================ */
+main.container {
+	padding-top: 24px;
+	padding-bottom: 40px;
+}
+
+/* ============================================================
+   Page headers
+   ============================================================ */
+h1.h3,
+h1.h4,
+h2.h6,
+h3.mb-0,
+h4.mb-0,
+h5.mb-0,
+h6.text-muted {
+	color: var(--atlas-grey-fg);
+}
+
+h1.h3 {
+	font-size: 1.5rem;
+	font-weight: 600;
+	line-height: 1.4;
+	margin-bottom: 0.5rem;
+	letter-spacing: -0.02em;
+}
+
+h1.h4 {
+	font-size: 1.25rem;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+}
+
+h2.h6 {
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--atlas-grey-text);
+	text-transform: none;
+	margin-bottom: 12px;
+	letter-spacing: 0.01em;
+}
+
+/* ============================================================
+   Cards
+   ============================================================ */
+.card {
+	border: 1px solid var(--atlas-grey-border);
+	border-radius: 3px;
+	box-shadow: none;
+	background-color: #fff;
+}
+
+.card-header {
+	background-color: #fafbfc;
+	border-bottom: 1px solid var(--atlas-grey-border);
+	font-size: 0.875rem;
+	font-weight: 600;
+	padding: 10px 16px;
+	border-radius: 3px 3px 0 0 !important;
+}
+
+.card-body {
+	padding: 16px;
+}
+
+.card-footer {
+	background-color: #fafbfc;
+	border-top: 1px solid var(--atlas-grey-border);
+}
+
+/* ============================================================
+   Tables (Jira-style compact)
+   ============================================================ */
+.table {
+	font-size: 0.8125rem;
+	margin-bottom: 0;
+}
+
+.table thead th {
+	font-weight: 600;
+	font-size: 0.75rem;
+	text-transform: none;
+	letter-spacing: 0;
+	color: var(--atlas-grey-text);
+	background-color: #fafbfc;
+	border-bottom: 2px solid var(--atlas-grey-border);
+	padding: 8px 12px;
+	white-space: nowrap;
+}
+
+.table tbody td {
+	padding: 8px 12px;
+	vertical-align: middle;
+	border-bottom: 1px solid var(--atlas-grey-line);
+}
+
+.table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.table tbody tr:hover {
+	background-color: var(--atlas-blue-light);
+}
+
+.table-hover > tbody > tr:hover > * {
+	background-color: var(--atlas-blue-light);
+}
+
+/* Compact table variant */
+.table-sm tbody td,
+.table-sm thead th {
+	padding: 6px 8px;
+}
+
+/* ============================================================
+   Issue key badges (e.g. SMT-123)
+   ============================================================ */
+.badge-key {
+	font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+	font-size: 0.75rem;
+	letter-spacing: 0.02em;
+}
+
+/* Base project badge (non-specific color) */
+.badge[data-key] {
+	background-color: var(--atlas-blue-light);
+	color: var(--atlas-blue);
+	font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+	font-size: 0.75rem;
+	padding: 2px 8px;
+	border-radius: 3px;
+}
+
+/* ============================================================
+   Badges (states, types, priorities) — pill style
+   ============================================================ */
+.badge {
+	border-radius: 12px;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	padding: 3px 10px;
+	letter-spacing: 0.01em;
+	white-space: nowrap;
+	line-height: 1.4;
+}
+
+/* Atlassian color mapping for states */
+.badge.text-bg-primary {
+	background-color: #0052cc;
+	color: #fff;
+}
+
+.badge.text-bg-info {
+	background-color: #00875a;
+	color: #fff;
+}
+
+.badge.text-bg-warning {
+	background-color: #ffba00;
+	color: #172b4d;
+}
+
+.badge.text-bg-success {
+	background-color: #00875a;
+	color: #fff;
+}
+
+.badge.text-bg-danger {
+	background-color: #ff5630;
+	color: #fff;
+}
+
+.badge.text-bg-secondary {
+	background-color: #dfe1e6;
+	color: #42526e;
+}
+
+/* Small variant */
+.badge-sm {
+	font-size: 0.625rem;
+	padding: 2px 8px;
+	border-radius: 10px;
+}
+
+/* Priority badge sizes — keep pill, shrink text */
+.badge-sm.badge.text-bg-secondary,
+.badge-sm.badge.text-bg-info,
+.badge-sm.badge.text-bg-warning,
+.badge-sm.badge.text-bg-danger {
+	font-size: 0.625rem;
+	padding: 2px 8px;
+	border-radius: 10px;
+}
+
+/* ============================================================
+   Type-specific colors (Jira-style)
+   ============================================================ */
+.badge.type-task {
+	background-color: #0052cc;
+	color: #fff;
+}
+
+.badge.type-bug {
+	background-color: #ff5630;
+	color: #fff;
+}
+
+.badge.type-story {
+	background-color: #00875a;
+	color: #fff;
+}
+
+.badge.type-epic {
+	background-color: #6554c0;
+	color: #fff;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn {
+	font-size: 0.875rem;
+	font-weight: 500;
+	border-radius: 3px;
+	padding: 6px 16px;
+	letter-spacing: 0;
+	transition: background-color 0.1s ease, border-color 0.1s ease;
+	cursor: pointer;
+}
+
+.btn-sm {
+	font-size: 0.8125rem;
+	padding: 4px 12px;
+	border-radius: 3px;
+}
+
+/* Primary - Atlassian blue */
+.btn-primary {
+	background-color: var(--atlas-blue);
+	border-color: var(--atlas-blue);
+	color: #fff;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+	background-color: var(--atlas-blue-hover);
+	border-color: var(--atlas-blue-hover);
+	color: #fff;
+}
+
+.btn-primary:active {
+	background-color: #003d99 !important;
+	border-color: #003d99 !important;
+}
+
+/* Secondary */
+.btn-outline-secondary {
+	color: var(--atlas-grey-fg);
+	border-color: var(--atlas-grey-border);
+	background-color: transparent;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+	background-color: var(--atlas-grey-bg);
+	border-color: var(--atlas-grey-muted);
+	color: var(--atlas-grey-fg);
+}
+
+/* Outline primary */
+.btn-outline-primary {
+	color: var(--atlas-blue);
+	border-color: var(--atlas-blue);
+	background-color: transparent;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+	background-color: var(--atlas-blue);
+	border-color: var(--atlas-blue);
+	color: #fff;
+}
+
+/* Danger / destructive */
+.btn-outline-danger {
+	color: var(--atlas-orange);
+	border-color: var(--atlas-orange);
+	background-color: transparent;
+}
+
+.btn-outline-danger:hover,
+.btn-outline-danger:focus {
+	background-color: var(--atlas-orange);
+	border-color: var(--atlas-orange);
+	color: #fff;
+}
+
+/* Link buttons (delete) */
+.btn-link {
+	color: var(--atlas-orange);
+	padding: 4px 8px;
+	font-weight: 500;
+	text-decoration: none;
+}
+
+.btn-link:hover {
+	color: #d4351c;
+	text-decoration: underline;
+}
+
+/* ============================================================
+   Forms
+   ============================================================ */
+.form-control,
+.form-select {
+	font-size: 0.875rem;
+	border-color: var(--atlas-grey-border);
+	border-radius: 3px;
+	padding: 6px 12px;
+	transition: border-color 0.1s ease, box-shadow 0.1s ease;
+}
+
+.form-control:focus,
+.form-select:focus {
+	border-color: var(--atlas-blue);
+	box-shadow: 0 0 0 3px var(--atlas-blue-light);
+	outline: none;
+}
+
+.form-control::placeholder {
+	color: var(--atlas-grey-muted);
+}
+
+.form-label {
+	font-size: 0.875rem;
+	font-weight: 500;
+	color: var(--atlas-grey-fg);
+	margin-bottom: 4px;
+}
+
+/* Crispy forms overrides */
+.form-group {
+	margin-bottom: 16px;
+}
+
+.requiredField::before {
+	content: '';
+}
+
+/* ============================================================
+   Alerts
+   ============================================================ */
+.alert {
+	border-radius: 3px;
+	font-size: 0.875rem;
+	padding: 10px 16px;
+	margin-bottom: 16px;
+	border: 1px solid transparent;
+}
+
+.alert-success {
+	background-color: var(--atlas-green-light);
+	border-color: #47b579;
+	color: #005e3a;
+}
+
+.alert-danger,
+.alert-error {
+	background-color: var(--atlas-orange-light);
+	border-color: #ff9480;
+	color: #bf2600;
+}
+
+.alert-warning {
+	background-color: var(--atlas-yellow-light);
+	border-color: #ffcd42;
+	color: #633700;
+}
+
+.alert-info {
+	background-color: var(--atlas-teal-light);
+	border-color: #51aeff;
+	color: #005e55;
+}
+
+/* ============================================================
+   Navigation tabs
+   ============================================================ */
+.nav-tabs {
+	border-bottom: 2px solid var(--atlas-grey-border);
+	gap: 4px;
+}
+
+.nav-tabs .nav-link {
+	color: var(--atlas-grey-text);
+	font-size: 0.875rem;
+	font-weight: 500;
+	padding: 8px 16px;
+	border: none;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -2px;
+	border-radius: 0;
+	transition: color 0.1s ease, border-color 0.1s ease;
+}
+
+.nav-tabs .nav-link:hover {
+	color: var(--atlas-grey-fg);
+	border-bottom-color: rgba(80, 95, 121, 0.2);
+}
+
+.nav-tabs .nav-link.active {
+	color: var(--atlas-blue);
+	border-bottom-color: var(--atlas-blue);
+	background-color: transparent;
+}
+
+/* ============================================================
+   Lists
+   ============================================================ */
+.list-group-item {
+	font-size: 0.875rem;
+	border-color: var(--atlas-grey-line);
+	padding: 8px 16px;
+}
+
+.list-group-flush .list-group-item {
+	border-left: none;
+	border-right: none;
+	border-radius: 0;
+	padding: 8px 16px;
+}
+
+.list-group-flush .list-group-item:hover {
+	background-color: var(--atlas-blue-light);
+}
+
+/* ============================================================
+   Links
+   ============================================================ */
+a {
+	color: var(--atlas-blue);
+}
+
+a:hover {
+	color: var(--atlas-blue-hover);
+}
+
+/* ============================================================
+   Ticket detail page
+   ============================================================ */
+
+/* Issue key in titles and breadcrumbs */
+.issue-key {
+	font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo,
+		monospace;
+	font-size: 0.875rem;
+	color: var(--atlas-blue);
+	font-weight: 600;
+}
+
+/* Detail card header title area */
+.ticket-header h1.h4 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.ticket-header .subtitle-bar {
+	font-size: 0.8125rem;
+	color: var(--atlas-grey-text);
+	margin-bottom: 16px;
+}
+
+.ticket-header .subtitle-bar .badge {
+	margin-right: 4px;
+}
+
+/* Description / comment content with line breaks
+   (keeps inline style but adds visual polish) */
+.ticket-desc,
+.comment-body {
+	font-size: 0.875rem;
+	color: var(--atlas-grey-fg);
+	line-height: 1.6;
+	margin-bottom: 16px;
+}
+
+.ticket-desc:empty,
+.comment-body:empty {
+	display: none;
+}
+
+/* Detail sidebar — two-col dl */
+.detail-card dl.row dt {
+	color: var(--atlas-grey-text);
+	font-weight: 500;
+	font-size: 0.8125rem;
+}
+
+.detail-card dl.row dd {
+	color: var(--atlas-grey-fg);
+	font-size: 0.875rem;
+	margin-bottom: 8px;
+}
+
+.child-ticket a,
+.related-ticket a {
+	font-size: 0.8125rem;
+}
+
+/* ============================================================
+   Sprint board columns
+   ============================================================ */
+.board-column {
+	background-color: #fff;
+	border: 1px solid var(--atlas-grey-border);
+	border-radius: 3px;
+	min-height: 120px;
+}
+
+.board-column-header {
+	padding: 8px 12px;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	color: var(--atlas-grey-fg);
+	border-bottom: 1px solid var(--atlas-grey-border);
+}
+
+.board-column-header .badge {
+	font-size: 0.6875rem;
+}
+
+.board-ticket {
+	padding: 8px 12px;
+	font-size: 0.8125rem;
+	border-bottom: 1px solid var(--atlas-grey-line);
+}
+
+.board-ticket:last-child {
+	border-bottom: none;
+}
+
+.board-ticket:hover {
+	background-color: var(--atlas-blue-light);
+}
+
+.board-ticket a {
+	font-weight: 500;
+	text-decoration: none;
+	display: block;
+	margin-bottom: 4px;
+}
+
+/* ============================================================
+   Metrics / stat cards on project overview
+   ============================================================ */
+.stat-card {
+	border: none;
+	border-left: 4px solid;
+	border-radius: 3px;
+}
+
+.stat-card.border-success {
+	border-left-color: var(--atlas-green);
+}
+
+.stat-card.border-info {
+	border-left-color: var(--atlas-teal);
+}
+
+.stat-card.border-primary {
+	border-left-color: var(--atlas-blue);
+}
+
+.stat-card.border-warning {
+	border-left-color: var(--atlas-yellow);
+}
+
+.stat-card .display-6 {
+	font-size: 2rem;
+	font-weight: 600;
+	color: var(--atlas-grey-fg);
+	line-height: 1.2;
+}
+
+.stat-card .small {
+	font-size: 0.75rem;
+	color: var(--atlas-grey-muted);
+	text-transform: none;
+	letter-spacing: 0.02em;
+	font-weight: 600;
+}
+
+/* ============================================================
+   Modal
+   ============================================================ */
+.modal-content {
+	border: none;
+	border-radius: 4px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+	background-color: #fafbfc;
+	border-bottom: 1px solid var(--atlas-grey-border);
+	padding: 12px 16px;
+}
+
+.modal-title {
+	font-size: 1rem;
+	font-weight: 600;
+}
+
+.modal-body {
+	padding: 16px;
+}
+
+.modal-footer {
+	background-color: #fafbfc;
+	border-top: 1px solid var(--atlas-grey-border);
+	padding: 12px 16px;
+}
+
+/* ============================================================
+   Responsive tweaks
+   ============================================================ */
+@media (max-width: 767.98px) {
+	body {
+		padding: 0;
+	}
+
+	main.container {
+		padding-left: 12px;
+		padding-right: 12px;
+	}
+
+	.card-body {
+		padding: 12px;
+	}
+
+	.table tbody td,
+	.table thead th {
+		padding: 6px 8px;
+		font-size: 0.8125rem;
+	}
+
+	.table thead th {
+		font-size: 0.6875rem;
+	}
+}
+
+/* ============================================================
+   Misc helpers
+   ============================================================ */
+.small-text {
+	font-size: 0.8125rem;
+}
+
+.text-light-muted {
+	color: var(--atlas-grey-muted);
+}
+
+/* Subtle divider */
+.divider {
+	height: 1px;
+	background-color: var(--atlas-grey-border);
+	border: none;
+	margin: 16px 0;
+}
+
+/* Empty state */
+.empty-state {
+	text-align: center;
+	padding: 48px 24px;
+	color: var(--atlas-grey-muted);
+	font-size: 0.875rem;
+}
+
+/* Focus ring for accessibility */
+*:focus-visible {
+	outline: 2px solid var(--atlas-blue);
+	outline-offset: 2px;
+}
+
+/* Smooth scroll */
+html {
+	scroll-behavior: smooth;
+}
+
+/* Markdown rendering */
+.ticket-desc h1,
+.ticket-desc h2,
+.ticket-desc h3,
+.comment-body h1,
+.comment-body h2,
+.comment-body h3 {
+	font-size: 1.125rem;
+	font-weight: 600;
+	margin-top: 16px;
+	margin-bottom: 8px;
+	color: var(--atlas-grey-fg);
+}
+
+.ticket-desc h4,
+.ticket-desc h5,
+.ticket-desc h6,
+.comment-body h4,
+.comment-body h5,
+.comment-body h6 {
+	font-size: 1rem;
+	font-weight: 600;
+	margin-top: 12px;
+	margin-bottom: 6px;
+	color: var(--atlas-grey-fg);
+}
+
+.ticket-desc code,
+.comment-body code {
+	background-color: var(--atlas-grey-bg);
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-size: 0.8125rem;
+	font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo,
+		monospace;
+}
+
+.ticket-desc pre,
+.comment-body pre {
+	background-color: var(--atlas-grey-bg);
+	border: 1px solid var(--atlas-grey-border);
+	border-radius: 3px;
+	padding: 12px 16px;
+	font-size: 0.8125rem;
+	overflow-x: auto;
+	margin: 8px 0;
+}
+
+.ticket-desc pre code,
+.comment-body pre code {
+	background: none;
+	padding: 0;
+}
+
+.ticket-desc ul,
+.comment-body ul,
+.ticket-desc ol,
+.comment-body ol {
+	margin-bottom: 8px;
+}
+
+.ticket-desc li,
+.comment-body li {
+	margin-bottom: 4px;
+}
+
+/* Attachment items */
+.attachment-item a {
+	font-size: 0.875rem;
+}
+
+/* Login page */
+.login-container {
+	max-width: 400px;
+	margin: 60px auto;
+}
+
+.login-container .card {
+	border: 1px solid var(--atlas-grey-border);
+	border-radius: 4px;
+}
+
+.login-container .card-header {
+	background-color: var(--atlas-blue);
+	color: #fff;
+	border-bottom: none;
+	text-align: center;
+	font-size: 1.125rem;
+	font-weight: 600;
+	padding: 20px;
+}

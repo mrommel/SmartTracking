@@ -9,33 +9,34 @@
 		</ol>
 	</nav>
 
+	<div class="ticket-header">
 	<div class="row">
 		<div class="col-lg-8">
 			<div class="card mb-3">
 				<div class="card-body">
-					<div class="d-flex justify-content-between align-items-start">
-						<h1 class="h4">{{ ticket.title }}</h1>
+					<div class="d-flex justify-content-between align-items-start mb-2">
+						<h1 class="h4 mb-0">{{ ticket.title }}</h1>
 						<div class="d-flex gap-2 align-items-start">
 							<a href="{% url 'ticket_edit' ticket.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
 							{% state_badge ticket=ticket %}
 						</div>
 					</div>
-					<p class="text-muted mb-3">
-						{% #badge %}{{ ticket.project.key }}{% /badge %}
- 					· {% type_badge ticket %}
+					<p class="subtitle-bar mb-3">
+						<span class="issue-key">{{ ticket.project.key }}-{{ ticket.pk }}</span>
+  					· {% type_badge ticket %}
 					</p>
-					<p style="white-space: pre-wrap">{{ ticket.description|markdown|default:"No description provided." }}</p>
+					<p class="ticket-desc" style="white-space: pre-wrap">{{ ticket.description|markdown|default:"No description provided." }}</p>
 				</div>
 			</div>
 		</div>
 
 		<div class="col-lg-4">
-			<div class="card mb-3">
+			<div class="detail-card card mb-3">
 				<div class="card-body">
 					<h2 class="h6 text-muted">Details</h2>
 					<dl class="row mb-0">
 						<dt class="col-5">Estimation</dt><dd class="col-7">{{ ticket.estimation|default:"—" }}</dd>
-						<dt class="col-5">Priority</dt><dd class="col-7">{{ ticket.get_priority_display }}</dd>
+						<dt class="col-5">Priority</dt><dd class="col-7">{% priority_badge ticket %}</dd>
 						<dt class="col-5">Reporter</dt><dd class="col-7">{{ ticket.reporter|default:"—" }}</dd>
 						<dt class="col-5">Assignee</dt><dd class="col-7">{{ ticket.assignee|default:"—" }}</dd>
 						<dt class="col-5">Epic</dt><dd class="col-7">
@@ -117,11 +118,14 @@
 					{% if child_tickets %}
 						<ul class="list-group list-group-flush">
 							{% for ct in child_tickets %}
-								<li class="list-group-item px-0">
-									<a href="{% url 'ticket_detail' ct.pk %}">{{ ct.title }}</a>
+								<li class="list-group-item px-0 child-ticket">
+									<a href="{% url 'ticket_detail' ct.pk %}">
+										<span class="issue-key">{{ ct.project.key }}-{{ ct.pk }}</span>
+										{{ ct.title }}
+									</a>
 									<span class="text-muted float-end">
 										{% state_badge ticket=ct %}
- 									· {% type_badge ct %}
+  									· {% type_badge ct %}
 									</span>
 								</li>
 							{% endfor %}
@@ -138,11 +142,17 @@
 					{% if relations %}
 						<ul class="list-group list-group-flush mb-3">
 							{% for rel in relations %}
-								<li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+								<li class="list-group-item px-0 d-flex justify-content-between align-items-center related-ticket">
 									{% if rel.subject_id == ticket.pk %}
-										<a href="{% url 'ticket_detail' rel.target.pk %}">{{ rel.target.title }}</a>
+										<a href="{% url 'ticket_detail' rel.target.pk %}">
+											<span class="issue-key">{{ rel.target.project.key }}-{{ rel.target.pk }}</span>
+											{{ rel.target.title }}
+										</a>
 									{% else %}
-										<a href="{% url 'ticket_detail' rel.subject.pk %}">{{ rel.subject.title }}</a>
+										<a href="{% url 'ticket_detail' rel.subject.pk %}">
+											<span class="issue-key">{{ rel.subject.project.key }}-{{ rel.subject.pk }}</span>
+											{{ rel.subject.title }}
+										</a>
 									{% endif %}
 									<div class="d-flex gap-2 align-items-center">
 										<span class="badge bg-info rounded-pill text-dark">{{ rel.label }}</span>
@@ -199,6 +209,7 @@
 					<div class="d-flex justify-content-between align-items-start">
 						<div>
 							<a href="{% url 'ticket_attachment_serve' ticket.pk attachment.pk %}" target="_blank">
+								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="me-1 text-muted"><path d="M3 2a1 1 0 0 0-1 1v10a2 2 0 0 0 4 0V3a1 1 0 0 0-1-1H3zm5.744.146a1 1 0 0 0-1.49 0l-3 3a1 1 0 0 0 0 1.491l3 3a1 1 0 0 0 .745.374H13a1 1 0 0 0 1-1V7h-3a1 1 0 0 1-1-1V3.146zM13 1H6a1 1 0 0 0-1 1v10a4 4 0 0 0 8 0V7a1 1 0 0 0-1-1h-2V2a1 1 0 0 0-1-1z"/></svg>
 								{{ attachment.name }}
 							</a>
 							<small class="text-muted ms-2">{{ attachment.mime_type }}</small>
@@ -253,10 +264,10 @@
 			{% for comment in comments %}
 				<div class="comment mb-3 pb-3{% if not forloop.last %} border-bottom{% endif %}">
 					<div class="d-flex justify-content-between align-items-start mb-1">
-						<strong>{{ comment.author.get_username|default:"—" }}</strong>
-						<small class="text-muted">{{ comment.created_at|naturaltime }}</small>
+						<strong class="comment-author">{{ comment.author.get_username|default:"—" }}</strong>
+						<small class="text-muted comment-date">{{ comment.created_at|naturaltime }}</small>
 					</div>
-					<p style="white-space: pre-wrap">{{ comment.body|markdown }}</p>
+					<p class="comment-body" style="white-space: pre-wrap">{{ comment.body|markdown }}</p>
 				</div>
 			{% empty %}
 				<p class="text-muted">No comments yet.</p>

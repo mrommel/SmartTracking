@@ -10,6 +10,13 @@ _TYPE_VARIANTS = {
 	"epic": "warning",
 }
 
+_PRIORITY_VARIANTS = {
+	"LOW": "secondary",
+	"MEDIUM": "info",
+	"HIGH": "warning",
+	"CRITICAL": "danger",
+}
+
 
 def _raw_type(ticket):
 	# Bypass CharField descriptor: the field name "type" conflicts with the
@@ -28,8 +35,20 @@ def _raw_type(ticket):
 	return "task"
 
 
+def _raw_priority(ticket):
+	raw = ticket.__dict__.get("priority")
+	if raw:
+		return raw
+	display = ticket.get_priority_display()
+	from tracking.models import Ticket
+	for key, val in Ticket.Priority.choices:
+		if val == display:
+			return key
+	return "MEDIUM"
+
+
 @register.simple_tag
-def type_badge(ticket, size=None, pill=False):
+def type_badge(ticket, small=False, pill=False):
 	raw = _raw_type(ticket)
 	variant = _TYPE_VARIANTS.get(raw, "secondary")
 	css = ["badge"]
@@ -39,4 +58,20 @@ def type_badge(ticket, size=None, pill=False):
 		css.append("text-bg-warning text-dark")
 	if pill:
 		css.append("rounded-pill")
+	if small:
+		css.append("badge-sm")
 	return mark_safe(f'<span class="{" ".join(css)}">{ticket.get_type_display()}</span>')
+
+
+@register.simple_tag
+def priority_badge(ticket, small=False):
+	raw_priority = _raw_priority(ticket)
+	variant = _PRIORITY_VARIANTS.get(raw_priority, "secondary")
+	css = ["badge"]
+	if variant != "warning":
+		css.append(f"text-bg-{variant}")
+	else:
+		css.append("text-bg-warning text-dark")
+	if small:
+		css.append("badge-sm")
+	return mark_safe(f'<span class="{" ".join(css)}">{ticket.get_priority_display()}</span>')

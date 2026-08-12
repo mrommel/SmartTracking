@@ -70,39 +70,51 @@
 
 	<div class="card">
 		<table class="table table-hover mb-0 align-middle">
+			<div class="filter-summary small text-muted mb-2">
+				{{ tickets|length }} ticket{{ tickets.count|pluralize }}
+				{% if current_query or current_project or current_state or current_component or current_label or current_assignee %} · <a href="{% url 'ticket_list' %}">Clear all filters</a>{% endif %}
+			</div>
+
 			<thead>
 				<tr>
 					<th>Title</th>
-					<th style="width: 6rem">Project</th>
-					<th style="width: 7rem">Type</th>
-					<th style="width: 9rem">State</th>
-					<th style="width: 6rem">Estimation</th>
+					<th style="width: 9rem">Type</th>
+					<th style="width: 8rem">State</th>
 					<th style="width: 7rem">Priority</th>
-					<th style="width: 10rem">Assignee</th>
-					<th style="width: 7rem">Due date</th>
-					<th style="width: 5rem">Actions</th>
+					<th style="width: 5rem">Estimation</th>
+					<th style="width: 9rem">Assignee</th>
+					<th style="width: 8rem">Due date</th>
+					<th style="width: 4rem">
+						<span class="sr-only">Actions</span>
+					</th>
 				</tr>
 			</thead>
 			<tbody>
 				{% for ticket in tickets %}
 					<tr>
-						<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></td>
-						<td>{% #badge %}{{ ticket.project.key }}{% /badge %}</td>
- 					<td>{% type_badge ticket %}</td>
+						<td>
+							<strong>
+								<a href="{% url 'ticket_detail' ticket.pk %}">
+									<span class="issue-key">{{ ticket.project.key }}-{{ ticket.pk }}</span>
+								</a>
+								<span class="ms-1 fw-normal">{{ ticket.title }}</span>
+							</strong>
+						</td>
+  					<td>{% type_badge ticket %}</td>
 						<td>{% state_badge ticket=ticket %}</td>
+						<td>{% priority_badge ticket %}</td>
 						<td>{{ ticket.estimation|default:"—" }}</td>
-						<td>{{ ticket.get_priority_display }}</td>
 						<td>{{ ticket.assignee|default:"—" }}</td>
 						<td>{{ ticket.due_date|default:"—" }}</td>
                         <td>
 							<form method="post" action="{% url 'ticket_delete' ticket.project.pk ticket.pk %}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this ticket?');">
 								{% csrf_token %}
-								<button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Delete ticket">Delete</button>
+								<button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Delete ticket" style="font-size: 1.125rem; line-height: 1;">×</button>
 							</form>
                         </td>
 					</tr>
 				{% empty %}
-					<tr><td colspan="9" class="text-muted">No tickets found.</td></tr>
+					<tr><td colspan="8" class="text-muted">No tickets found.</td></tr>
 				{% endfor %}
 			</tbody>
 		</table>

@@ -58,10 +58,10 @@
 								<h6 class="mb-1">
 									<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
 								</h6>
-								<div class="d-flex gap-1 mb-1">
-									{% #badge size="sm" variant="secondary" %}{{ ticket.get_priority_display }}{% /badge %}
- 								{% type_badge ticket size="sm" %}
-								</div>
+  								<div class="d-flex gap-1 mb-1">
+  								{% priority_badge ticket small=True %}
+  								{% type_badge ticket small=True %}
+  							</div>
 								<i class="text-muted small">{{ ticket.assignee|default:"Unassigned" }}</i>
 							</div>
 						</div>
