@@ -15,6 +15,10 @@ An **OpenAPI 3.1.0 spec** is available at `GET /tracking/api/schema/` — loads
 into Swagger UI, ReDoc, or any OpenAPI viewer for a complete machine-readable
 description of every endpoint, parameter, and response type.
 
+All collection (list) endpoints return a **paginated envelope**:
+``{ "count": N, "pagination": {"next": …, "previous": …}, "results": [...] }``.
+Use query params ``?page=<int>&page_size=<int>`` (default 25, max 100) to navigate.
+
 ---
 
 ## 1. Start it

@@ -116,7 +116,7 @@ No profile/role model.
 
 ### 4. API hardening (`tracking/api.py`)
 - [x] **OpenAPI/Swagger docs** (hand-written OpenAPI 3.1.0 spec at `/tracking/api/schema/` — no external dependency).
-- [ ] **Pagination + consistent envelope** for list endpoints.
+- [x] **Pagination + consistent envelope** for list endpoints (query params `page`/`page_size`, returns `{ "count", "pagination": {"next", "previous"}, "results" }`).
 - [ ] **Rate limiting** and **API versioning** (`/api/v1/`).
 - [ ] **CORS** config if external clients are expected.
 - [ ] Consolidate hand-rolled JSON handling (repeated validation) into small serializer helpers.

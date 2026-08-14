@@ -62,6 +62,93 @@ class ApiSchemaTests(TestCase):
 
 
 @override_settings(TRACKING_API_TOKEN=TOKEN)
+class PaginationTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+
+	def _auth(self):
+		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
+
+	def test_single_page_no_next_or_previous(self):
+		Ticket.objects.create(project=self.project, title="a")
+		Ticket.objects.create(project=self.project, title="b")
+		resp = self.client.get(reverse("api_ticket_collection"), **self._auth())
+		data = resp.json()
+		self.assertEqual(data["count"], 2)
+		self.assertEqual(len(data["results"]), 2)
+		self.assertIsNone(data["pagination"]["next"])
+		self.assertIsNone(data["pagination"]["previous"])
+
+	def test_multiple_pages_next_url(self):
+		for i in range(5):
+			Ticket.objects.create(project=self.project, title=f"t{i}")
+		resp = self.client.get(
+			reverse("api_ticket_collection") + "?page_size=2",
+			**self._auth(),
+		)
+		data = resp.json()
+		self.assertEqual(data["count"], 5)
+		self.assertEqual(len(data["results"]), 2)
+		self.assertIsNotNone(data["pagination"]["next"])
+		self.assertIn("page=2", data["pagination"]["next"])
+		self.assertIsNone(data["pagination"]["previous"])
+
+	def test_multiple_pages_previous_url(self):
+		for i in range(5):
+			Ticket.objects.create(project=self.project, title=f"t{i}")
+		resp = self.client.get(
+			reverse("api_ticket_collection") + "?page=2&page_size=2",
+			**self._auth(),
+		)
+		data = resp.json()
+		self.assertEqual(len(data["results"]), 2)
+		self.assertIsNotNone(data["pagination"]["previous"])
+		self.assertIn("page=1", data["pagination"]["previous"])
+		self.assertIsNotNone(data["pagination"]["next"])
+
+	def test_page_size_max_capped_at_100(self):
+		for i in range(200):
+			Ticket.objects.create(project=self.project, title=f"t{i}")
+		resp = self.client.get(
+			reverse("api_ticket_collection") + "?page_size=999",
+			**self._auth(),
+		)
+		data = resp.json()
+		self.assertLessEqual(len(data["results"]), 100)
+		self.assertEqual(data["count"], 200)
+
+	def test_default_page_size_is_25(self):
+		for i in range(30):
+			Ticket.objects.create(project=self.project, title=f"t{i}")
+		resp = self.client.get(reverse("api_ticket_collection"), **self._auth())
+		data = resp.json()
+		self.assertEqual(len(data["results"]), 25)
+		self.assertEqual(data["count"], 30)
+
+	def test_list_projects_paginated(self):
+		for i in range(5):
+			Project.objects.create(key=f"P{i}", name=f"Project {i}")
+		resp = self.client.get(
+			reverse("api_project_collection") + "?page_size=2",
+			**self._auth(),
+		)
+		data = resp.json()
+		self.assertEqual(data["count"], 6)  # includes SMT from setUpTestData
+		self.assertEqual(len(data["results"]), 2)
+		self.assertIsNotNone(data["pagination"]["next"])
+
+	def test_list_endpoints_have_count(self):
+		resp = self.client.get(reverse("api_ticket_collection"), **self._auth())
+		data = resp.json()
+		self.assertIn("count", data)
+		self.assertIn("results", data)
+		self.assertIn("pagination", data)
+		for key in ("next", "previous"):
+			self.assertIn(key, data["pagination"])
+
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
 class ApiAuthTests(TestCase):
 	@classmethod
 	def setUpTestData(cls):
@@ -171,7 +258,7 @@ class ApiEndpointTests(TestCase):
 		Ticket.objects.create(project=other, title="b")
 		url = reverse("api_ticket_collection") + "?project=SMT"
 		response = self.client.get(url, **self._auth())
-		titles = [t["title"] for t in response.json()["tickets"]]
+		titles = [t["title"] for t in response.json()["results"]]
 		self.assertEqual(titles, ["a"])
 
 	def test_patch_updates_fields(self):
@@ -313,7 +400,7 @@ class ApiEndpointTests(TestCase):
 			reverse("api_attachment_collection") + f"?ticket={ticket_id}"
 		)
 		self.assertEqual(response.status_code, 200)
-		self.assertEqual(response.json()["attachments"], [])
+		self.assertEqual(response.json()["results"], [])
 
 	def test_upload_png(self):
 		ticket_id = self.test_create_ticket_for_attachments()
@@ -402,7 +489,7 @@ class ApiEndpointTests(TestCase):
 			reverse("api_attachment_collection") + f"?ticket={ticket_id}"
 		)
 		self.assertEqual(response.status_code, 200)
-		self.assertEqual(len(response.json()["attachments"]), 2)
+		self.assertEqual(len(response.json()["results"]), 2)
 
 	def test_get_single_attachment(self):
 		ticket_id = self.test_create_ticket_for_attachments()
@@ -605,7 +692,7 @@ class EpicApiTests(TestCase):
 	def test_list_endpoint_includes_epic(self):
 		url = reverse("api_ticket_collection") + "?project=SMT"
 		resp = self._get(url)
-		tickets = resp.json()["tickets"]
+		tickets = resp.json()["results"]
 		ticket_data = {t["id"]: t for t in tickets}
 		self.assertEqual(ticket_data[self.child.pk]["parent_epic"], self.epic.pk)
 		self.assertEqual(ticket_data[self.epic.pk]["parent_epic"], None)
@@ -644,9 +731,9 @@ class ActiveSprintTicketsApiTests(TestCase):
 		self.assertEqual(resp.status_code, 200)
 		body = resp.json()
 		self.assertEqual(body["sprint"]["name"], "Sprint 1")
-		titles = [t["title"] for t in body["tickets"]]
+		titles = [t["title"] for t in body["results"]]
 		self.assertEqual(titles, ["in active"])
-		self.assertEqual(body["tickets"][0]["id"], in_sprint.pk)
+		self.assertEqual(body["results"][0]["id"], in_sprint.pk)
 
 	def test_no_active_sprint_returns_no_tickets(self):
 		Sprint.objects.create(
@@ -660,7 +747,7 @@ class ActiveSprintTicketsApiTests(TestCase):
 		self.assertEqual(resp.status_code, 200)
 		body = resp.json()
 		self.assertIsNone(body["sprint"])
-		self.assertEqual(body["tickets"], [])
+		self.assertEqual(body["results"], [])
 
 	def test_unknown_project_returns_404(self):
 		resp = self._get(

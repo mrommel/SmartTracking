@@ -8,6 +8,10 @@ All endpoints speak JSON and are CSRF-exempt (they are not browser-form driven).
 The state machine is *not* re-implemented here: state changes go through
 ``Ticket.can_transition_to`` exactly like the HTML views do.
 
+List endpoints return a **paginated envelope**:
+``{ "count": N, "pagination": {"next": …, "previous": …}, "results": [...] }``.
+Query params ``?page=<int>&page_size=<int>`` (default 25, max 100).
+
 An OpenAPI 3.1.0 schema is available at ``/tracking/api/schema/`` for use with
 Swagger UI, ReDoc, or any OpenAPI-compatible tool.
 
@@ -75,6 +79,87 @@ def require_api_auth(view: Callable[..., HttpResponseBase]) -> Callable[..., Htt
 
 
 # --- Serialization helpers -------------------------------------------------
+
+# --- Pagination helpers ----------------------------------------------------
+
+_DEFAULT_PAGE_SIZE = 25
+_MAX_PAGE_SIZE = 100
+
+
+def _parse_page_params(request: HttpRequest) -> tuple[int, int]:
+	"""Return ``(page, page_size)`` parsed from request query params."""
+	page = int(request.GET.get("page", 1))
+	if page < 1:
+		page = 1
+	page_size = int(request.GET.get("page_size", _DEFAULT_PAGE_SIZE))
+	if page_size < 1:
+		page_size = _DEFAULT_PAGE_SIZE
+	if page_size > _MAX_PAGE_SIZE:
+		page_size = _MAX_PAGE_SIZE
+	return page, page_size
+
+
+def _paginate_qs(
+	queryset: QuerySet[Any], page: int, page_size: int, path: str,
+) -> dict[str, Any]:
+	"""Slice a queryset and return a standard paginated envelope."""
+	count = queryset.count()
+	start = (page - 1) * page_size
+	end = start + page_size
+	items = list(queryset[start:end])
+	next_url = None
+	if end < count:
+		next_url = f"{path}?page={page + 1}"
+		if "page_size" in request.GET:
+			next_url += f"&page_size={request.GET['page_size']}"
+	prev_url = None
+	if page > 1:
+		prev_url = f"{path}?page={page - 1}"
+		if "page_size" in request.GET:
+			prev_url += f"&page_size={request.GET['page_size']}"
+	return {
+		"pagination": {"next": next_url, "previous": prev_url},
+		"count": count,
+		"results": items,
+	}
+
+
+def paginate(results: list[Any], request: HttpRequest, path: str, total: int | None = None) -> dict[str, Any]:
+	"""Return a standard paginated-envelope dict for results derived from a view.
+
+	Parameters
+	----------
+	results : list[Any]
+		Already-serialised items (e.g. ``[serialize_ticket(t) for t in …]``).
+	request : HttpRequest
+		Passed through to build ``next`` / ``previous`` URLs.
+	path : str
+		The base path (without query string) used to build navigation links.
+	total : int | None
+		Optional total item count. If ``None``, ``len(results)`` is used as a
+		proxy (``results`` is assumed to contain every item — i.e. no server-side
+		pagination was performed).
+	"""
+	total = total if total is not None else len(results)
+	page, page_size = _parse_page_params(request)
+	start = (page - 1) * page_size
+	page_results = results[start : start + page_size]  # trim to the page
+	next_url = None
+	if page * page_size < total:
+		next_url = f"{path}?page={page + 1}"
+		if "page_size" in request.GET:
+			next_url += f"&page_size={request.GET['page_size']}"
+	prev_url = None
+	if page > 1:
+		prev_url = f"{path}?page={page - 1}"
+		if "page_size" in request.GET:
+			prev_url += f"&page_size={request.GET['page_size']}"
+	return {
+		"pagination": {"next": next_url, "previous": prev_url},
+		"count": total,
+		"results": page_results,
+	}
+
 
 def serialize_project(project: Project) -> dict[str, Any]:
 	return {
@@ -225,9 +310,10 @@ def meta(request: HttpRequest) -> JsonResponse:
 @require_http_methods(["GET", "POST"])
 def project_collection(request: HttpRequest) -> HttpResponseBase:
 	if request.method == "GET":
+		path = request.get_full_path().split("?")[0]
 		projects = Project.objects.all().order_by("key")
 		return JsonResponse(
-			{"projects": [serialize_project(p) for p in projects]}
+			paginate([serialize_project(p) for p in projects], request, path, len(projects)),
 		)
 
 	# POST -> create
@@ -283,8 +369,10 @@ def ticket_collection(request: HttpRequest) -> HttpResponseBase:
 		label = request.GET.get("label")
 		if label:
 			tickets = tickets.filter(labels__name=label)
+		path = request.get_full_path().split("?")[0]
+		total = tickets.count()
 		return JsonResponse(
-			{"tickets": [serialize_ticket(t) for t in tickets]}
+			paginate([serialize_ticket(t) for t in tickets], request, path, total),
 		)
 
 	# POST -> create
@@ -497,8 +585,10 @@ def comment_collection(request: HttpRequest) -> HttpResponseBase:
 
 	if request.method == "GET":
 		comments = Comment.objects.select_related("author").filter(ticket=ticket)
+		path = request.get_full_path().split("?")[0]
+		total = comments.count()
 		return JsonResponse(
-			{"comments": [serialize_comment(c) for c in comments]}
+			paginate([serialize_comment(c) for c in comments], request, path, total),
 		)
 
 	# POST -> create
@@ -536,8 +626,10 @@ def component_collection(request: HttpRequest) -> HttpResponseBase:
 
 	if request.method == "GET":
 		components = project.components.all()
+		path = request.get_full_path().split("?")[0]
+		total = components.count()
 		return JsonResponse(
-			{"components": [serialize_component(c) for c in components]}
+			paginate([serialize_component(c) for c in components], request, path, total),
 		)
 
 	# POST -> create
@@ -605,8 +697,10 @@ def label_collection(request: HttpRequest) -> HttpResponseBase:
 
 	if request.method == "GET":
 		labels = project.labels.all()
+		path = request.get_full_path().split("?")[0]
+		total = labels.count()
 		return JsonResponse(
-			{"labels": [serialize_label(l) for l in labels]}
+			paginate([serialize_label(l) for l in labels], request, path, total),
 		)
 
 	# POST -> create
@@ -644,8 +738,10 @@ def attachment_collection(request: HttpRequest) -> HttpResponseBase:
 
 	if request.method == "GET":
 		attachments = ticket.attachments.all()
+		path = request.get_full_path().split("?")[0]
+		total = attachments.count()
 		return JsonResponse(
-			{"attachments": [serialize_attachment(a) for a in attachments]}
+			paginate([serialize_attachment(a) for a in attachments], request, path, total),
 		)
 
 	# POST -> upload
@@ -717,12 +813,11 @@ def serialize_sprint(sprint: Sprint) -> dict[str, Any]:
 def sprint_collection(request: HttpRequest, project_key: str) -> JsonResponse:
 	"""Return all sprints for a project."""
 	project = get_object_or_404(Project, key=project_key.upper())
-	return JsonResponse({
-		"sprints": [
-			serialize_sprint(s)
-			for s in project.sprints.all()
-		],
-	})
+	path = request.get_full_path().split("?")[0]
+	sprints = list(project.sprints.all())
+	return JsonResponse(
+		paginate([serialize_sprint(s) for s in sprints], request, path, len(sprints)),
+	)
 
 
 @csrf_exempt
@@ -736,16 +831,27 @@ def active_sprint_tickets(request: HttpRequest, project_key: str) -> JsonRespons
 	"""
 	project = get_object_or_404(Project, key=project_key.upper())
 	sprint = project.sprints.filter(is_active=True).first()
-	tickets: list[dict[str, Any]] = []
+	path = request.get_full_path().split("?")[0]
 	if sprint is not None:
 		ticket_qs = Ticket.objects.filter(sprint=sprint).select_related(
 			"project", "assignee", "reporter"
 		)
-		tickets = [serialize_ticket(t) for t in ticket_qs]
-	return JsonResponse({
-		"sprint": serialize_sprint(sprint) if sprint else None,
-		"tickets": tickets,
-	})
+		total = ticket_qs.count()
+		results = [serialize_ticket(t) for t in ticket_qs]
+		body = {
+			"sprint": serialize_sprint(sprint),
+			"pagination": {"next": None, "previous": None},
+			"count": total,
+			"results": results,
+		}
+	else:
+		body = {
+			"sprint": None,
+			"pagination": {"next": None, "previous": None},
+			"count": 0,
+			"results": [],
+		}
+	return JsonResponse(body)
 
 
 @csrf_exempt
@@ -934,15 +1040,19 @@ def _schema() -> dict[str, Any]:
 				},
 			},
 		},
-		"/tracking/api/projects/": {
-			"get": {
-				"summary": "List all projects",
-				"tags": ["Projects"],
-				"security": [{"Bearer": []}, {"Cookie": []}],
-				"responses": {
+	"/tracking/api/projects/": {
+		"get": {
+			"summary": "List all projects",
+			"tags": ["Projects"],
+			"security": [{"Bearer": []}, {"Cookie": []}],
+			"parameters": [
+				{"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}, "description": "Page number (1-based)."},
+				{"name": "page_size", "in": "query", "schema": {"type": "integer", "default": 25, "maximum": 100}, "description": "Items per page (default 25, max 100)."},
+			],
+			"responses": {
 					"200": {
 						"description": "OK",
-						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProjectList"}}},
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginationEnvelope"}}},
 					},
 					"401": {"$ref": "#/components/responses/Unauthorized"},
 				},
@@ -979,22 +1089,24 @@ def _schema() -> dict[str, Any]:
 			},
 		},
 		"/tracking/api/tickets/": {
-			"get": {
-				"summary": "List tickets (filterable)",
-				"description": "Filter by ``project``, ``state``, ``assignee`` (``me``/``unassigned`` or user ID), ``component``, and ``label``.",
-				"tags": ["Tickets"],
-				"security": [{"Bearer": []}, {"Cookie": []}],
-				"parameters": [
-					{"name": "project", "in": "query", "schema": {"type": "string"}, "description": "Filter by project key."},
-					{"name": "state", "in": "query", "schema": {"type": "string"}, "description": "Filter by ticket state value."},
-					{"name": "assignee", "in": "query", "schema": {"type": "string"}, "description": "Filter by assignee username, ``me``, or ``unassigned``."},
-					{"name": "component", "in": "query", "schema": {"type": "string"}, "description": "Filter by component name."},
-					{"name": "label", "in": "query", "schema": {"type": "string"}, "description": "Filter by label name."},
-				],
+		"get": {
+			"summary": "List tickets (filterable)",
+			"description": "Filter by ``project``, ``state``, ``assignee`` (``me``/``unassigned`` or user ID), ``component``, and ``label``.",
+			"tags": ["Tickets"],
+			"security": [{"Bearer": []}, {"Cookie": []}],
+			"parameters": [
+				{"name": "project", "in": "query", "schema": {"type": "string"}, "description": "Filter by project key."},
+				{"name": "state", "in": "query", "schema": {"type": "string"}, "description": "Filter by ticket state value."},
+				{"name": "assignee", "in": "query", "schema": {"type": "string"}, "description": "Filter by assignee username, ``me``, or ``unassigned``."},
+				{"name": "component", "in": "query", "schema": {"type": "string"}, "description": "Filter by component name."},
+				{"name": "label", "in": "query", "schema": {"type": "string"}, "description": "Filter by label name."},
+				{"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}, "description": "Page number (1-based)."},
+				{"name": "page_size", "in": "query", "schema": {"type": "integer", "default": 25, "maximum": 100}, "description": "Items per page (default 25, max 100)."},
+			],
 				"responses": {
 					"200": {
 						"description": "OK",
-						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/TicketList"}}},
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginationEnvelope"}}},
 					},
 					"401": {"$ref": "#/components/responses/Unauthorized"},
 				},
@@ -1088,15 +1200,19 @@ def _schema() -> dict[str, Any]:
 			},
 		},
 		"/tracking/api/comments/": {
-			"get": {
-				"summary": "List comments on a ticket",
-				"tags": ["Comments"],
-				"security": [{"Bearer": []}, {"Cookie": []}],
-				"parameters": [{"name": "ticket", "in": "query", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."}],
+		"get": {
+			"summary": "List comments on a ticket",
+			"tags": ["Comments"],
+			"security": [{"Bearer": []}, {"Cookie": []}],
+			"parameters": [
+				{"name": "ticket", "in": "query", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."},
+				{"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}, "description": "Page number (1-based)."},
+				{"name": "page_size", "in": "query", "schema": {"type": "integer", "default": 25, "maximum": 100}, "description": "Items per page (default 25, max 100)."},
+			],
 				"responses": {
 					"200": {
 						"description": "OK",
-						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommentList"}}},
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginationEnvelope"}}},
 					},
 					"400": {"description": "Query parameter 'ticket' is required."},
 					"401": {"$ref": "#/components/responses/Unauthorized"},
@@ -1120,16 +1236,20 @@ def _schema() -> dict[str, Any]:
 				},
 			},
 		},
-		"/tracking/api/components/": {
-			"get": {
-				"summary": "List components for a project",
-				"tags": ["Components"],
-				"security": [{"Bearer": []}, {"Cookie": []}],
-				"parameters": [{"name": "project", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+	"/tracking/api/components/": {
+		"get": {
+			"summary": "List components for a project",
+			"tags": ["Components"],
+			"security": [{"Bearer": []}, {"Cookie": []}],
+			"parameters": [
+				{"name": "project", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Project key."},
+				{"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}, "description": "Page number (1-based)."},
+				{"name": "page_size", "in": "query", "schema": {"type": "integer", "default": 25, "maximum": 100}, "description": "Items per page (default 25, max 100)."},
+			],
 				"responses": {
 					"200": {
 						"description": "OK",
-						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/ComponentList"}}},
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginationEnvelope"}}},
 					},
 					"400": {"description": "Query parameter 'project' is required."},
 					"401": {"$ref": "#/components/responses/Unauthorized"},
@@ -1195,16 +1315,20 @@ def _schema() -> dict[str, Any]:
 				},
 			},
 		},
-		"/tracking/api/labels/": {
-			"get": {
-				"summary": "List labels for a project",
-				"tags": ["Labels"],
-				"security": [{"Bearer": []}, {"Cookie": []}],
-				"parameters": [{"name": "project", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+	"/tracking/api/labels/": {
+		"get": {
+			"summary": "List labels for a project",
+			"tags": ["Labels"],
+			"security": [{"Bearer": []}, {"Cookie": []}],
+			"parameters": [
+				{"name": "project", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Project key."},
+				{"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}, "description": "Page number (1-based)."},
+				{"name": "page_size", "in": "query", "schema": {"type": "integer", "default": 25, "maximum": 100}, "description": "Items per page (default 25, max 100)."},
+			],
 				"responses": {
 					"200": {
 						"description": "OK",
-						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/LabelList"}}},
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginationEnvelope"}}},
 					},
 					"400": {"description": "Query parameter 'project' is required."},
 					"401": {"$ref": "#/components/responses/Unauthorized"},
@@ -1227,16 +1351,20 @@ def _schema() -> dict[str, Any]:
 				},
 			},
 		},
-		"/tracking/api/attachments/": {
-			"get": {
-				"summary": "List attachments on a ticket",
-				"tags": ["Attachments"],
-				"security": [{"Bearer": []}, {"Cookie": []}],
-				"parameters": [{"name": "ticket", "in": "query", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."}],
+	"/tracking/api/attachments/": {
+		"get": {
+			"summary": "List attachments on a ticket",
+			"tags": ["Attachments"],
+			"security": [{"Bearer": []}, {"Cookie": []}],
+			"parameters": [
+				{"name": "ticket", "in": "query", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."},
+				{"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}, "description": "Page number (1-based)."},
+				{"name": "page_size", "in": "query", "schema": {"type": "integer", "default": 25, "maximum": 100}, "description": "Items per page (default 25, max 100)."},
+			],
 				"responses": {
 					"200": {
 						"description": "OK",
-						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/AttachmentList"}}},
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginationEnvelope"}}},
 					},
 					"400": {"description": "Query parameter 'ticket' is required."},
 					"401": {"$ref": "#/components/responses/Unauthorized"},
@@ -1285,16 +1413,20 @@ def _schema() -> dict[str, Any]:
 				},
 			},
 		},
-		"/tracking/api/sprints/{project_key}/": {
-			"get": {
-				"summary": "List sprints for a project",
-				"tags": ["Sprints"],
-				"security": [{"Bearer": []}, {"Cookie": []}],
-				"parameters": [{"name": "project_key", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+	"/tracking/api/sprints/{project_key}/": {
+		"get": {
+			"summary": "List sprints for a project",
+			"tags": ["Sprints"],
+			"security": [{"Bearer": []}, {"Cookie": []}],
+			"parameters": [
+				{"name": "project_key", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Project key."},
+				{"name": "page", "in": "query", "schema": {"type": "integer", "default": 1}, "description": "Page number (1-based)."},
+				{"name": "page_size", "in": "query", "schema": {"type": "integer", "default": 25, "maximum": 100}, "description": "Items per page (default 25, max 100)."},
+			],
 				"responses": {
 					"200": {
 						"description": "OK",
-						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/SprintList"}}},
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/PaginationEnvelope"}}},
 					},
 					"401": {"$ref": "#/components/responses/Unauthorized"},
 					"404": {"description": "Project not found."},
@@ -1471,6 +1603,21 @@ def _schema() -> dict[str, Any]:
 						"name": {"type": "string"},
 						"description": {"type": "string"},
 						"created_at": {"type": "string", "format": "date-time"},
+					},
+				},
+				"PaginationEnvelope": {
+					"type": "object",
+					"description": "Standard paginated list envelope. 'results' items depend on the endpoint.",
+					"properties": {
+						"count": {"type": "integer", "description": "Total number of items across all pages."},
+						"pagination": {
+							"type": "object",
+							"properties": {
+								"next": {"type": ["string", "null"], "description": "URL to the next page, or null."},
+								"previous": {"type": ["string", "null"], "description": "URL to the previous page, or null."},
+							},
+						},
+						"results": {"type": "array", "description": "Page of items."},
 					},
 				},
 				"ProjectList": {
