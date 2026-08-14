@@ -115,7 +115,7 @@ No profile/role model.
       Postgres option, `ALLOWED_HOSTS`, static via WhiteNoise/CDN, real email backend.
 
 ### 4. API hardening (`tracking/api.py`)
-- [ ] **OpenAPI/Swagger docs** (hand-written schema or `drf-spectacular` if migrating).
+- [x] **OpenAPI/Swagger docs** (hand-written OpenAPI 3.1.0 spec at `/tracking/api/schema/` — no external dependency).
 - [ ] **Pagination + consistent envelope** for list endpoints.
 - [ ] **Rate limiting** and **API versioning** (`/api/v1/`).
 - [ ] **CORS** config if external clients are expected.

@@ -903,6 +903,853 @@ def ticket_relation_delete_api(request: HttpRequest, pk: int) -> JsonResponse:
 	return JsonResponse({"status": "deleted"})
 
 
+# --- OpenAPI Schema --------------------------------------------------------
+
+def _schema() -> dict[str, Any]:
+	"""Return a hand-written OpenAPI 3.1.0 schema for the tracking API.
+
+	No DRF dependency — just plain Django, keeping alignment with the rest of the
+	project's lightweight philosophy.
+	"""
+
+	def _path(url: str, methods: dict[str, dict[str, Any]]) -> tuple[str, dict[str, Any]]:
+		return (url, methods)
+
+	paths: dict[str, dict[str, Any]] = {
+		"/tracking/api/meta/": {
+			"get": {
+				"summary": "Enum values and state-transition graph",
+				"description": "Returns all ticket types, states, priorities, relation types, and the allowed state-transition graph so a client can self-describe.",
+				"tags": ["Discovery"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Meta"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+				},
+			},
+		},
+		"/tracking/api/projects/": {
+			"get": {
+				"summary": "List all projects",
+				"tags": ["Projects"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProjectList"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+				},
+			},
+			"post": {
+				"summary": "Create a project",
+				"tags": ["Projects"],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateProject"}}}},
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Project"}}},
+					},
+					"400": {"description": "Bad request — key and name required."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"409": {"description": "Project key already exists."},
+				},
+			},
+		},
+		"/tracking/api/projects/{key}/": {
+			"get": {
+				"summary": "Retrieve a project by its key",
+				"tags": ["Projects"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "key", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Project key (e.g. 'SMT')"}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Project"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Project not found."},
+				},
+			},
+		},
+		"/tracking/api/tickets/": {
+			"get": {
+				"summary": "List tickets (filterable)",
+				"description": "Filter by ``project``, ``state``, ``assignee`` (``me``/``unassigned`` or user ID), ``component``, and ``label``.",
+				"tags": ["Tickets"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [
+					{"name": "project", "in": "query", "schema": {"type": "string"}, "description": "Filter by project key."},
+					{"name": "state", "in": "query", "schema": {"type": "string"}, "description": "Filter by ticket state value."},
+					{"name": "assignee", "in": "query", "schema": {"type": "string"}, "description": "Filter by assignee username, ``me``, or ``unassigned``."},
+					{"name": "component", "in": "query", "schema": {"type": "string"}, "description": "Filter by component name."},
+					{"name": "label", "in": "query", "schema": {"type": "string"}, "description": "Filter by label name."},
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/TicketList"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+				},
+			},
+			"post": {
+				"summary": "Create a ticket",
+				"tags": ["Tickets"],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateTicket"}}}},
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Ticket"}}},
+					},
+					"400": {"description": "Bad request."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Project not found."},
+				},
+			},
+		},
+		"/tracking/api/tickets/{pk}/": {
+			"get": {
+				"summary": "Retrieve a ticket with relations, comments, and allowed transitions",
+				"tags": ["Tickets"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Ticket"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Ticket not found."},
+				},
+			},
+			"patch": {
+				"summary": "Partial update of a ticket (state excluded)",
+				"description": "Use the **/transition/** endpoint to change ``state``.",
+				"tags": ["Tickets"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."}],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UpdateTicket"}}}},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Ticket"}}},
+					},
+					"400": {"description": "Bad request (e.g. 'state' in body)."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Ticket not found."},
+				},
+			},
+		},
+		"/tracking/api/tickets/{pk}/transition/": {
+			"post": {
+				"summary": "Transition a ticket to a new state",
+				"description": "Honours ``Ticket.TRANSITIONS``. Returns 409 with **allowed_transitions** when the move is invalid.",
+				"tags": ["Tickets"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."}],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TransitionTicket"}}}},
+				"responses": {
+					"200": {
+						"description": "OK — ticket with new state.",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Ticket"}}},
+					},
+					"400": {"description": "Bad request."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Ticket not found."},
+					"409": {"description": "Invalid transition."},
+				},
+			},
+		},
+		"/tracking/api/tickets/{ticket_id}/relations/add/": {
+			"post": {
+				"summary": "Create a relation between two tickets",
+				"description": "Relations are **symmetric**: the reverse counterpart is auto-created. Tickets must be in the same project.",
+				"tags": ["Tickets"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "ticket_id", "in": "path", "required": True, "schema": {"type": "integer"}, "description": "Subject ticket ID."}],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateRelation"}}}},
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/TicketRelation"}}},
+					},
+					"400": {"description": "Invalid relation type."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Target ticket not found."},
+					"409": {"description": "Related tickets must be in the same project, or relation already exists."},
+				},
+			},
+		},
+		"/tracking/api/comments/": {
+			"get": {
+				"summary": "List comments on a ticket",
+				"tags": ["Comments"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "ticket", "in": "query", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommentList"}}},
+					},
+					"400": {"description": "Query parameter 'ticket' is required."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Ticket not found."},
+				},
+			},
+			"post": {
+				"summary": "Create a comment on a ticket",
+				"tags": ["Comments"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "ticket", "in": "query", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."}],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateComment"}}}},
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Comment"}}},
+					},
+					"400": {"description": "Body is required."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Ticket not found."},
+				},
+			},
+		},
+		"/tracking/api/components/": {
+			"get": {
+				"summary": "List components for a project",
+				"tags": ["Components"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "project", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/ComponentList"}}},
+					},
+					"400": {"description": "Query parameter 'project' is required."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Project not found."},
+				},
+			},
+			"post": {
+				"summary": "Create a component in a project",
+				"tags": ["Components"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "project", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateComponent"}}}},
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Component"}}},
+					},
+					"400": {"description": "Name is required."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"409": {"description": "Component already exists."},
+				},
+			},
+		},
+		"/tracking/api/components/{pk}/": {
+			"get": {
+				"summary": "Retrieve a component",
+				"tags": ["Components"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Component"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Component not found."},
+				},
+			},
+			"patch": {
+				"summary": "Update a component",
+				"tags": ["Components"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}}],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UpdateComponent"}}}},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Component"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Component not found."},
+				},
+			},
+			"delete": {
+				"summary": "Delete a component",
+				"tags": ["Components"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}}],
+				"responses": {
+					"200": {"description": "Deleted."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Component not found."},
+				},
+			},
+		},
+		"/tracking/api/labels/": {
+			"get": {
+				"summary": "List labels for a project",
+				"tags": ["Labels"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "project", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/LabelList"}}},
+					},
+					"400": {"description": "Query parameter 'project' is required."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+				},
+			},
+			"post": {
+				"summary": "Create a label in a project",
+				"tags": ["Labels"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "project", "in": "query", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateLabel"}}}},
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Label"}}},
+					},
+					"400": {"description": "Name is required."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"409": {"description": "Label already exists."},
+				},
+			},
+		},
+		"/tracking/api/attachments/": {
+			"get": {
+				"summary": "List attachments on a ticket",
+				"tags": ["Attachments"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "ticket", "in": "query", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/AttachmentList"}}},
+					},
+					"400": {"description": "Query parameter 'ticket' is required."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+				},
+			},
+			"post": {
+				"summary": "Upload an attachment (multipart/form-data)",
+				"description": "Allowed file extensions: ``.png .jpg .jpeg .pdf .txt .log .json``. 10 MB cap enforced by the model.",
+				"tags": ["Attachments"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "ticket", "in": "query", "required": True, "schema": {"type": "integer"}, "description": "Ticket primary key."}],
+				"requestBody": {"required": True, "content": {"multipart/form-data": {"schema": {"$ref": "#/components/schemas/UploadAttachment"}}}},
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Attachment"}}},
+					},
+					"400": {"description": "File is required or type not allowed."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+				},
+			},
+		},
+		"/tracking/api/attachments/{pk}/": {
+			"get": {
+				"summary": "Retrieve an attachment metadata",
+				"tags": ["Attachments"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Attachment"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Attachment not found."},
+				},
+			},
+			"delete": {
+				"summary": "Delete an attachment",
+				"tags": ["Attachments"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}}],
+				"responses": {
+					"200": {"description": "Deleted."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+				},
+			},
+		},
+		"/tracking/api/sprints/{project_key}/": {
+			"get": {
+				"summary": "List sprints for a project",
+				"tags": ["Sprints"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "project_key", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/SprintList"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Project not found."},
+				},
+			},
+		},
+		"/tracking/api/sprints/{project_key}/active/tickets/": {
+			"get": {
+				"summary": "Tickets in the project's active sprint",
+				"description": "When no sprint is active returns ``sprint: null`` and an empty ``tickets`` list.",
+				"tags": ["Sprints"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "project_key", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActiveSprintTickets"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Project not found."},
+				},
+			},
+		},
+		"/tracking/api/sprints/{project_key}/create/": {
+			"post": {
+				"summary": "Create a sprint in a project",
+				"tags": ["Sprints"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "project_key", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Project key."}],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateSprint"}}}},
+				"responses": {
+					"201": {
+						"description": "Created",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Sprint"}}},
+					},
+					"400": {"description": "'name' is required."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Project not found."},
+					"409": {"description": "Sprint already exists."},
+				},
+			},
+		},
+		"/tracking/api/sprints/{pk}/": {
+			"get": {
+				"summary": "Retrieve a sprint",
+				"tags": ["Sprints"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}}],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Sprint"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Sprint not found."},
+				},
+			},
+			"patch": {
+				"summary": "Update a sprint",
+				"tags": ["Sprints"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}}],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UpdateSprint"}}}},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Sprint"}}},
+					},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Sprint not found."},
+				},
+			},
+			"delete": {
+				"summary": "Delete a sprint (backlog is protected)",
+				"tags": ["Sprints"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}}],
+				"responses": {
+					"200": {"description": "Deleted."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"403": {"description": "Cannot delete the backlog pseudo-sprint."},
+					"404": {"description": "Sprint not found."},
+				},
+			},
+		},
+		"/tracking/api/sprints/{project_key}/{sprint_pk}/close/": {
+			"post": {
+				"summary": "Close a sprint",
+				"description": "Deactivates the sprint (sets ``is_active=False`` and ``end_date=today``). Action determines where open tickets go.",
+				"tags": ["Sprints"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [
+					{"name": "project_key", "in": "path", "required": True, "schema": {"type": "string"}, "description": "Project key."},
+					{"name": "sprint_pk", "in": "path", "required": True, "schema": {"type": "integer"}, "description": "Sprint to close."},
+				],
+				"requestBody": {"required": True, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CloseSprint"}}}},
+				"responses": {
+					"200": {
+						"description": "OK — sprint with updated dates.",
+						"content": {"application/json": {"schema": {"$ref": "#/components/schemas/Sprint"}}},
+					},
+					"400": {"description": "Invalid action or missing 'target_sprint'."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"403": {"description": "Cannot close the backlog pseudo-sprint."},
+					"404": {"description": "Sprint not found."},
+				},
+			},
+		},
+		"/tracking/api/tickets/relations/{pk}/delete/": {
+			"delete": {
+				"summary": "Delete a ticket relation",
+				"tags": ["Tickets"],
+				"security": [{"Bearer": []}, {"Cookie": []}],
+				"parameters": [{"name": "pk", "in": "path", "required": True, "schema": {"type": "integer"}, "description": "Relation primary key."}],
+				"responses": {
+					"200": {"description": "Deleted."},
+					"401": {"$ref": "#/components/responses/Unauthorized"},
+					"404": {"description": "Relation not found."},
+				},
+			},
+		},
+	}
+
+	groups = [
+		("Discovery", "Integration dataset: enums, types, transitions."),
+		("Projects", "CRUD for projects."),
+		("Tickets", "Ticket CRUD, state transitions, relations, comments, and attachments."),
+		("Component", "Per-project components."),
+		("Labels", "Per-project labels."),
+		("Sprints", "Per-project sprints, active sprint tickets, and sprint close operations."),
+	]
+
+	return {
+		"openapi": "3.1.0",
+		"info": {
+			"title": "SmartTracking REST API",
+			"description": "Plain-Django JSON API for managing projects, tickets, sprints, comments, and attachments. "
+			"Intended for programmatic / MCP client consumption. "
+			"State changes must go through the **/transition/** endpoint.",
+			"version": "0.1.0",
+		},
+		"servers": [
+			{"url": "/tracking/api", "description": "API root (relative to Django site)."
+			},
+		],
+		"paths": paths,
+		"components": {
+			"schemas": {
+				"Meta": {
+					"type": "object",
+					"properties": {
+						"types": {"type": "array", "items": {"$ref": "#/components/schemas/EnumEntry"}},
+						"states": {"type": "array", "items": {"$ref": "#/components/schemas/EnumEntry"}},
+						"priorities": {"type": "array", "items": {"$ref": "#/components/schemas/EnumEntry"}},
+						"relations": {"type": "array", "items": {"$ref": "#/components/schemas/EnumEntry"}},
+						"transitions": {
+							"type": "object",
+							"additionalProperties": {"type": "array", "items": {"type": "string"}},
+							"description": "Map of state → list of reachable states.",
+						},
+					},
+				},
+				"EnumEntry": {
+					"type": "object",
+					"properties": {
+						"value": {"type": "string"},
+						"label": {"type": "string"},
+					},
+				},
+				"Project": {
+					"type": "object",
+					"properties": {
+						"key": {"type": "string"},
+						"name": {"type": "string"},
+						"description": {"type": "string"},
+						"created_at": {"type": "string", "format": "date-time"},
+					},
+				},
+				"ProjectList": {
+					"type": "object",
+					"properties": {
+						"projects": {"type": "array", "items": {"$ref": "#/components/schemas/Project"}},
+					},
+				},
+				"CreateProject": {
+					"type": "object",
+					"required": ["key", "name"],
+					"properties": {
+						"key": {"type": "string", "description": "Uppercase key, e.g. 'SMT'."},
+						"name": {"type": "string"},
+						"description": {"type": "string"},
+					},
+				},
+				"Ticket": {
+					"type": "object",
+					"properties": {
+						"id": {"type": "integer"},
+						"project": {"type": "string", "description": "Project key."},
+						"title": {"type": "string"},
+						"description": {"type": "string"},
+						"type": {"type": "string"},
+						"type_display": {"type": "string"},
+						"state": {"type": "string"},
+						"state_display": {"type": "string"},
+						"priority": {"type": "integer"},
+						"priority_display": {"type": "string"},
+						"estimation": {"type": ["number", "null"]},
+						"parent_epic": {"type": ["integer", "null"]},
+						"parent_epic_display": {"type": ["string", "null"]},
+						"reporter": {"type": ["string", "null"]},
+						"assignee": {"type": ["string", "null"]},
+						"components": {"type": "array", "items": {"$ref": "#/components/schemas/Component"}},
+						"labels": {"type": "array", "items": {"$ref": "#/components/schemas/Label"}},
+						"relations": {"type": "array", "items": {"$ref": "#/components/schemas/TicketRelation"}},
+						"allowed_transitions": {"type": "array", "items": {"type": "string"}},
+						"comments": {"type": "array", "items": {"$ref": "#/components/schemas/Comment"}},
+						"due_date": {"type": ["string", "null"], "format": "date"},
+						"created_at": {"type": "string", "format": "date-time"},
+						"updated_at": {"type": "string", "format": "date-time"},
+					},
+				},
+				"TicketList": {
+					"type": "object",
+					"properties": {
+						"tickets": {"type": "array", "items": {"$ref": "#/components/schemas/Ticket"}},
+					},
+				},
+				"CreateTicket": {
+					"type": "object",
+					"required": ["project", "title"],
+					"properties": {
+						"project": {"type": "string"},
+						"title": {"type": "string"},
+						"description": {"type": "string"},
+						"type": {"type": "string"},
+						"priority": {"type": "integer"},
+						"estimation": {"type": ["number", "null"]},
+						"due_date": {"type": ["string", "null"], "format": "date"},
+						"components": {"type": "array", "items": {"type": "string"}},
+						"labels": {"type": "array", "items": {"type": "string"}},
+					},
+				},
+				"UpdateTicket": {
+					"type": "object",
+					"properties": {
+						"title": {"type": "string"},
+						"description": {"type": "string"},
+						"type": {"type": "string"},
+						"estimation": {"type": ["number", "null"]},
+						"priority": {"type": "integer"},
+						"assignee": {"type": ["string", "null"]},
+						"parent_epic": {"type": ["integer", "null"]},
+						"due_date": {"type": ["string", "null"], "format": "date"},
+						"sprint": {"type": ["integer", "null"]},
+						"components": {"type": "array", "items": {"type": "string"}},
+						"labels": {"type": "array", "items": {"type": "string"}},
+					},
+				},
+				"TransitionTicket": {
+					"type": "object",
+					"required": ["state"],
+					"properties": {"state": {"type": "string"}},
+				},
+				"TicketRelation": {
+					"type": "object",
+					"properties": {
+						"id": {"type": "integer"},
+						"subject": {"type": "integer"},
+						"target": {"type": "integer"},
+						"relation_type": {"type": "string"},
+						"relation_type_display": {"type": "string"},
+						"created_at": {"type": "string", "format": "date-time"},
+					},
+				},
+				"CreateRelation": {
+					"type": "object",
+					"required": ["target_id", "relation_type"],
+					"properties": {
+						"target_id": {"type": "integer"},
+						"relation_type": {"type": "string"},
+					},
+				},
+				"Comment": {
+					"type": "object",
+					"properties": {
+						"id": {"type": "integer"},
+						"ticket": {"type": "integer"},
+						"body": {"type": "string"},
+						"author": {"type": ["string", "null"]},
+						"created_at": {"type": "string", "format": "date-time"},
+						"updated_at": {"type": "string", "format": "date-time"},
+					},
+				},
+				"CommentList": {
+					"type": "object",
+					"properties": {"comments": {"type": "array", "items": {"$ref": "#/components/schemas/Comment"}}},
+				},
+				"CreateComment": {
+					"type": "object",
+					"required": ["body"],
+					"properties": {"body": {"type": "string"}},
+				},
+				"Component": {
+					"type": "object",
+					"properties": {
+						"id": {"type": "integer"},
+						"project": {"type": "string"},
+						"name": {"type": "string"},
+						"description": {"type": "string"},
+						"created_at": {"type": "string", "format": "date-time"},
+					},
+				},
+				"ComponentList": {
+					"type": "object",
+					"properties": {"components": {"type": "array", "items": {"$ref": "#/components/schemas/Component"}}},
+				},
+				"CreateComponent": {
+					"type": "object",
+					"required": ["name"],
+					"properties": {
+						"name": {"type": "string"},
+						"description": {"type": "string"},
+					},
+				},
+				"UpdateComponent": {
+					"type": "object",
+					"properties": {
+						"name": {"type": "string"},
+						"description": {"type": "string"},
+					},
+				},
+				"Label": {
+					"type": "object",
+					"properties": {
+						"id": {"type": "integer"},
+						"project": {"type": "string"},
+						"name": {"type": "string"},
+						"color": {"type": "string"},
+						"description": {"type": "string"},
+						"created_at": {"type": "string", "format": "date-time"},
+					},
+				},
+				"LabelList": {
+					"type": "object",
+					"properties": {"labels": {"type": "array", "items": {"$ref": "#/components/schemas/Label"}}},
+				},
+				"CreateLabel": {
+					"type": "object",
+					"required": ["name"],
+					"properties": {
+						"name": {"type": "string"},
+						"color": {"type": "string"},
+						"description": {"type": "string"},
+					},
+				},
+				"Attachment": {
+					"type": "object",
+					"properties": {
+						"id": {"type": "integer"},
+						"ticket": {"type": "integer"},
+						"name": {"type": "string"},
+						"mime_type": {"type": "string"},
+						"url": {"type": "string"},
+						"created_at": {"type": "string", "format": "date-time"},
+					},
+				},
+				"AttachmentList": {
+					"type": "object",
+					"properties": {"attachments": {"type": "array", "items": {"$ref": "#/components/schemas/Attachment"}}},
+				},
+				"UploadAttachment": {
+					"type": "object",
+					"properties": {
+						"file": {"type": "string", "format": "binary"},
+					},
+				},
+				"Sprint": {
+					"type": "object",
+					"properties": {
+						"id": {"type": "integer"},
+						"project": {"type": "string"},
+						"name": {"type": "string"},
+						"description": {"type": "string"},
+						"start_date": {"type": ["string", "null"], "format": "date"},
+						"end_date": {"type": ["string", "null"], "format": "date"},
+						"order": {"type": "integer"},
+						"is_active": {"type": "boolean"},
+						"created_at": {"type": "string", "format": "date-time"},
+					},
+				},
+				"SprintList": {
+					"type": "object",
+					"properties": {"sprints": {"type": "array", "items": {"$ref": "#/components/schemas/Sprint"}}},
+				},
+				"CreateSprint": {
+					"type": "object",
+					"required": ["name"],
+					"properties": {
+						"name": {"type": "string"},
+						"description": {"type": "string"},
+						"start_date": {"type": ["string", "null"], "format": "date"},
+						"end_date": {"type": ["string", "null"], "format": "date"},
+						"order": {"type": "integer"},
+						"is_active": {"type": "boolean"},
+					},
+				},
+				"UpdateSprint": {
+					"type": "object",
+					"properties": {
+						"name": {"type": "string"},
+						"description": {"type": "string"},
+						"start_date": {"type": ["string", "null"], "format": "date"},
+						"end_date": {"type": ["string", "null"], "format": "date"},
+						"order": {"type": "integer"},
+						"is_active": {"type": "boolean"},
+					},
+				},
+				"CloseSprint": {
+					"type": "object",
+					"properties": {
+						"action": {"type": "string", "enum": ["backlog", "sprint", "keep"]},
+						"target_sprint": {"type": ["integer", "null"]},
+					},
+				},
+				"ActiveSprintTickets": {
+					"type": "object",
+					"properties": {
+						"sprint": {"$ref": "#/components/schemas/Sprint"},
+						"tickets": {"type": "array", "items": {"$ref": "#/components/schemas/Ticket"}},
+					},
+					"description": "``sprint`` is null when no sprint is active.",
+				},
+			},
+			"responses": {
+				"Unauthorized": {"description": "Authentication required. Check session cookie or ``Authorization: Bearer`` header."},
+			},
+			"securitySchemes": {
+				"Bearer": {"type": "http", "scheme": "bearer"},
+				"Cookie": {"type": "apiKey", "in": "cookie", "name": "sessionid"},
+			},
+		},
+		"tags": [
+			{"name": name, "description": desc} for name, desc in groups
+		],
+	}
+
+
+@require_api_auth
+@require_http_methods(["GET"])
+def schema(request: HttpRequest) -> JsonResponse:
+	"""Return the OpenAPI 3.1.0 spec as JSON.
+
+	Load the document in any OpenAPI viewer (e.g. Swagger UI / ReDoc) by pointing
+	it at ``/tracking/api/schema/``.
+	"""
+	return JsonResponse(_schema(), safe=False)
+
+
 # --- URL patterns (included from tracking/urls.py) -------------------------
 
 urlpatterns: list[path] = [
@@ -925,4 +1772,5 @@ urlpatterns: list[path] = [
 	path("sprints/<str:project_key>/<int:sprint_pk>/close/", sprint_close, name="api_sprint_close"),
 	path("sprints/<int:pk>/", sprint_detail, name="api_sprint_detail"),
 	path("tickets/relations/<int:pk>/delete/", ticket_relation_delete_api, name="api_ticket_relation_delete"),
+	path("schema/", schema, name="api_schema"),
 ]

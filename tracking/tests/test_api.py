@@ -15,6 +15,53 @@ TOKEN = "test-token-123"
 
 
 @override_settings(TRACKING_API_TOKEN=TOKEN)
+class ApiSchemaTests(TestCase):
+	def test_schema_returns_valid_json(self):
+		response = self.client.get(
+			reverse("api_schema"), HTTP_AUTHORIZATION=f"Bearer {TOKEN}"
+		)
+		self.assertEqual(response.status_code, 200)
+		data = response.json()
+		self.assertEqual(data["openapi"], "3.1.0")
+		self.assertIn("paths", data)
+		self.assertIn("components", data)
+		self.assertIn("tags", data)
+		self.assertEqual(data["info"]["title"], "SmartTracking REST API")
+		# Verify core paths are present
+		self.assertIn("/tracking/api/meta/", data["paths"])
+		self.assertIn("/tracking/api/tickets/", data["paths"])
+		self.assertIn("/tracking/api/projects/", data["paths"])
+
+	def test_schema_requires_auth(self):
+		response = self.client.get(reverse("api_schema"))
+		self.assertEqual(response.status_code, 401)
+
+	def test_schema_includes_ticket_schemas(self):
+		response = self.client.get(
+			reverse("api_schema"), HTTP_AUTHORIZATION=f"Bearer {TOKEN}"
+		)
+		data = response.json()
+		components = data["components"]["schemas"]
+		self.assertIn("Ticket", components)
+		self.assertIn("CreateTicket", components)
+		self.assertIn("UpdateTicket", components)
+		self.assertIn("Comment", components)
+		self.assertIn("Component", components)
+		self.assertIn("Label", components)
+		self.assertIn("Sprint", components)
+		self.assertIn("Attachment", components)
+
+	def test_schema_uses_security_schemes(self):
+		response = self.client.get(
+			reverse("api_schema"), HTTP_AUTHORIZATION=f"Bearer {TOKEN}"
+		)
+		data = response.json()
+		schemes = data["components"]["securitySchemes"]
+		self.assertIn("Bearer", schemes)
+		self.assertIn("Cookie", schemes)
+
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
 class ApiAuthTests(TestCase):
 	@classmethod
 	def setUpTestData(cls):
