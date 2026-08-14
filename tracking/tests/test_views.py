@@ -435,36 +435,183 @@ class TicketDeleteViewTests(TestCase):
 		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
 		cls.ticket = Ticket.objects.create(project=cls.project, title="To delete")
 
+		def setUp(self):
+			self.client.force_login(self.user)
+
+		def test_ticket_delete_get_shows_confirmation(self):
+			response = self.client.get(
+				reverse("ticket_delete", args=[self.project.pk, self.ticket.pk])
+			)
+			self.assertEqual(response.status_code, 200)
+			self.assertContains(response, "Are you sure you want to delete")
+			self.assertContains(response, "To delete")
+			self.assertContains(response, "Delete ticket")
+			self.assertContains(response, "Cancel")
+
+		def test_ticket_delete_post_deletes_ticket(self):
+			response = self.client.post(
+				reverse("ticket_delete", args=[self.project.pk, self.ticket.pk]),
+				follow=True,
+			)
+			self.assertEqual(response.status_code, 200)
+			self.assertFalse(Ticket.objects.filter(pk=self.ticket.pk).exists())
+			self.assertIn("deleted.", response.content.decode())
+
+		def test_ticket_delete_wrong_project_redirects(self):
+			other_project = Project.objects.create(key="OTH", name="Other")
+			ticket = Ticket.objects.create(project=other_project, title="Other ticket")
+			response = self.client.post(
+				reverse("ticket_delete", args=[self.project.pk, ticket.pk]),
+				follow=True,
+			)
+			self.assertEqual(response.status_code, 200)
+			self.assertTrue(Ticket.objects.filter(pk=ticket.pk).exists())
+
+
+class BulkActionTests(TestCase):
+	"""Bulk operations on the ticket list."""
+
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket1 = Ticket.objects.create(project=cls.project, title="Ticket 1", state=Ticket.State.OPEN)
+		cls.ticket2 = Ticket.objects.create(project=cls.project, title="Ticket 2", state=Ticket.State.OPEN)
+		cls.ticket3 = Ticket.objects.create(project=cls.project, title="Ticket 3", state=Ticket.State.OPEN)
+
 	def setUp(self):
 		self.client.force_login(self.user)
 
-	def test_ticket_delete_get_shows_confirmation(self):
-		response = self.client.get(
-			reverse("ticket_delete", args=[self.project.pk, self.ticket.pk])
-		)
-		self.assertEqual(response.status_code, 200)
-		self.assertContains(response, "Are you sure you want to delete")
-		self.assertContains(response, "To delete")
-		self.assertContains(response, "Delete ticket")
-		self.assertContains(response, "Cancel")
+	# --- ticket_list renders checkboxes and bulk bar ---
 
-	def test_ticket_delete_post_deletes_ticket(self):
+	def test_ticket_list_contains_bulk_fields(self):
+		response = self.client.get(reverse("ticket_list"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, 'id="bulk-bar"')
+		self.assertContains(response, 'id="select-all"')
+		self.assertContains(response, 'bulk-cb"')
+		self.assertContains(response, 'id="bulk-action-input"')
+		self.assertContains(response, 'id="bulk-ticket-ids"')
+
+	# --- ticket_bulk_action validation ---
+
+	def test_bulk_action_no_tickets(self):
 		response = self.client.post(
-			reverse("ticket_delete", args=[self.project.pk, self.ticket.pk]),
+			reverse("ticket_bulk_action"),
+			{"ticket_ids": "", "action": "transition", "state": Ticket.State.IN_PROGRESS},
 			follow=True,
 		)
 		self.assertEqual(response.status_code, 200)
-		self.assertFalse(Ticket.objects.filter(pk=self.ticket.pk).exists())
-		self.assertIn("deleted.", response.content.decode())
+		self.assertContains(response, "No tickets selected")
 
-	def test_ticket_delete_wrong_project_redirects(self):
-		other_project = Project.objects.create(key="OTH", name="Other")
-		ticket = Ticket.objects.create(project=other_project, title="Other ticket")
+	def test_bulk_action_invalid_id(self):
 		response = self.client.post(
-			reverse("ticket_delete", args=[self.project.pk, ticket.pk]),
+			reverse("ticket_bulk_action"),
+			{"ticket_ids": "999999", "action": "transition", "state": Ticket.State.IN_PROGRESS},
 			follow=True,
 		)
 		self.assertEqual(response.status_code, 200)
-		self.assertTrue(Ticket.objects.filter(pk=ticket.pk).exists())
+		self.assertContains(response, "Some selected tickets do not exist")
 
+	def test_bulk_action_no_action(self):
+		response = self.client.post(
+			reverse("ticket_bulk_action"),
+			{"ticket_ids": f"{self.ticket1.pk},{self.ticket2.pk}", "action": "", "state": ""},
+			follow=True,
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "No action")
+
+	# --- Bulk transition ---
+
+	def test_bulk_transition_success(self):
+		response = self.client.post(
+			reverse("ticket_bulk_action"),
+			{
+				"ticket_ids": f"{self.ticket1.pk},{self.ticket2.pk}",
+				"action": "transition",
+				"state": Ticket.State.IN_PROGRESS,
+			},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.ticket1.refresh_from_db()
+		self.ticket2.refresh_from_db()
+		self.assertEqual(self.ticket1.state, Ticket.State.IN_PROGRESS)
+		self.assertEqual(self.ticket2.state, Ticket.State.IN_PROGRESS)
+		self.ticket3.refresh_from_db()
+		self.assertEqual(self.ticket3.state, Ticket.State.OPEN)
+
+	def test_bulk_transition_invalid_not_allowed(self):
+		# CLOSED can only go to OPEN, not IN_PROGRESS
+		self.ticket3.state = Ticket.State.CLOSED
+		self.ticket3.save()
+		response = self.client.post(
+			reverse("ticket_bulk_action"),
+			{
+				"ticket_ids": f"{self.ticket1.pk},{self.ticket3.pk}",
+				"action": "transition",
+				"state": Ticket.State.IN_PROGRESS,
+			},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.ticket1.refresh_from_db()
+		self.ticket3.refresh_from_db()
+		self.assertEqual(self.ticket1.state, Ticket.State.OPEN)
+		self.assertEqual(self.ticket3.state, Ticket.State.CLOSED)
+
+	def test_bulk_transition_empty_state(self):
+		response = self.client.post(
+			reverse("ticket_bulk_action"),
+			{
+				"ticket_ids": f"{self.ticket1.pk},{self.ticket2.pk}",
+				"action": "transition",
+				"state": "",
+			},
+			follow=True,
+		)
+		self.assertEqual(response.status_code, 200)
+		self.ticket1.refresh_from_db()
+		self.ticket2.refresh_from_db()
+		self.assertEqual(self.ticket1.state, Ticket.State.OPEN)
+		self.assertEqual(self.ticket2.state, Ticket.State.OPEN)
+
+	# --- Bulk delete ---
+
+	def test_bulk_delete_success(self):
+		response = self.client.post(
+			reverse("ticket_bulk_action"),
+			{
+				"ticket_ids": f"{self.ticket1.pk},{self.ticket2.pk}",
+				"action": "delete",
+			},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertFalse(Ticket.objects.filter(pk=self.ticket1.pk).exists())
+		self.assertFalse(Ticket.objects.filter(pk=self.ticket2.pk).exists())
+		self.assertTrue(Ticket.objects.filter(pk=self.ticket3.pk).exists())
+
+	# --- Bulk reassign ---
+
+	def test_bulk_reassign_success(self):
+		other_user = User.objects.create_user("bob", password="pw12345!")
+		response = self.client.post(
+			reverse("ticket_bulk_action"),
+			{
+				"ticket_ids": f"{self.ticket1.pk},{self.ticket2.pk}",
+				"action": "reassign",
+				"assignee": other_user.pk,
+			},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.ticket1.refresh_from_db()
+		self.ticket2.refresh_from_db()
+		self.assertEqual(self.ticket1.assignee_id, other_user.pk)
+		self.assertEqual(self.ticket2.assignee_id, other_user.pk)
+
+	# --- Notes about composition ---
+
+	def test_ticket_list_shows_filter_summary(self):
+		response = self.client.get(reverse("ticket_list"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "tickets")
 

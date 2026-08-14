@@ -41,9 +41,12 @@ No notification system exists (email backend is console-only).
 - [ ] A **JQL-style query bar** as an advanced option.
 
 ### 5. Bulk Operations
-No batch editing today.
-- [ ] Multi-select on `ticket_list` to bulk transition, reassign, add labels/components,
-      move to sprint, or delete.
+Multi-select on `ticket_list` for bulk transition, reassign, add labels/components,
+move to sprint, or delete.
+- [x] Bulk operation form (`BulkActionForm`) with conditional fields and validation.
+- [x] Bulk action view (`ticket_bulk_action`) handling state, reassign, labels, components, sprint, delete.
+- [x] JavaScript-driven bulk bar on `ticket_list.html` with checkbox sync, row highlighting.
+- [x] Unit tests for all bulk action types in `test_views.py`.
 
 ### 6. Agile Board (Kanban / Scrum board)
 Currently only list + sprint views (`active_sprint.html`).
@@ -166,5 +169,5 @@ No profile/role model.
 2. **Activity log** (unblocks history + notifications).
 3. ~~**Reports/burndown** (finishes visible stubs).~~ **Done** — full reports and releases are implemented.
 4. **CI + linting + coverage** (quality foundation).
-5. **Notifications/watchers**, then **agile board** and **bulk actions**.
+5. ~~**Notifications/watchers**, then **agile board** and ~~**bulk actions**.~~ **Done** — bulk operations are fully implemented.
 

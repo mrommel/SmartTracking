@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -20,7 +21,7 @@ from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 
 from .forms import (
-	AttachmentForm, CommentForm, ComponentDeleteForm, ComponentForm,
+	AttachmentForm, BulkActionForm, CommentForm, ComponentDeleteForm, ComponentForm,
 	LabelDeleteForm, LabelForm, ProjectForm, SprintCloseForm, SprintDeleteForm,
 	SprintForm, TicketForm, TicketTransitionForm,
 )
@@ -426,7 +427,7 @@ def project_edit(request: HttpRequest, pk: int) -> HttpResponseBase:
 @login_required
 def ticket_list(request: HttpRequest) -> HttpResponseBase:
 	"""List tickets, optionally filtered by project, state, component, and label."""
-	tickets = Ticket.objects.select_related("project", "assignee")
+	tickets = _build_tickets_queryset(request)
 
 	query = request.GET.get("q")
 	if query:
@@ -463,6 +464,14 @@ def ticket_list(request: HttpRequest) -> HttpResponseBase:
 	paginator = Paginator(tickets, 25)
 	ticket_page = paginator.get_page(page)
 
+	# Build JSON lists for bulk action dropdowns
+	users_json = json.dumps([["u" + str(u.pk), str(u)] for u in get_user_model().objects.filter(
+		id__in=Ticket.objects.values_list("assignee", flat=True).distinct()
+	).order_by("username")])
+	labels_json = json.dumps([["l" + str(l.pk), l.name + " (" + l.project.key + ")"] for l in Label.objects.all().order_by("name")])
+	components_json = json.dumps([["c" + str(c.pk), c.name + " (" + c.project.key + ")"] for c in Component.objects.all().order_by("name")])
+	sprints_json = json.dumps([["s" + str(s.pk), s.name + " (" + s.project.key + ")"] for s in Sprint.objects.all().order_by("order")])
+
 	return render(request, "tracking/ticket_list.html", {
 		"title": "Tickets",
 		"tickets": ticket_page,
@@ -479,6 +488,10 @@ def ticket_list(request: HttpRequest) -> HttpResponseBase:
 		"users": get_user_model().objects.filter(
 			id__in=Ticket.objects.values_list("assignee", flat=True).distinct()
 		).order_by("username"),
+		"users_json": users_json,
+		"labels_json": labels_json,
+		"components_json": components_json,
+		"sprints_json": sprints_json,
 	})
 
 
@@ -1105,3 +1118,193 @@ def version_delete(request: HttpRequest, pk: int) -> HttpResponseBase:
 		"project": project,
 		"version": version,
 	})
+
+
+def _build_tickets_queryset(request: HttpRequest) -> models.QuerySet[Ticket]:
+	"""Re-build the filtered ticket queryset from the current GET params."""
+	tickets = Ticket.objects.select_related("project", "assignee").prefetch_related("components", "labels")
+
+	query = request.GET.get("q")
+	if query:
+		tickets = tickets.filter(
+			Q(title__icontains=query) | Q(description__icontains=query)
+		)
+
+	project_key = request.GET.get("project")
+	if project_key:
+		tickets = tickets.filter(project__key=project_key)
+
+	state = request.GET.get("state")
+	if state:
+		tickets = tickets.filter(state=state)
+
+	component = request.GET.get("component")
+	if component:
+		tickets = tickets.filter(components__name=component)
+
+	label = request.GET.get("label")
+	if label:
+		tickets = tickets.filter(labels__name=label)
+
+	assignee = request.GET.get("assignee")
+	if assignee == "me":
+		tickets = tickets.filter(assignee=request.user)
+	elif assignee == "unassigned":
+		tickets = tickets.filter(assignee__isnull=True)
+	elif assignee:
+		tickets = tickets.filter(assignee__pk=assignee)
+
+	tickets = tickets.order_by("-updated_at")
+	return tickets
+
+
+@login_required
+@require_POST
+def ticket_bulk_action(request: HttpRequest) -> HttpResponseBase:
+	"""Apply a bulk action to selected tickets from the ticket list."""
+	ticket_ids_str = request.POST.get("ticket_ids", "")
+	if not ticket_ids_str.strip():
+		messages.warning(request, "No tickets selected.")
+		return redirect("ticket_list")
+
+	# Parse ticket IDs and fetch
+	id_list = [int(x) for x in ticket_ids_str.split(",") if x.strip()]
+	if not id_list:
+		messages.warning(request, "No valid tickets selected.")
+		return redirect("ticket_list")
+
+	selected_tickets = list(Ticket.objects.filter(pk__in=id_list).order_by("pk"))
+	if len(selected_tickets) != len(id_list):
+		messages.warning(request, "Some selected tickets do not exist.")
+		return redirect("ticket_list")
+
+	if not selected_tickets:
+		messages.warning(request, "No tickets selected.")
+		return redirect("ticket_list")
+
+	project = selected_tickets[0].project
+
+	from .forms import BulkActionForm
+	form = BulkActionForm(request.POST, project=project, request=request)
+
+	if not form.is_valid():
+		for field, errors in form.errors.items():
+			for error in errors:
+				messages.error(request, error)
+		return redirect("ticket_list")
+
+	action = form.cleaned_data["action"]
+	items = form.cleaned_data["tickets"]
+	success_count = 0
+	err_count = 0
+
+	if action == "transition":
+		new_state = form.cleaned_data["state"]
+		for ticket in items:
+			try:
+				old_state = ticket.state
+				ticket.state = new_state
+				ticket.save(update_fields=["state", "updated_at"])
+				TicketActivity.objects.create(ticket=ticket, actor=request.user,
+					action=TicketActivity.Action.STATE_CHANGED,
+					old_value=old_state, new_value=ticket.state)
+				success_count += 1
+			except Exception:
+				err_count += 1
+		messages.success(request, f"Moved {success_count} ticket{'' if success_count == 1 else 's'} to '{Ticket.State(new_state).label}'."
+			"{}" .format(f" {err_count} failed." if err_count else ""))
+
+	elif action == "reassign":
+		new_assignee = form.cleaned_data["assignee"]
+		for ticket in items:
+			try:
+				old_assignee = ticket.assignee
+				ticket.assignee = new_assignee
+				ticket.save(update_fields=["assignee", "updated_at"])
+				TicketActivity.objects.create(ticket=ticket, actor=request.user,
+					action=TicketActivity.Action.TITLE_CHANGED,
+					old_value=str(old_assignee), new_value=str(new_assignee))
+				success_count += 1
+			except Exception:
+				err_count += 1
+		messages.success(request, f"Reassigned {success_count} ticket{'' if success_count == 1 else 's'}."
+			"{}" .format(f" {err_count} failed." if err_count else ""))
+
+	elif action == "delete":
+		# Record activities before deleting
+		for ticket in items:
+			try:
+				TicketActivity.objects.create(ticket=ticket, actor=request.user,
+					action=TicketActivity.Action.TICKET_DELETED)
+				title = ticket.title
+				ticket.delete()
+				success_count += 1
+			except Exception:
+				err_count += 1
+		messages.success(request, f"Deleted {success_count} ticket{'' if success_count == 1 else 's'}."
+			"{}" .format(f" {err_count} failed." if err_count else ""))
+
+	elif action == "labels":
+		labels_to_add = form.cleaned_data["labels"]
+		if not labels_to_add:
+			messages.warning(request, "No labels selected.")
+			return redirect("ticket_list")
+		for ticket in items:
+			try:
+				old_labels = set(ticket.labels.values_list("pk", flat=True))
+				ticket.labels.add(*labels_to_add)
+				new_labels = set(ticket.labels.values_list("pk", flat=True))
+				added = new_labels - old_labels
+				for lbl_pk in added:
+					lbl = labels_to_add.filter(pk=lbl_pk).first()
+					if lbl:
+						TicketActivity.objects.create(ticket=ticket, actor=request.user,
+							action=TicketActivity.Action.LABEL_ADDED,
+							field_name="label", new_value=lbl.name)
+				success_count += 1
+			except Exception:
+				err_count += 1
+		messages.success(request, f"Added labels to {success_count} ticket{'' if success_count == 1 else 's'}."
+			"{}" .format(f" {err_count} failed." if err_count else ""))
+
+	elif action == "components":
+		components_to_add = form.cleaned_data["components"]
+		if not components_to_add:
+			messages.warning(request, "No components selected.")
+			return redirect("ticket_list")
+		for ticket in items:
+			try:
+				old_cmp = set(ticket.components.values_list("pk", flat=True))
+				ticket.components.add(*components_to_add)
+				new_cmp = set(ticket.components.values_list("pk", flat=True))
+				added = new_cmp - old_cmp
+				for cmp_pk in added:
+					cmp = components_to_add.filter(pk=cmp_pk).first()
+					if cmp:
+						TicketActivity.objects.create(ticket=ticket, actor=request.user,
+							action=TicketActivity.Action.COMPONENT_ADDED,
+							field_name="component", new_value=cmp.name)
+				success_count += 1
+			except Exception:
+				err_count += 1
+		messages.success(request, f"Added components to {success_count} ticket{'' if success_count == 1 else 's'}."
+			"{}" .format(f" {err_count} failed." if err_count else ""))
+
+	elif action == "sprint":
+		sprint = form.cleaned_data["sprint"]
+		for ticket in items:
+			try:
+				old_sprint = ticket.sprint_id
+				ticket.sprint = sprint
+				ticket.save(update_fields=["sprint", "updated_at"])
+				new_sprint_name = sprint.name if sprint else "(backlog)"
+				TicketActivity.objects.create(ticket=ticket, actor=request.user,
+					action=TicketActivity.Action.SPRINT_CHANGED,
+					old_value=str(old_sprint), new_value=new_sprint_name)
+				success_count += 1
+			except Exception:
+				err_count += 1
+		messages.success(request, f"Moved {success_count} ticket{'' if success_count == 1 else 's'} to sprint."
+			"{}" .format(f" {err_count} failed." if err_count else ""))
+
+	return redirect("ticket_list")

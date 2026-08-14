@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 
 from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, Version
@@ -320,3 +321,93 @@ class VersionDeleteForm(forms.Form):
 		super().__init__(*args, **kwargs)
 		if project is not None:
 			self.fields["version"].queryset = project.versions.all()
+
+
+class BulkActionForm(forms.Form):
+	"""Bulk action form for the ticket list."""
+
+	action = forms.ChoiceField(label="Bulk Action")
+	ticket_ids = forms.CharField(
+		label="Ticket IDs",
+		widget=forms.HiddenInput(attrs={"id": "bulk-ticket-ids"}),
+	)
+
+	# Transition action
+	state = forms.ChoiceField(required=False)
+
+	# Assign action
+	assignee = forms.ModelChoiceField(
+		queryset=get_user_model().objects.none(), required=False,
+		widget=forms.Select(attrs={"class": "form-select"}),
+	)
+
+	# Labels
+	labels = forms.ModelMultipleChoiceField(
+		queryset=Label.objects.none(), required=False,
+		widget=forms.SelectMultiple(attrs={"class": "form-select"}),
+	)
+
+	# Components
+	components = forms.ModelMultipleChoiceField(
+		queryset=Component.objects.none(), required=False,
+		widget=forms.SelectMultiple(attrs={"class": "form-select"}),
+	)
+
+	# Sprint
+	sprint = forms.ModelChoiceField(
+		queryset=Sprint.objects.none(), required=False,
+		widget=forms.Select(attrs={"class": "form-select"}),
+	)
+
+	def __init__(self, *args, project=None, request=None, **kwargs):
+		super().__init__(*args, **kwargs)
+		tid_string = self.data.get("ticket_ids", "") if self.data else ""
+		ppk = project.pk if project else None
+		self.project = project
+
+		self.fields["action"].choices = [
+			("transition", _("Transition")),
+			("reassign", _("Reassign")),
+			("labels", _("Add labels")),
+			("components", _("Add components")),
+			("sprint", _("Move to sprint")),
+			("delete", _("Delete")),
+		]
+
+		if tid_string:
+			ppk = ppk or project.pk
+			self.fields["state"].choices = [
+				(s.value, s.label) for s in Ticket.State
+			]
+			# For bulk operations, show all users to allow reassigning to anyone
+			self.fields["assignee"].queryset = get_user_model().objects.all().order_by("username")
+			self.fields["labels"].queryset = Label.objects.filter(project_id=ppk)
+			self.fields["components"].queryset = Component.objects.filter(project_id=ppk)
+			self.fields["sprint"].queryset = Sprint.objects.filter(project_id=ppk).exclude(pk=1, name="Backlog")
+
+	def clean(self):
+		cleaned = super().clean()
+		action = cleaned.get("action")
+		ticket_ids_str = cleaned.get("ticket_ids", "")
+		if not ticket_ids_str:
+			raise forms.ValidationError("No tickets selected.")
+		if not action:
+			raise forms.ValidationError("No action selected.")
+
+		# Parse ticket IDs and fetch ticket objects for validation
+		id_list = [int(x) for x in ticket_ids_str.split(",") if x.strip()]
+		cleaned["tickets"] = Ticket.objects.filter(pk__in=id_list).order_by("pk") if id_list else Ticket.objects.none()
+
+		if action == "transition":
+			state = cleaned.get("state")
+			if not state:
+				raise forms.ValidationError("Please select a target state.")
+			# Validate that ALL tickets can transition to the chosen state
+			for ticket in cleaned.get("tickets", []):
+				if not ticket.can_transition_to(state):
+					raise forms.ValidationError(
+						_("Cannot transition '%(t)s' to '%(s)s' — only to: %(allowed)s.")
+						% {"t": ticket, "s": state,
+						   "allowed": ", ".join(str(s.label) for s in ticket.allowed_transitions())}
+					)
+		return cleaned

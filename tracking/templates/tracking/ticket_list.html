@@ -12,7 +12,8 @@
 		</div>
 	</div>
 
-	<form method="get" class="row g-2 mb-3">
+	<!-- Filters -->
+	<form id="filter-form" method="get" class="row g-2 mb-3">
 		<div class="col">
 			<input type="text" name="q" class="form-control" placeholder="Search title or description..." value="{{ current_query }}">
 		</div>
@@ -68,94 +69,318 @@
 		</div>
 	</form>
 
-	<div class="card">
-		<table class="table table-hover mb-0 align-middle">
-			<div class="filter-summary small text-muted mb-2">
-				{{ tickets.paginator.count }} ticket{{ tickets.paginator.count|pluralize }}
-				{% if current_query or current_project or current_state or current_component or current_label or current_assignee %} · <a href="{% url 'ticket_list' %}">Clear all filters</a>{% endif %}
+	<!-- Bulk action bar -->
+	<div id="bulk-bar" class="bulk-bar d-none px-3 py-2 mb-0 border-bottom"
+		style="background-color: var(--atlas-blue-light);">
+		<div class="d-flex align-items-center gap-2 flex-wrap">
+			<span id="selected-count" class="fw-semibold small text-primary">0 selected</span>
+			<div class="btn-group btn-group-sm flex-shrink-0">
+				<button type="button" class="btn btn-outline-primary btn-sm bulk-act-btn" data-action="transition">State</button>
+				<button type="button" class="btn btn-outline-primary btn-sm bulk-act-btn" data-action="reassign">Assign</button>
+				<button type="button" class="btn btn-outline-primary btn-sm bulk-act-btn" data-action="labels">Labels</button>
+				<button type="button" class="btn btn-outline-primary btn-sm bulk-act-btn" data-action="components">Components</button>
+				<button type="button" class="btn btn-outline-primary btn-sm bulk-act-btn" data-action="sprint">Sprint</button>
+				<button type="button" class="btn btn-outline-danger btn-sm bulk-act-btn" data-action="delete" onclick="return confirm('Are you sure you want to delete the selected tickets?');">Delete</button>
 			</div>
-
-			<thead>
-				<tr>
-					<th>Title</th>
-					<th style="width: 9rem">Type</th>
-					<th style="width: 8rem">State</th>
-					<th style="width: 7rem">Priority</th>
-					<th style="width: 5rem">Estimation</th>
-					<th style="width: 9rem">Assignee</th>
-					<th style="width: 8rem">Due date</th>
-					<th style="width: 4rem">
-						<span class="sr-only">Actions</span>
-					</th>
-				</tr>
-			</thead>
-			<tbody>
-				{% for ticket in tickets %}
-					<tr>
-						<td>
-							<strong>
-								<a href="{% url 'ticket_detail' ticket.pk %}">
-									<span class="issue-key">{{ ticket.project.key }}-{{ ticket.pk }}</span>
-								</a>
-								<span class="ms-1 fw-normal">{{ ticket.title }}</span>
-							</strong>
-						</td>
-  					<td>{% type_badge ticket %}</td>
-						<td>{% state_badge ticket=ticket %}</td>
-						<td>{% priority_badge ticket %}</td>
-						<td>{{ ticket.estimation|default:"—" }}</td>
-						<td>{{ ticket.assignee|default:"—" }}</td>
-						<td>{{ ticket.due_date|default:"—" }}</td>
-                        <td>
-							<form method="post" action="{% url 'ticket_delete' ticket.project.pk ticket.pk %}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this ticket?');">
-								{% csrf_token %}
-								<button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Delete ticket" style="font-size: 1.125rem; line-height: 1;">×</button>
-							</form>
-                        </td>
-					</tr>
-				{% empty %}
-					<tr><td colspan="8" class="text-muted">No tickets found.</td></tr>
-				{% endfor %}
-			</tbody>
-		</table>
+			<div id="bulk-fields" class="d-flex gap-2 ms-2 flex-shrink-1">
+				<select id="bulk-field-state" class="form-select form-select-sm" style="max-width: 200px; display: none;" name="state">
+					<option value="">State…</option>
+				</select>
+				<select id="bulk-field-assignee" class="form-select form-select-sm" style="max-width: 200px; display: none;" name="assignee">
+					<option value="">Assignee…</option>
+				</select>
+				<select id="bulk-field-labels" class="form-select form-select-sm" multiple style="max-width: 220px; display: none;" name="labels">
+				</select>
+				<select id="bulk-field-components" class="form-select form-select-sm" multiple style="max-width: 220px; display: none;" name="components">
+				</select>
+				<select id="bulk-field-sprint" class="form-select form-select-sm" style="max-width: 200px; display: none;" name="sprint">
+					<option value="">Sprint…</option>
+				</select>
+				<button id="bulk-submit" type="submit" class="btn btn-primary btn-sm" style="display:none;">Apply</button>
+				<button id="bulk-clear-fields" type="button" class="btn btn-secondary btn-sm" style="display:none;">Clear</button>
+			</div>
+			<button type="button" id="bulk-deselect-all" class="btn btn-link btn-sm text-muted ms-auto">Deselect all</button>
+		</div>
 	</div>
 
-	{% if tickets.has_other_pages %}
-		<nav aria-label="Ticket pagination">
-			<ul class="pagination justify-content-center mt-3 mb-0">
-				{% if tickets.has_previous %}
-					<li class="page-item">
-						<a class="page-link" href="?page={{ tickets.previous_page_number }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">Previous</a>
-					</li>
-				{% else %}
-					<li class="page-item disabled">
-						<span class="page-link">Previous</span>
-					</li>
-				{% endif %}
+	<!-- Bulk submission form -->
+	<form id="bulk-form" method="post" action="{% url 'ticket_bulk_action' %}">
+		{% csrf_token %}
+		<input type="hidden" name="action" id="bulk-action-input" value="">
+		<input type="hidden" name="ticket_ids" id="bulk-ticket-ids">
 
-				{% for num in tickets.paginator.page_range %}
-					{% if tickets.number == num %}
-						<li class="page-item active"><span class="page-link">{{ num }}</span></li>
-					{% elif num == 1 or num == tickets.paginator.num_pages or num|add:"-1" == tickets.number or num|add:"1" == tickets.number %}
-						<li class="page-item"><a class="page-link" href="?page={{ num }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">{{ num }}</a></li>
-					{% elif num|add:"-1" == tickets.number or num|add:"1" == tickets.number %}
-						<li class="page-item disabled"><span class="page-link">…</span></li>
-					{% endif %}
-				{% endfor %}
+		<!-- Ticket list table -->
+		<div class="card">
+			<table class="table table-hover mb-0 align-middle">
+				<div class="filter-summary small text-muted mb-2">
+					{{ tickets.paginator.count }} ticket{{ tickets.paginator.count|pluralize }}
+					{% if current_query or current_project or current_state or current_component or current_label or current_assignee %} · <a href="{% url 'ticket_list' %}">Clear all filters</a>{% endif %}
+				</div>
 
-				{% if tickets.has_next %}
-					<li class="page-item">
-						<a class="page-link" href="?page={{ tickets.next_page_number }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">Next</a>
-					</li>
-				{% else %}
-					<li class="page-item disabled">
-						<span class="page-link">Next</span>
-					</li>
-				{% endif %}
-			</ul>
-		</nav>
-		<div class="text-center text-muted small mt-1">
-			Page {{ tickets.number }} of {{ tickets.paginator.num_pages }}
+				<thead>
+					<tr>
+						<th style="width: 2.5rem">
+							<input type="checkbox" id="select-all" class="form-check-input position-static">
+						</th>
+						<th>Title</th>
+						<th style="width: 9rem">Type</th>
+						<th style="width: 8rem">State</th>
+						<th style="width: 7rem">Priority</th>
+						<th style="width: 5rem">Estimation</th>
+						<th style="width: 9rem">Assignee</th>
+						<th style="width: 8rem">Due date</th>
+						<th style="width: 4rem">
+							<span class="sr-only">Actions</span>
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for ticket in tickets %}
+						<tr class="ticket-row" data-ticket-id="{{ ticket.pk }}">
+							<td>
+								<input type="checkbox" name="ticket_ids" class="ticket-checkbox form-check-input bulk-cb" value="{{ ticket.pk }}">
+							</td>
+							<td>
+								<strong>
+									<a href="{% url 'ticket_detail' ticket.pk %}">
+										<span class="issue-key">{{ ticket.project.key }}-{{ ticket.pk }}</span>
+									</a>
+									<span class="ms-1 fw-normal">{{ ticket.title }}</span>
+								</strong>
+							</td>
+     					<td>{% type_badge ticket %}</td>
+							<td>{% state_badge ticket=ticket %}</td>
+							<td>{% priority_badge ticket %}</td>
+							<td>{{ ticket.estimation|default:"—" }}</td>
+							<td>{{ ticket.assignee|default:"—" }}</td>
+							<td>{{ ticket.due_date|default:"—" }}</td>
+			                <td>
+								<form method="post" action="{% url 'ticket_delete' ticket.project.pk ticket.pk %}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this ticket?');">
+									{% csrf_token %}
+									<button type="submit" class="btn btn-link btn-sm text-danger p-0" title="Delete ticket" style="font-size: 1.125rem; line-height: 1;">×</button>
+								</form>
+			                </td>
+						</tr>
+					{% empty %}
+						<tr><td colspan="9" class="text-muted">No tickets found.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
 		</div>
-	{% endif %}
+
+		{% if tickets.has_other_pages %}
+			<nav aria-label="Ticket pagination">
+				<ul class="pagination justify-content-center mt-3 mb-0">
+					{% if tickets.has_previous %}
+						<li class="page-item">
+							<a class="page-link" href="?page={{ tickets.previous_page_number }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">Previous</a>
+						</li>
+					{% else %}
+						<li class="page-item disabled">
+							<span class="page-link">Previous</span>
+						</li>
+					{% endif %}
+
+					{% for num in tickets.paginator.page_range %}
+						{% if tickets.number == num %}
+							<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+						{% elif num == 1 or num == tickets.paginator.num_pages or num|add:"-1" == tickets.number or num|add:"1" == tickets.number %}
+							<li class="page-item"><a class="page-link" href="?page={{ num }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">{{ num }}</a></li>
+						{% elif num|add:"-1" == tickets.number or num|add:"1" == tickets.number %}
+							<li class="page-item disabled"><span class="page-link">…</span></li>
+						{% endif %}
+					{% endfor %}
+
+					{% if tickets.has_next %}
+						<li class="page-item">
+							<a class="page-link" href="?page={{ tickets.next_page_number }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">Next</a>
+						</li>
+					{% else %}
+						<li class="page-item disabled">
+							<span class="page-link">Next</span>
+						</li>
+					{% endif %}
+				</ul>
+			</nav>
+			<div class="text-center text-muted small mt-1">
+				Page {{ tickets.number }} of {{ tickets.paginator.num_pages }}
+			</div>
+		{% endif %}
+	</form>
+
+	<script>
+	(function() {
+		// Populate bulk action dropdowns from the template context data.
+		const bulkStateChoices = {{ states|safe }};
+		const bulkAssigneeChoices = {{ users_json|safe }};
+		const bulkLabelChoices = {{ labels_json|safe }};
+		const bulkComponentChoices = {{ components_json|safe }};
+		const bulkSprintChoices = {{ sprints_json|safe }};
+
+		const bulkBar = document.getElementById("bulk-bar");
+		const selectAllCheckbox = document.getElementById("select-all");
+		const ticketCheckboxes = document.querySelectorAll(".ticket-checkbox");
+		const ticketRows = document.querySelectorAll(".ticket-row");
+		const selectedCount = document.getElementById("selected-count");
+		const bulkFields = document.getElementById("bulk-fields");
+		const bulkSubmit = document.getElementById("bulk-submit");
+		const bulkClearFields = document.getElementById("bulk-clear-fields");
+		const bulkActionInput = document.getElementById("bulk-action-input");
+		const bulkTicketIds = document.getElementById("bulk-ticket-ids");
+		const bulkForm = document.getElementById("bulk-form");
+		const deselectAllBtn = document.getElementById("bulk-deselect-all");
+		const bulkActBtns = document.querySelectorAll(".bulk-act-btn");
+
+		const fieldState = document.getElementById("bulk-field-state");
+		const fieldAssignee = document.getElementById("bulk-field-assignee");
+		const fieldLabels = document.getElementById("bulk-field-labels");
+		const fieldComponents = document.getElementById("bulk-field-components");
+		const fieldSprint = document.getElementById("bulk-field-sprint");
+
+		function popOptions(sel, choices) {
+			sel.innerHTML = "";
+			for (const [val, label] of choices) {
+				const opt = document.createElement("option");
+				opt.value = val;
+				opt.textContent = label;
+				sel.appendChild(opt);
+			}
+		}
+
+		function syncTicketIds() {
+			const checked = document.querySelectorAll(".ticket-checkbox:checked");
+			const ids = Array.from(checked).map(cb => cb.value).join(",");
+			bulkTicketIds.value = ids;
+		}
+
+		function updateSelection() {
+			const checked = document.querySelectorAll(".ticket-checkbox:checked");
+			const count = checked.length;
+			selectedCount.textContent = count + " selected";
+			syncTicketIds();
+
+			if (count > 0) {
+				bulkBar.classList.remove("d-none");
+				ticketRows.forEach(row => {
+					const cb = row.querySelector(".ticket-checkbox");
+					if (cb && cb.checked) {
+						row.classList.add("row-selected");
+					} else {
+						row.classList.remove("row-selected");
+					}
+				});
+			} else {
+				bulkBar.classList.add("d-none");
+				bulkFields.style.display = "none";
+				bulkSubmit.style.display = "none";
+				bulkClearFields.style.display = "none";
+			}
+		}
+
+		ticketCheckboxes.forEach(cb => {
+			cb.addEventListener("change", function() {
+				const tr = this.closest(".ticket-row");
+				if (this.checked) {
+					tr.classList.add("row-selected");
+				} else {
+					tr.classList.remove("row-selected");
+				}
+				selectAllCheckbox.checked =
+					document.querySelectorAll(".ticket-checkbox:checked").length === ticketCheckboxes.length;
+				updateSelection();
+			});
+		});
+
+		if (selectAllCheckbox) {
+			selectAllCheckbox.addEventListener("change", function() {
+				ticketCheckboxes.forEach(cb => {
+					cb.checked = this.checked;
+					const tr = cb.closest(".ticket-row");
+					if (this.checked) {
+						tr.classList.add("row-selected");
+					} else {
+						tr.classList.remove("row-selected");
+					}
+				});
+				updateSelection();
+			});
+		}
+
+		if (deselectAllBtn) {
+			deselectAllBtn.addEventListener("click", function() {
+				ticketCheckboxes.forEach(cb => {
+					cb.checked = false;
+					const tr = cb.closest(".ticket-row");
+					tr.classList.remove("row-selected");
+				});
+				selectAllCheckbox.checked = false;
+				updateSelection();
+			});
+		}
+
+		// Show bulk fields when an action button is clicked.
+		bulkActBtns.forEach(btn => {
+			btn.addEventListener("click", function(e) {
+				e.preventDefault();
+				const action = this.dataset.action;
+				bulkActionInput.value = action;
+				syncTicketIds();
+
+				// Hide all fields
+				Array.from(bulkFields.children).forEach(f => f.style.display = "none");
+				bulkSubmit.style.display = "none";
+
+				let fieldShown = false;
+				if (action === "transition" && fieldState) {
+					fieldState.style.display = "block";
+					fieldState.value = "";
+					fieldShown = true;
+				} else if (action === "reassign" && fieldAssignee) {
+					fieldAssignee.style.display = "block";
+					fieldAssignee.value = "";
+					fieldShown = true;
+				} else if (action === "labels" && fieldLabels) {
+					fieldLabels.style.display = "block";
+					Array.from(fieldLabels.options).forEach(o => o.selected = false);
+					fieldShown = true;
+				} else if (action === "components" && fieldComponents) {
+					fieldComponents.style.display = "block";
+					Array.from(fieldComponents.options).forEach(o => o.selected = false);
+					fieldShown = true;
+				} else if (action === "sprint" && fieldSprint) {
+					fieldSprint.style.display = "block";
+					fieldSprint.value = "";
+					fieldShown = true;
+				} else if (action === "delete") {
+					// Hide all fields, sync IDs, submit
+					Array.from(bulkFields.children).forEach(f => f.style.display = "none");
+					syncTicketIds();
+					bulkForm.submit();
+					return;
+				}
+
+				bulkFields.style.display = fieldShown ? "flex" : "none";
+				bulkSubmit.style.display = fieldShown ? "inline-block" : "none";
+				bulkClearFields.style.display = fieldShown ? "inline-block" : "none";
+			});
+		});
+
+		bulkClearFields.addEventListener("click", function() {
+			if (fieldState) { fieldState.value = ""; }
+			if (fieldAssignee) { fieldAssignee.value = ""; }
+			if (fieldLabels) { Array.from(fieldLabels.options).forEach(o => o.selected = false); }
+			if (fieldComponents) { Array.from(fieldComponents.options).forEach(o => o.selected = false); }
+			if (fieldSprint) { fieldSprint.value = ""; }
+		});
+
+		// Populate dropdowns from JSON
+		if (popOptions) {
+			if (bulkStateChoices) { popOptions(fieldState, bulkStateChoices); }
+			if (bulkAssigneeChoices) { popOptions(fieldAssignee, bulkAssigneeChoices); }
+			if (bulkLabelChoices) { popOptions(fieldLabels, bulkLabelChoices); }
+			if (bulkComponentChoices) { popOptions(fieldComponents, bulkComponentChoices); }
+			if (bulkSprintChoices) { popOptions(fieldSprint, bulkSprintChoices); }
+		}
+	})();
+	</script>
 {% endblock %}

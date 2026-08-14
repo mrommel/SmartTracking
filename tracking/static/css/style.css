@@ -912,3 +912,30 @@ html {
 	font-weight: 600;
 	padding: 20px;
 }
+
+/* Bulk actions */
+.bulk-action-bar {
+	transition: opacity 0.15s ease;
+}
+
+.bulk-act-btn {
+	cursor: pointer;
+	user-select: none;
+}
+
+.bulk-act-btn:hover {
+	opacity: 0.85;
+}
+
+.ticket-row.selected {
+	background-color: var(--atlas-blue-light) !important;
+}
+
+.ticket-row:hover {
+	background-color: var(--atlas-grey-bg-subtle) !important;
+}
+
+.bulk-field-sel {
+	max-width: 180px;
+}
+
