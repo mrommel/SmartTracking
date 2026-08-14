@@ -1,43 +1,18 @@
-[tool.mypy]
-python_version = "3.12"
-mypy_path = "$MYPY_CONFIG_FILE_DIR"
-warn_return_any = true
-warn_unused_configs = true
-warn_redundant_casts = true
-warn_unreachable = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-check_untyped_defs = true
-disallow_untyped_decorators = false
-show_error_codes = true
-ignore_missing_imports = true
+[tool.black]
+target-version = ["py312"]
+line-length = 100
+skip-string-normalization = false
+extend-exclude = "^\\.venv/|__pycache__/|media/"
 
-[[tool.mypy.overrides]]
-module = "tracking.models"
-disallow_untyped_defs = true
-check_untyped_defs = true
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["setup", "tracking"]
+extend-exclude = [".venv", "__pycache__", "media"]
 
-[[tool.mypy.overrides]]
-module = "tracking.views"
-disallow_untyped_defs = false
-check_untyped_defs = true
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "N", "UP", "B", "A", "C4", "PIE", "SIM", "T20"]
+ignore = ["E501", "W191"]
 
-[[tool.mypy.overrides]]
-module = "tracking.api"
-disallow_untyped_defs = true
-check_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = "tracking.forms"
-disallow_untyped_defs = false
-check_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = "tracking.admin"
-disallow_untyped_defs = false
-check_untyped_defs = false
-
-[[tool.mypy.overrides]]
-module = "setup.*"
-disallow_untyped_defs = false
-check_untyped_defs = false
+[tool.ruff.lint.isort]
+known-first-party = ["setup", "tracking"]

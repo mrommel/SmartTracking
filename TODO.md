@@ -100,12 +100,13 @@ No profile/role model.
 ### 1. Testing & Quality
 - [x] Add **coverage measurement** (`coverage.py`) and enforce a threshold.
 - [x] **Type hints** across `models.py`/`views.py`/`api.py` + `mypy`/`pyright` config.
-- [ ] **Linting/formatting**: `ruff` + `black` (note: tabs convention — configure accordingly)
+- [x] **Linting/formatting**: `ruff` + `black` (note: tabs convention — configured in pyproject.toml)
       and **pre-commit hooks**.
 
 ### 2. CI/CD
-- [ ] No CI config exists. Add a **GitHub Actions** (or GitLab CI) pipeline running migrations
-      check, tests, lint, and translation compilation.
+- [x] Added **GitHub Actions** pipeline (`.github/workflows/ci.yml`) running:
+  migrations check, tests (with 80% coverage threshold), ruff+black linting, and
+  translation compilation.
 
 ### 3. Containerization & Deployment
 - [ ] **Dockerfile + docker-compose** for reproducible dev/prod.
