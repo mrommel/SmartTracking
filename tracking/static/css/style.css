@@ -939,3 +939,255 @@ html {
 	max-width: 180px;
 }
 
+/* ============================================================
+   Kanban / Agile board
+   ============================================================ */
+
+.board-view-controls {
+	margin-bottom: 1.5rem;
+	padding: 12px 16px;
+	background-color: #fff;
+	border: 1px solid var(--atlas-grey-border);
+	border-radius: 3px;
+}
+
+.board-view-controls .swimlane-label {
+	font-size: 0.8125rem;
+	font-weight: 500;
+	color: var(--atlas-grey-text);
+}
+
+.board-container {
+	display: flex;
+	gap: 0;
+	min-height: 400px;
+	overflow-x: auto;
+	padding-bottom: 16px;
+}
+
+.board-state-column {
+	flex: 0 0 280px;
+	min-width: 280px;
+	margin-right: 12px;
+	background-color: #ebecf0;
+	border-radius: 3px;
+	display: flex;
+	flex-direction: column;
+}
+
+.board-state-column.wip-exceeded {
+	border: 2px solid var(--atlas-orange);
+	box-shadow: 0 0 0 1px var(--atlas-orange);
+}
+
+.board-state-header {
+	padding: 10px 12px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	border-bottom: 2px solid;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	min-height: 44px;
+}
+
+.board-state-header .wip-limit-indicator {
+	font-size: 0.6875rem;
+	font-weight: 400;
+	padding: 1px 6px;
+	border-radius: 8px;
+	background-color: rgba(0, 0, 0, 0.06);
+}
+
+.board-state-header.wip-over .wip-limit-indicator {
+	background-color: var(--atlas-orange-light);
+	color: var(--atlas-orange);
+}
+
+.board-state-header.normal .wip-limit-indicator {
+	background-color: rgba(0, 0, 0, 0.06);
+	color: var(--atlas-grey-text);
+}
+
+.board-state-header.close-border {
+	border-bottom-color: var(--atlas-grey-muted);
+}
+
+.board-state-header.open-border {
+	border-bottom-color: #0052cc;
+}
+
+.board-state-header.progress-border {
+	border-bottom-color: var(--atlas-blue-hover);
+}
+
+.board-state-header.resolved-border {
+	border-bottom-color: var(--atlas-green);
+}
+
+.board-state-body {
+	flex: 1;
+	min-height: 60px;
+	padding: 4px 0;
+	overflow-y: auto;
+}
+
+.board-state-body.sortable-ghost {
+	opacity: 0.4;
+}
+
+.board-state-body .sortable-chosen {
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	transform: rotate(2deg);
+}
+
+.board-ticket-card {
+	margin: 0 6px 6px 6px;
+	padding: 8px 10px;
+	font-size: 0.8125rem;
+	border: 1px solid var(--atlas-grey-border);
+	border-radius: 3px;
+	background-color: #fff;
+	cursor: grab;
+	transition: background-color 0.1s ease, box-shadow 0.1s ease;
+}
+
+.board-ticket-card:hover {
+	background-color: #f4f5f7;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.board-ticket-card:active {
+	cursor: grabbing;
+}
+
+.board-ticket-card .ticket-title {
+	font-weight: 500;
+	margin-bottom: 4px;
+}
+
+.board-ticket-card .ticket-title a {
+	color: var(--atlas-grey-fg);
+	text-decoration: none;
+}
+
+.board-ticket-card .ticket-title a:hover {
+	text-decoration: underline;
+}
+
+.board-ticket-card .ticket-meta {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.board-ticket-card .assignee-display {
+	color: var(--atlas-grey-text);
+	font-size: 0.75rem;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.board-ticket-card .estimation-display {
+	color: var(--atlas-grey-text);
+	font-size: 0.75rem;
+	font-style: italic;
+}
+
+.board-ticket-card .due-date-display {
+	font-size: 0.75rem;
+}
+
+.board-ticket-card .due-date-display.overdue {
+	color: var(--atlas-orange);
+	font-weight: 500;
+}
+
+/* Swimlane stacked layout */
+.swimlane-mode .board-container {
+	flex-direction: column;
+	overflow-x: visible;
+}
+
+.swimlane-mode .board-state-column {
+	flex: none;
+	width: 100%;
+	min-width: unset;
+	margin-right: 0;
+	margin-bottom: 16px;
+}
+
+.swimlane-mode .board-state-body {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: flex-start;
+	padding: 8px;
+	min-height: auto;
+}
+
+.swimlane-mode .board-ticket-card {
+	flex: 0 0 200px;
+	margin: 0;
+}
+
+/* Swimlane header separator */
+.swimlane-separator {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--atlas-grey-text);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin: 4px 0;
+}
+
+/* Empty column placeholder */
+.board-state-body .empty-column-placeholder {
+	padding: 20px;
+	text-align: center;
+	color: var(--atlas-grey-muted);
+	font-size: 0.8125rem;
+}
+
+/* Drag preview override during sort */
+.is-dragging {
+	opacity: 0.5;
+}
+
+.swimlane-row {
+	margin-bottom: 16px;
+	padding: 8px;
+	background-color: #fff;
+	border: 1px solid var(--atlas-grey-border);
+	border-radius: 3px;
+}
+
+.swimlane-row:hover {
+	background-color: #fafbfc;
+}
+
+.swimlane-row .swimlane-separator {
+	margin-bottom: 8px;
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--atlas-grey-line);
+}
+
+.swimlane-row .board-row-columns {
+	display: flex;
+	gap: 0;
+	justify-content: space-between;
+}
+
+.swimlane-row .board-state-column {
+	flex: 1;
+	min-width: 180px;
+	margin-right: 8px;
+}
+
+.swimlane-row .board-state-column:last-child {
+	margin-right: 0;
+}
+

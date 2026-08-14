@@ -223,65 +223,8 @@
 		{% endfor %}
 
 	{% elif tab == 'active_sprint' %}
-		<div class="d-flex justify-content-between align-items-center mb-4">
-			<h4 class="mb-0">Sprints</h4>
-			<a class="btn btn-outline-primary btn-sm" href="{% url 'sprint_create' project.pk %}">+ Add Sprint</a>
-		</div>
+		{% include "tracking/active_sprint.html" %}
 
-		{% if active_sprint %}
-			<div class="mb-4">
-				<div class="d-flex justify-content-between align-items-center mb-3">
-					<h4 class="mb-0">{{ active_sprint.name }}</h4>
-					<div>
-						{% if active_sprint.start_date %}
-							<span class="badge bg-secondary">Start: {{ active_sprint.start_date }}</span>
-						{% endif %}
-						{% if active_sprint.end_date %}
-							<span class="badge bg-secondary">End: {{ active_sprint.end_date }}</span>
-						{% endif %}
-						<a href="{% url 'sprint_close' project.pk active_sprint.pk %}" class="btn btn-sm btn-outline-danger">Close Sprint</a>
-					</div>
-				</div>
-				<p class="text-muted">{{ active_sprint.description }}</p>
-			</div>
-
-			<div class="row g-3">
-				{% for state, tickets in state_ticket_tuples %}
-				<div class="col-md-3">
-					<div class="board-column h-100">
-						<div class="board-column-header d-flex justify-content-between align-items-center">
-							<span>{{ state.label }}</span>
-							<span class="badge bg-secondary">{{ tickets|length }}</span>
-						</div>
-						<div class="card-body p-0">
-							{% for ticket in tickets %}
-								<div class="d-flex align-items-center py-2 {% if not forloop.last %}border-bottom{% endif %} board-ticket">
-									<div class="ps-3 flex-grow-1">
-										<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
-   									<div class="d-flex gap-2 align-items-center mt-1">
-   										{% priority_badge ticket small=True %}
-   										{% type_badge ticket small=True %}
-   									</div>
-									</div>
-									<div class="pe-3 text-muted small">
-										<i>{{ ticket.assignee|default:"Unassigned" }}</i>
-									</div>
-								</div>
-							{% empty %}
-								<div class="text-muted text-center py-3">No tickets</div>
-							{% endfor %}
-						</div>
-					</div>
-				</div>
-				{% endfor %}
-			</div>
-		{% else %}
-			<div class="text-center py-5">
-				<h4>No active sprint selected</h4>
-				<p class="text-muted">Please set up a sprint and make it active for this project.</p>
-				<a class="btn btn-outline-primary" href="{% url 'project_detail' project.pk %}?tab=backlog">View all tickets</a>
-			</div>
-		{% endif %}
 
 	{% elif tab == 'reports' %}
 		<div class="row g-3 mb-4">
@@ -536,6 +479,131 @@
 			}
 		});
 	})();
+	{% endif %}
+
+	/* Board drag-and-drop (SortableJS) */
+	{% if tab == 'active_sprint' %}
+	<div id="board-js" class="d-none"></div>
+	<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+	<script id="board-sortable-init" type="text/template">
+	(function() {
+		var boardContainer = document.getElementById('boardContainer');
+		if (!boardContainer) return;
+		var columns = boardContainer.querySelectorAll('.board-state-body');
+		columns.forEach(function(col) {
+			new Sortable(col, {
+				animation: 150,
+				handle: '.board-ticket-card',
+				lockToTile: !1,
+				typing: !1,
+				ghostClass: 'sortable-ghost',
+				chosenClass: 'sortable-chosen',
+				dragClass: 'sortable-drag',
+				draggable: '.board-ticket-card',
+				onEnd: function(evt) {
+					var ticketId = evt.item.dataset.ticketId;
+					var newState = evt.to.dataset.state;
+					if (!ticketId || !newState) return;
+					var url = '/tracking/api/tickets/' + ticketId + '/transition/';
+					fetch(url, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+						body: JSON.stringify({ state: newState })
+					}).then(function(resp) {
+						if (!resp.ok) return resp.json().then(function(err) { throw new Error(err.detail || err.error || 'Transition failed'); });
+						return resp.json();
+					}).then(function(data) {
+					}).catch(function(err) {
+						evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
+						var el = document.getElementById('board-js');
+						if (el) { el.textContent = 'Could not move ticket: ' + err.message; }
+					});
+				}
+			});
+		});
+		var swimlaneSelector = document.getElementById('swimlaneSelector');
+		if (swimlaneSelector) {
+			swimlaneSelector.addEventListener('change', function() {
+				var currentParams = new URLSearchParams(window.location.search);
+				currentParams.set('swimlane', this.value);
+				currentParams.set('board_view', 'swimlane');
+				window.location.search = currentParams.toString();
+			});
+		}
+		function getCookie(name) {
+			var cookieValue = null;
+			if (document.cookie && document.cookie !== '') {
+				var cookies = document.cookie.split(';');
+				for (var i = 0; i < cookies.length; i++) {
+					var cookie = cookies[i].trim();
+					if (cookie.substring(0, name.length + 1) === (name + '=')) {
+						cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+						break;
+					}
+				}
+			}
+			return cookieValue;
+		}
+	})();
+	</script>
+	<script>
+		(function(tmpl) {
+			var el = document.getElementById('board-sortable-init');
+			if (el && el.textContent && document.getElementById('boardContainer')) {
+				eval(el.textContent);
+				el.parentNode.removeChild(el);
+			}
+		})();
+	</script>
+	{% endif %}
+
+	/* Board drag-and-drop (SortableJS) */
+	{% if tab == 'active_sprint' %}
+	<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+	<script>
+	(function() {
+		var columns = document.querySelectorAll('.board-state-body');
+		if (!columns.length) return;
+		columns.forEach(function(col) {
+			new Sortable(col, {
+				animation: 150,
+				ghostClass: 'sortable-ghost',
+				chosenClass: 'sortable-chosen',
+				draggable: '.board-ticket-card',
+				onEnd: function(evt) {
+					var ticketId = evt.item.dataset.ticketId;
+					var newState = evt.to.dataset.state;
+					if (!ticketId || !newState) return;
+					fetch('/tracking/api/tickets/' + ticketId + '/transition/', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+						body: JSON.stringify({ state: newState })
+					}).then(function(resp) {
+						return resp.json().then(function(body) {
+							if (!resp.ok) throw new Error(body.detail || body.error || 'Transition failed');
+						});
+					}).catch(function(err) {
+						evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
+						alert('Could not move ticket: ' + err.message);
+					});
+				}
+			});
+		});
+		var swimlaneSelector = document.getElementById('swimlaneSelector');
+		if (swimlaneSelector) {
+			swimlaneSelector.addEventListener('change', function() {
+				var params = new URLSearchParams(window.location.search);
+				params.set('swimlane', this.value);
+				params.set('board_view', 'swimlane');
+				window.location.search = params.toString();
+			});
+		}
+		function getCookie(name) {
+			var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+			return m ? decodeURIComponent(m[2]) : null;
+		}
+	})();
+	</script>
 	{% endif %}
 	</script>
 {% endblock %}

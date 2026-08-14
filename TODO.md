@@ -49,10 +49,10 @@ move to sprint, or delete.
 - [x] Unit tests for all bulk action types in `test_views.py`.
 
 ### 6. Agile Board (Kanban / Scrum board)
-Currently only list + sprint views (`active_sprint.html`).
-- [ ] **Drag-and-drop board** with columns per `State` (HTMX + Sortable, minimal JS).
-- [ ] Swimlanes by assignee/epic/priority.
-- [ ] WIP limits per column.
+- [x] **Drag-and-drop board** with columns per `State` (SortableJS integration, REST API state transitions).
+- [x] Swimlanes by assignee/epic/priority.
+- [x] WIP limits per column with over-exceeded indicators.
+- [x] Board tab integrated into `project_detail` with responsive sidebar (Sprints list + active sprint controls).
 
 ### 7. Time Tracking / Worklog
 `estimation` exists but no logging of actual work.

@@ -151,22 +151,124 @@ def _dashboard_tab_context(project: Project, tickets: models.QuerySet[Ticket], r
 	if tab == "active_sprint":
 		active_sprint = Sprint.objects.filter(project=project, is_active=True).first()
 		state_ticket_tuples = []
+		swimlane_groups = []
+		sprint_ticket_lists = []
+
+		# WIP limits per state (defaults)
+		default_wip = {
+			"open": 5,
+			"in_progress": 8,
+			"resolved": 4,
+			"closed": 0,
+		}
+		wip_limits = {}
+		for param, val in request.GET.items():
+			if param.startswith("wip__"):
+				state_name = param[5:]
+				try:
+					limit = int(val)
+					if limit > 0:
+						wip_limits[state_name] = limit
+				except ValueError:
+					pass
+		for key, val in default_wip.items():
+			if key not in wip_limits:
+				wip_limits[key] = val
+
 		if active_sprint:
+			tickets_qs = active_sprint.tickets.select_related("project", "assignee", "parent_epic").order_by("-priority", "created_at")
+
 			state_ticket_map = {}
-			for t in active_sprint.tickets.select_related("project", "assignee").order_by("state", "priority"):
+			for t in tickets_qs:
 				state_ticket_map.setdefault(t.state, []).append(t)
 			for state in Ticket.State:
 				if state.value in state_ticket_map:
-					state_ticket_tuples.append((state, state_ticket_map[state.value]))
+					tickets = state_ticket_map[state.value]
+					wip_text = wip_limits.get(state.value, "")
+					if wip_text and int(wip_text) and len(tickets) > int(wip_text):
+						wip_over = True
+						wip_exceeded = True
+					else:
+						wip_over = wip_text != ""
+						wip_exceeded = False
+					state_ticket_tuples.append({"state": state, "tickets": tickets, "wip_text": wip_text, "wip_over": wip_over, "wip_exceeded": wip_exceeded})
 				else:
-					state_ticket_tuples.append((state, []))
+					state_ticket_tuples.append({"state": state, "tickets": [], "wip_text": "", "wip_over": False, "wip_exceeded": False})
+
+			# Build swimlane groups if requested
+			swimlane_mode = request.GET.get("swimlane", "")
+			if swimlane_mode:
+				group_map = {}
+				for t in tickets_qs:
+					if swimlane_mode == "assignee" and t.assignee:
+						grp = str(t.assignee)
+					elif swimlane_mode == "assignee":
+						grp = "(Unassigned)"
+					elif swimlane_mode == "epic" and t.parent_epic:
+						grp = t.parent_epic.title[:50]
+					elif swimlane_mode == "epic":
+						grp = "(No Epic)"
+					elif swimlane_mode == "priority":
+						grp = t.get_priority_display()
+					else:
+						grp = "All"
+					group_map.setdefault(grp, []).append(t)
+
+				for grp_name, grp_tickets in sorted(group_map.items(), key=lambda x: 0 if "unassigned" in x[0].lower() or "no epic" in x[0].lower() else 1):
+					state_ticket_map_grp = {}
+					for t in grp_tickets:
+						state_ticket_map_grp.setdefault(t.state, []).append(t)
+					lane_tickets = []
+					for state in Ticket.State:
+						tickets = state_ticket_map_grp.get(state.value, [])
+						wip_text = wip_limits.get(state.value, "")
+						if wip_text and int(wip_text) and len(tickets) > int(wip_text):
+							wip_over = True
+							wip_exceeded = True
+						else:
+							wip_over = wip_text != ""
+							wip_exceeded = False
+						lane_tickets.append({"state": state, "tickets": tickets, "wip_text": wip_text, "wip_over": wip_over, "wip_exceeded": wip_exceeded})
+					swimlane_groups.append((grp_name, lane_tickets))
+
 		else:
 			for state in Ticket.State:
-				state_ticket_tuples.append((state, []))
+				state_ticket_tuples.append({"state": state, "tickets": [], "wip_text": "", "wip_over": False, "wip_exceeded": False})
+
+		# Build other sprints' ticket lists for the sprint section
+		other_sprints = Sprint.objects.filter(
+			project=project, is_active=False
+		).exclude(pk=1).order_by("-end_date", "-created_at")
+		for sp in other_sprints:
+			sprint_ticket_lists.append((
+				sp,
+				Ticket.objects.select_related("project", "assignee").filter(sprint=sp).order_by("-priority"),
+			))
+
+		# Swimlane configuration from query param
+		if "swimlane_mode" not in locals():
+			swimlane_mode = ""
+		board_view = request.GET.get("board_view", "kanban")
+		if not swimlane_mode and board_view == "swimlane":
+			swimlane_mode = ""
+
+		wip_limit_texts = {}
+		for item in state_ticket_tuples:
+			state_key = item["state"].value if hasattr(item["state"], "value") else "open"
+			wip_limit_texts[state_key] = item.get("wip_text", wip_limits.get(state_key, ""))
+
 		return {
 			"tab": tab,
 			"active_sprint": active_sprint,
 			"state_ticket_tuples": state_ticket_tuples,
+			"board_view": board_view,
+			"swimlane_mode": swimlane_mode,
+			"wip_limits": wip_limits,
+			"wip_limit_texts": wip_limit_texts,
+			"swimlane_groups": swimlane_groups if swimlane_mode else [],
+			"sprint_ticket_lists": sprint_ticket_lists,
+			"project": project,
+			"today": today,
 		}
 
 	return {

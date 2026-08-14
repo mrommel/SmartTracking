@@ -1,0 +1,99 @@
+{% load humanize type_badge dict_tags %}
+
+<div class="{% if board_view == 'swimlane' %}board-container swimlane-mode{% else %}board-container{% endif %}" id="boardContainer">
+
+	{% if board_view == 'swimlane' and swimlane_mode %}
+	{% for swimlane_name, lane_items in swimlane_groups %}
+		<div class="swimlane-row" data-swimlane="{{ swimlane_name|lower|cut:' ' }}">
+			<div class="swimlane-separator">{{ swimlane_name }}</div>
+			<div class="board-row-columns">
+				{% for item in lane_items %}
+				{% with state=item.state tickets=item.tickets wip_text=item.wip_text wip_over=item.wip_over wip_exceeded=item.wip_exceeded %}
+				<div class="board-state-column {% if wip_exceeded %}wip-exceeded{% endif %}" data-state="{{ state.value }}">
+					<div class="board-state-header {% if state.value == 'closed' %}close-border{% elif state.value == 'open' %}open-border{% elif state.value == 'in_progress' %}progress-border{% elif state.value == 'resolved' %}resolved-border{% endif %} {% if wip_over %}wip-over{% else %}normal{% endif %}">
+						<span>
+							{{ state.label }}
+							<span class="wip-limit-indicator">{{ tickets|length }}{% if wip_text and wip_text != 'inf' and tickets|length > wip_text %}/{{ wip_text }}{% endif %}</span>
+						</span>
+						<a href="{% url 'ticket_create' %}?project={{ project.key }}&state={{ state.value }}{% if swimlane_mode %}&swimlane={{ swimlane_mode }}{% endif %}" class="btn btn-sm btn-outline-secondary py-0">+</a>
+					</div>
+					<div class="board-state-body" data-state="{{ state.value }}">
+						{% for ticket in tickets %}
+						<div class="board-ticket-card" data-ticket-id="{{ ticket.pk }}" data-state="{{ state.value }}" data-swimlane="{{ swimlane_name|lower|cut:' ' }}">
+							<div class="ticket-title">
+								<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
+								<span class="text-muted small ms-1">({{ ticket.project.key }}-{{ ticket.pk }})</span>
+							</div>
+							<div class="ticket-meta">
+								{% type_badge ticket small=True %}
+								{% priority_badge ticket small=True %}
+							</div>
+							<div class="d-flex justify-content-between align-items-center mt-2">
+								<span class="assignee-display">{{ ticket.assignee|default:"Unassigned" }}</span>
+								{% if ticket.estimation %}
+									<span class="estimation-display">~{{ ticket.estimation }}</span>
+								{% endif %}
+							</div>
+							{% if ticket.due_date %}
+								<span class="due-date-display {% if ticket.due_date < today and ticket.state != 'closed' %}overdue{% endif %}">
+									{{ ticket.due_date|naturalday|default:"" }}
+								</span>
+							{% endif %}
+						</div>
+						{% empty %}
+						<div class="empty-column-placeholder">No tickets</div>
+						{% endfor %}
+					</div>
+				</div>
+				{% endwith %}
+				{% endfor %}
+			</div>
+		</div>
+	{% endfor %}
+	{% else %}
+	{% for item in state_ticket_tuples %}
+	{% with state=item.state tickets=item.tickets wip_text=item.wip_text wip_over=item.wip_over wip_exceeded=item.wip_exceeded %}
+	<div class="board-state-column {% if wip_exceeded %}wip-exceeded{% endif %}" data-state="{{ state.value }}">
+		<div class="board-state-header {% if state.value == 'closed' %}close-border{% elif state.value == 'open' %}open-border{% elif state.value == 'in_progress' %}progress-border{% elif state.value == 'resolved' %}resolved-border{% endif %} {% if wip_over %}wip-over{% else %}normal{% endif %}">
+			<span>
+				{{ state.label }}
+				<span class="wip-limit-indicator">{{ tickets|length }}{% if wip_text and wip_text != 'inf' and tickets|length > wip_text %}/{{ wip_text }}{% endif %}</span>
+			</span>
+			<a href="{% url 'ticket_create' %}?project={{ project.key }}&state={{ state.value }}{% if board_view == 'swimlane' and swimlane_mode %}&swimlane={{ swimlane_mode }}&board_view=swimlane{% endif %}" class="btn btn-sm btn-outline-secondary py-0">+</a>
+		</div>
+		<div class="board-state-body" data-state="{{ state.value }}">
+			{% for ticket in tickets %}
+			<div class="board-ticket-card" data-ticket-id="{{ ticket.pk }}" data-state="{{ state.value }}">
+				<div class="ticket-title">
+					<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
+					<span class="text-muted small ms-1">({{ ticket.project.key }}-{{ ticket.pk }})</span>
+				</div>
+				<div class="ticket-meta">
+					{% type_badge ticket small=True %}
+					{% priority_badge ticket small=True %}
+				</div>
+				<div class="d-flex justify-content-between align-items-center mt-2">
+					<span class="assignee-display">{{ ticket.assignee|default:"Unassigned" }}</span>
+					{% if ticket.estimation %}
+						<span class="estimation-display">~{{ ticket.estimation }}</span>
+					{% endif %}
+				</div>
+				{% if ticket.due_date %}
+					<span class="due-date-display {% if ticket.due_date < today and ticket.state != 'closed' %}overdue{% endif %}">
+						{{ ticket.due_date|naturalday|default:"" }}
+					</span>
+				{% endif %}
+			</div>
+			{% empty %}
+			<div class="empty-column-placeholder">No tickets</div>
+			{% endfor %}
+		</div>
+	</div>
+	{% endwith %}
+	{% endfor %}
+	{% endif %}
+</div>
+
+<div class="d-none" id="board-js">
+*BOARD_INIT*
+</div>

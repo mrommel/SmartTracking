@@ -1,81 +1,127 @@
-{% extends "tracking/base.html" %}{% load humanize type_badge %}
+{% load type_badge humanize dict_tags %}
 
-{% block content %}
-	<div class="d-flex justify-content-between align-items-center mb-4">
-		<h1 class="h3 mb-0">Active Sprint</h1>
-		<a class="btn btn-primary" href="{% url 'ticket_create' %}">+ New ticket</a>
+{% if active_sprint %}
+	<div class="d-flex justify-content-between align-items-center mb-3">
+		<div>
+			<h4 class="mb-0">{{ active_sprint.name }}</h4>
+			<p class="text-muted mb-0">{{ active_sprint.description }}</p>
+		</div>
+		<div class="d-flex gap-2 align-items-center">
+			{% if active_sprint.start_date %}
+				<span class="badge bg-secondary">Start: {{ active_sprint.start_date }}</span>
+			{% endif %}
+			{% if active_sprint.end_date %}
+				<span class="badge bg-secondary">End: {{ active_sprint.end_date }}</span>
+			{% endif %}
+			<a class="btn btn-sm btn-outline-danger" href="{% url 'sprint_close' project.pk active_sprint.pk %}">Close Sprint</a>
+		</div>
 	</div>
 
-	<ul class="nav nav-tabs mb-4">
-		<li class="nav-item">
-			<a class="nav-link" href="?tab=overview">Overview</a>
-		</li>
-		<li class="nav-item">
-			<a class="nav-link" href="?tab=backlog">Backlog</a>
-		</li>
-		<li class="nav-item">
-			<a class="nav-link active" href="?tab=active_sprint">Active Sprint</a>
-		</li>
-		<li class="nav-item">
-			<a class="nav-link" href="{% url 'reports' %}">Reports</a>
-		</li>
-		<li class="nav-item">
-			<a class="nav-link" href="{% url 'component_list_all' %}">Components</a>
-		</li>
-		<li class="nav-item">
-			<a class="nav-link" href="{% url 'releases' %}">Releases</a>
-		</li>
-	</ul>
-
-	{% if active_sprint %}
-		<div class="mb-4">
-			<div class="d-flex justify-content-between align-items-center mb-3">
-				<h4 class="mb-0">{{ active_sprint.name }}</h4>
-				<div>
-					{% if active_sprint.start_date %}
-						<span class="badge bg-secondary">Start: {{ active_sprint.start_date }}</span>
-					{% endif %}
-					{% if active_sprint.end_date %}
-						<span class="badge bg-secondary">End: {{ active_sprint.end_date }}</span>
-					{% endif %}
-				</div>
+	<div class="board-view-controls">
+		<div class="d-flex justify-content-between align-items-center">
+			<div class="d-flex gap-1">
+				<a class="btn btn-sm btn-outline-secondary {% if board_view != 'swimlane' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view=kanban">Kanban</a>
+				<a class="btn btn-sm btn-outline-secondary {% if board_view == 'swimlane' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view=swimlane">Swimlane</a>
 			</div>
-			<p class="text-muted">{{ active_sprint.description }}</p>
+			{% if board_view == 'swimlane' %}
+			<div class="d-flex gap-2 align-items-center">
+				<span class="swimlane-label small">Group by:</span>
+				<select class="form-select form-select-sm" id="swimlaneSelector" style="width: 160px;">
+					<option value="">—</option>
+					<option value="assignee" {% if swimlane_mode == 'assignee' %}selected{% endif %}>Assignee</option>
+					<option value="epic" {% if swimlane_mode == 'epic' %}selected{% endif %}>Epic</option>
+					<option value="priority" {% if swimlane_mode == 'priority' %}selected{% endif %}>Priority</option>
+				</select>
+			</div>
+			{% endif %}
 		</div>
+	</div>
 
-		<div class="row g-3">
-			{% for state, tickets in state_ticket_lists %}
-			<div class="col-md-3">
-				<div class="card h-100">
-					<div class="card-header d-flex justify-content-between align-items-center">
-						<span>{{ state.label }}</span>
-						<span class="badge bg-secondary">{{ tickets|length }}</span>
-					</div>
-					<div class="card-body">
-						{% for ticket in tickets %}
-						<div class="card mb-2">
-							<div class="card-body p-2">
-								<h6 class="mb-1">
-									<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
-								</h6>
-  								<div class="d-flex gap-1 mb-1">
-  								{% priority_badge ticket small=True %}
-  								{% type_badge ticket small=True %}
-  							</div>
-								<i class="text-muted small">{{ ticket.assignee|default:"Unassigned" }}</i>
-							</div>
-						</div>
-						{% endfor %}
-					</div>
+	{% include "tracking/_board.html" %}
+
+	{% for sprint, tickets in sprint_ticket_lists %}
+	<div class="card mt-4">
+		<div class="card-header d-flex justify-content-between align-items-center">
+			<div>
+				<h5 class="mb-0">{{ sprint.name }}</h5>
+				<span class="badge bg-info">{{ tickets|length }} tickets</span>
+			</div>
+			<div class="d-flex gap-2">
+				<a class="btn btn-sm btn-outline-secondary py-0" href="{% url 'sprint_edit' project.pk sprint.pk %}">Edit</a>
+				<a class="btn btn-sm btn-outline-danger py-0" href="{% url 'sprint_close' project.pk sprint.pk %}">Close</a>
+			</div>
+		</div>
+		<div class="card-body p-0">
+			{% if tickets %}
+			<table class="table table-hover mb-0 align-middle">
+				<thead class="table-light">
+					<tr>
+						<th>Title</th>
+						<th>Type</th>
+						<th>State</th>
+						<th>Priority</th>
+						<th>Assignee</th>
+						<th>Due</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for ticket in tickets %}
+					<tr>
+						<td>
+							<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
+							<span class="text-muted small">({{ ticket.project.key }}-{{ ticket.pk }})</span>
+						</td>
+						<td>{% type_badge ticket %}</td>
+						<td>{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
+						<td>{% priority_badge ticket small=True %}</td>
+						<td>{{ ticket.assignee|default:"-" }}</td>
+						<td>{{ ticket.due_date|naturalday|default:"-" }}</td>
+					</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+			{% else %}
+			<div class="text-center text-muted py-3">No tickets in this sprint.</div>
+			{% endif %}
+		</div>
+	</div>
+	{% endfor %}
+
+{% else %}
+	<div class="text-center py-5">
+		<h4>No active sprint selected</h4>
+		<p class="text-muted">Please set up a sprint and make it active for this project.</p>
+		<a class="btn btn-outline-primary" href="{% url 'project_detail' project.pk %}?tab=backlog">View all tickets</a>
+	</div>
+{% endif %}
+
+<hr class="my-4">
+<div class="row g-3">
+	<div class="col-12 col-lg-4">
+		<div class="sidebar">
+			<div class="d-flex justify-content-between align-items-center mb-3">
+				<h4 class="mb-0">Sprints</h4>
+				<a class="btn btn-outline-primary btn-sm" href="{% url 'sprint_create' project.pk %}">+ Add Sprint</a>
+			</div>
+
+			{% if sprint_ticket_lists %}
+			{% for sprint, tickets in sprint_ticket_lists %}
+			<div class="mb-4">
+				<div class="d-flex justify-content-between align-items-center mb-2">
+					<h6 class="mb-0">{{ sprint.name }}</h6>
+					<a href="{% url 'sprint_close' project.pk sprint.pk %}" class="btn btn-sm btn-outline-danger">Close</a>
+				</div>
+				<p class="text-muted small mb-1">{{ sprint.description|default:"" }}</p>
+				<div class="d-flex gap-2 flex-wrap">
+					{% for state, count_label in sprint_state_counts %}
+					<span class="badge bg-secondary">{{ state.label|default:state }} ({{ count_label }})</span>
+					{% endfor %}
 				</div>
 			</div>
 			{% endfor %}
+			{% else %}
+			<p class="text-muted small">No closed or inactive sprints yet.</p>
+			{% endif %}
 		</div>
-	{% else %}
-		<div class="text-center py-5">
-			<h4>No active sprint selected</h4>
-			<p class="text-muted">Please set up a sprint and make it active before the platform can run in sprint mode.</p>
-			<a class="btn btn-outline-primary" href="{% url 'ticket_list' %}">View all tickets</a>
-		</div>
-	{% endif %}
-{% endblock %}
+	</div>
+</div>
