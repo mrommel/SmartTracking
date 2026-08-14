@@ -1191,3 +1191,32 @@ html {
 	margin-right: 0;
 }
 
+/* Backlog drag-to-reorder styles */
+.backlog-ghost {
+	opacity: 0.4;
+}
+
+.backlog-drag {
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+	transform: rotate(1deg);
+}
+
+.draggable-handle {
+	color: var(--atlas-grey-muted);
+	transition: color 0.1s ease;
+}
+
+.draggable-handle:hover {
+	color: var(--atlas-grey-fg);
+}
+
+/* Sub-task styling */
+.text-bg-light {
+	background-color: #e9ecef !important;
+	color: #495057 !important;
+}
+
+.badge-sm {
+	font-size: 0.7rem;
+}
+

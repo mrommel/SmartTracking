@@ -77,6 +77,7 @@ def _dashboard_tab_context(project: Project, tickets: models.QuerySet[Ticket], r
 		("Bug", type_counts.get(Ticket.Type.BUG.value, 0)),
 		("Story", type_counts.get(Ticket.Type.STORY.value, 0)),
 		("Epic", type_counts.get(Ticket.Type.EPIC.value, 0)),
+		("Sub-task", type_counts.get(Ticket.Type.SUBTASK.value, 0)),
 	]
 
 	open_states = [Ticket.State.OPEN, Ticket.State.IN_PROGRESS]
@@ -111,6 +112,7 @@ def _dashboard_tab_context(project: Project, tickets: models.QuerySet[Ticket], r
 			"title": epic.title,
 			"child_count": child_count,
 			"state": epic.state,
+			"completion": epic.child_completion,
 		})
 
 	project_sprints = list(Sprint.objects.filter(project=project).select_related("project"))
@@ -140,7 +142,7 @@ def _dashboard_tab_context(project: Project, tickets: models.QuerySet[Ticket], r
 		)
 		if request.GET.get("show_closed") != "1":
 			qs = qs.exclude(state=Ticket.State.CLOSED)
-		tickets_without_sprint = qs.order_by("state", "priority")
+		tickets_without_sprint = qs.order_by("backlog_order", "state", "priority")
 		return {
 			"tab": tab,
 			"tickets_without_sprint": tickets_without_sprint,
@@ -176,7 +178,7 @@ def _dashboard_tab_context(project: Project, tickets: models.QuerySet[Ticket], r
 				wip_limits[key] = val
 
 		if active_sprint:
-			tickets_qs = active_sprint.tickets.select_related("project", "assignee", "parent_epic").order_by("-priority", "created_at")
+			tickets_qs = active_sprint.tickets.select_related("project", "assignee", "parent_epic").order_by("backlog_order", "-priority", "created_at")
 
 			state_ticket_map = {}
 			for t in tickets_qs:
@@ -605,7 +607,7 @@ def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 	)
 	comments = ticket.comments.select_related("author").all()
 	attachments = ticket.attachments.all()
-	child_tickets = Ticket.objects.filter(parent_epic=ticket).select_related("project", "assignee").all()
+	child_tickets = Ticket.objects.filter(parent_epic=ticket).select_related("project", "assignee").order_by("backlog_order", "pk")
 	relations = list(ticket.relations.prefetch_related("subject", "target").all())
 	for rel in relations:
 		if rel.subject_id == ticket.pk:
@@ -747,6 +749,40 @@ def ticket_sprint_assign(request: HttpRequest, pk: int) -> HttpResponseBase:
 				old_value=str(old_sprint), new_value= new_sprint_name)
 		messages.success(request, f"Ticket assigned to sprint.")
 	return redirect(reverse("ticket_detail", args=[ticket.pk]))
+
+
+@login_required
+@require_POST
+def update_backlog_order(request: HttpRequest) -> HttpResponseBase:
+	"""Update backlog_order for multiple tickets (used after drag-to-reorder)."""
+	try:
+		data = json.loads(request.body)
+		order_map = data.get("order", [])
+	except (json.JSONDecodeError, TypeError):
+		return HttpResponse(status=400, content='{"error": "Invalid JSON"}')
+
+	if not isinstance(order_map, list):
+		return HttpResponse(status=400, content='{"error": "Expected list"}')
+
+	updated = []
+	for item in order_map:
+		ticket_id = item.get("id")
+		order_val = item.get("order")
+		if ticket_id and order_val is not None:
+			try:
+				ticket_id = int(ticket_id)
+				order_val = int(order_val)
+				ticket = Ticket.objects.get(pk=ticket_id)
+				ticket.backlog_order = order_val
+				ticket.save(update_fields=["backlog_order", "updated_at"])
+				updated.append(ticket_id)
+			except (ValueError, Ticket.DoesNotExist):
+				pass
+
+	return HttpResponse(
+		json.dumps({"updated": updated}),
+		content_type="application/json",
+	)
 
 
 @login_required

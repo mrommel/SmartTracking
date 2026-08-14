@@ -38,9 +38,9 @@ from django.views.decorators.http import require_http_methods
 from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation
 
 if TYPE_CHECKING:
-  from typing import ParamSpec
+	from typing import ParamSpec
 
-  _P = ParamSpec("_P")
+	_P = ParamSpec("_P")
 
 
 # --- Authentication --------------------------------------------------------
@@ -205,6 +205,8 @@ def serialize_ticket(ticket: Ticket) -> dict[str, Any]:
 			for c in ticket.comments.select_related("author").all()
 		],
 		"due_date": ticket.due_date.isoformat() if ticket.due_date else None,
+		"backlog_order": ticket.backlog_order,
+		"child_completion": ticket.child_completion,
 		"created_at": ticket.created_at.isoformat(),
 		"updated_at": ticket.updated_at.isoformat(),
 	}
@@ -407,6 +409,7 @@ def ticket_collection(request: HttpRequest) -> HttpResponseBase:
 		priority=priority,
 		estimation=data.get("estimation"),
 		due_date=data.get("due_date") or None,
+		backlog_order=data.get("backlog_order", 0),
 	)
 	if request.user.is_authenticated:
 		ticket.reporter = request.user
@@ -458,7 +461,7 @@ def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 			"Use the /transition/ endpoint to change 'state'.", status=400
 		)
 
-	updatable = {"title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "due_date", "sprint"}
+	updatable = {"title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "due_date", "sprint", "backlog_order"}
 	if "assignee" in data:
 		assignee_value = data["assignee"]
 		if assignee_value is not None and assignee_value != "":

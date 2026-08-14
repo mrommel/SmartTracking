@@ -165,6 +165,7 @@ class Ticket(models.Model):
 		BUG = "bug", _("Bug")
 		STORY = "story", _("Story")
 		EPIC = "epic", _("Epic")
+		SUBTASK = "subtask", _("Sub-task")
 
 	class State(models.TextChoices):
 		OPEN = "open", _("Open")
@@ -267,6 +268,10 @@ class Ticket(models.Model):
 		verbose_name=_("labels"),
 	)
 	due_date = models.DateField(_("due date"), null=True, blank=True)
+	backlog_order = models.PositiveIntegerField(
+		_("backlog order"), default=0, blank=True,
+		help_text=_("Position in backlog ordering. Higher numbers = higher priority."),
+	)
 	fix_version = models.ForeignKey(
 		"Version",
 		on_delete=models.SET_NULL,
@@ -347,6 +352,39 @@ class Ticket(models.Model):
 
 	def get_other_ticket(self, relation: TicketRelation) -> Ticket:
 		return relation.target if relation.subject_id == self.pk else relation.subject
+
+	@property
+	def child_completion(self) -> float:
+		"""Return the completion % for epics with child tickets (0…100).
+
+		Calculation: each child ticket contributes 0 (open/in_progress), 0.5
+		(resolved), or 1 (closed).  The sum is divided by child count.
+		Returns 0 when there are no child tickets.
+		"""
+		if self.type != self.Type.EPIC:
+			return 0.0
+		children = self.child_tickets.all()
+		if not children:
+			return 0.0
+		closed = children.filter(
+			state=self.State.CLOSED,
+		).count()
+		resolved = children.filter(
+			state=self.State.RESOLVED,
+		).count()
+		return round((closed + resolved * 0.5) / children.count() * 100, 1)
+
+	@property
+	def backlog_child_count(self) -> int:
+		"""Number of child tickets not yet assigned to any sprint."""
+		if self.type != self.Type.EPIC:
+			return 0
+		return self.child_tickets.filter(sprint__isnull=True).count()
+
+	@property
+	def backlog_children(self) -> models.QuerySet:
+		"""Child tickets that belong to the backlog order (ordered by backlog_order then pk)."""
+		return self.child_tickets.filter(sprint__isnull=True).order_by("backlog_order", "pk")
 
 
 

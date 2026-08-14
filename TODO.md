@@ -60,10 +60,9 @@ move to sprint, or delete.
 - [ ] Original vs remaining vs spent rollups on epics.
 
 ### 8. Epic & Backlog enhancements
-Epics exist (`parent_epic`), but:
-- [ ] **Epic progress bar** (child completion %) on detail and board.
-- [ ] **Sub-tasks** as a distinct type or checklist items.
-- [ ] **Backlog ranking** (drag-to-prioritize ordering field) beyond current sprint assignment.
+- [x] **Epic progress bar** (child completion %) on detail and project board.
+- [x] **Sub-tasks** as a distinct `Ticket.Type` with its own badge styling.
+- [x] **Backlog ranking** (drag-to-prioritize ordering field) with SortableJS drag-and-drop on the backlog tab.
 
 ### 9. Pagination
 ~No pagination somewhere — `ticket_list`, `project_detail`, comments render all rows.~ **Done** — added Django `Paginator` to:

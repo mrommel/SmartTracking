@@ -111,8 +111,33 @@
 				</div>
 			</div>
 
-			<!-- Child Tickets section -->
-			<div class="card mb-3">
+ 		<!-- Epic progress & Child Tickets section -->
+ 		{% if ticket.type == ticket.Type.EPIC %}
+ 			<div class="card mb-3">
+ 				<div class="card-body">
+ 					<h2 class="h6 text-muted">Epic Progress</h2>
+ 					{% if child_tickets %}
+ 						<div class="progress mb-2" style="height: 24px">
+ 							<div class="progress-bar bg-success" role="progressbar"
+ 								style="width: {{ ticket.child_completion }}%"
+ 								aria-valuenow="{{ ticket.child_completion }}"
+ 								aria-valuemin="0" aria-valuemax="100">
+ 								{{ ticket.child_completion }}%
+ 							</div>
+ 						</div>
+ 						<small class="text-muted">
+ 							{{ child_tickets|length }} child ticket{{ child_tickets|length|pluralize }} ·
+ 							{{ ticket.backlog_child_count }} in backlog
+ 						</small>
+ 					{% else %}
+ 						<p class="text-muted mb-0">No child tickets yet.</p>
+ 					{% endif %}
+ 				</div>
+ 			</div>
+ 		{% endif %}
+
+ 		<!-- Child Tickets section -->
+ 		<div class="card mb-3">
 				<div class="card-body">
 					<h2 class="h6 text-muted">Child Tickets ({{ child_tickets|length }})</h2>
 					{% if child_tickets %}

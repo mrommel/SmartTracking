@@ -8,6 +8,7 @@ _TYPE_VARIANTS = {
 	"bug": "danger",
 	"story": "info",
 	"epic": "warning",
+	"subtask": "light",
 }
 
 _PRIORITY_VARIANTS = {

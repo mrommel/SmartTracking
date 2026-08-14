@@ -41,6 +41,7 @@ class TicketForm(forms.ModelForm):
 			"components",
 			"labels",
 			"due_date",
+			"backlog_order",
 		]
 		widgets = {
 			"description": forms.Textarea(attrs={"rows": 4}),
@@ -48,6 +49,7 @@ class TicketForm(forms.ModelForm):
 			"components": forms.SelectMultiple(attrs={"class": "form-select"}),
 			"labels": forms.SelectMultiple(attrs={"class": "form-select"}),
 			"parent_epic": forms.Select(attrs={"class": "form-select"}),
+			"backlog_order": forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
 		}
 
 
@@ -408,6 +410,6 @@ class BulkActionForm(forms.Form):
 					raise forms.ValidationError(
 						_("Cannot transition '%(t)s' to '%(s)s' — only to: %(allowed)s.")
 						% {"t": ticket, "s": state,
-						   "allowed": ", ".join(str(s.label) for s in ticket.allowed_transitions())}
+							 "allowed": ", ".join(str(s.label) for s in ticket.allowed_transitions())}
 					)
 		return cleaned

@@ -133,49 +133,52 @@
 			</div>
 		</div>
 
-	{% elif tab == 'backlog' %}
-		<div class="card">
-			<div class="card-header d-flex justify-content-between align-items-center">
-				<div>
-					<h5 class="mb-0">Backlog - Tickets without Sprint</h5>
-					<span class="badge bg-secondary">{{ tickets_without_sprint|length }} tickets</span>
-				</div>
-				<a class="btn btn-sm btn-outline-secondary" href="{% url 'project_detail' project.pk %}?tab=backlog{% if not show_closed %}&amp;show_closed=1{% endif %}">{{ show_closed|yesno:"Hide closed, Show closed" }}</a>
-			</div>
-			<div class="card-body p-0">
-				{% if tickets_without_sprint %}
-				<table class="table table-hover mb-0 align-middle">
-					<thead class="table-light">
-						<tr>
-							<th>Title</th>
-							<th>Type</th>
-							<th>State</th>
-							<th>Priority</th>
-							<th>Assignee</th>
-							<th>Due</th>
-						</tr>
-					</thead>
-					<tbody>
-						{% for ticket in tickets_without_sprint %}
-						<tr>
-							<td>
-								<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
-								<span class="text-muted small ms-1">({{ ticket.project.key }}-{{ ticket.pk }})</span>
- 							</td>
-  					<td>{% type_badge ticket %}</td>
-  							<td>{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
-  							<td>{% priority_badge ticket small=True %}</td>
-  							<td>{{ ticket.assignee|default:"-" }}</td>
-  							<td>{{ ticket.due_date|naturalday|default:"-" }}</td>
-  						</tr>
-  						{% endfor %}
-  					</tbody>
-  				</table>
-  				{% else %}
-  				<div class="text-center text-muted py-5">No tickets without a sprint.</div>
-				{% endif %}
-			</div>
-		</div>
+ 	{% elif tab == 'backlog' %}
+ 		<div class="card">
+ 			<div class="card-header d-flex justify-content-between align-items-center">
+ 				<div>
+ 					<h5 class="mb-0">Backlog - Tickets without Sprint</h5>
+ 					<span class="badge bg-secondary">{{ tickets_without_sprint|length }} tickets</span>
+ 					<small class="text-muted ms-2">Drag rows to reorder priority</small>
+ 				</div>
+ 				<a class="btn btn-sm btn-outline-secondary" href="{% url 'project_detail' project.pk %}?tab=backlog{% if not show_closed %}&amp;show_closed=1{% endif %}">{{ show_closed|yesno:"Hide closed, Show closed" }}</a>
+ 			</div>
+ 			<div class="card-body p-0">
+ 				{% if tickets_without_sprint %}
+ 				<table class="table table-hover mb-0 align-middle">
+ 					<thead class="table-light">
+ 						<tr>
+ 							<th style="width: 40px"></th>
+ 							<th>Title</th>
+ 							<th>Type</th>
+ 							<th>State</th>
+ 							<th>Priority</th>
+ 							<th>Assignee</th>
+ 							<th>Due</th>
+ 						</tr>
+ 					</thead>
+ 					<tbody id="backlog-tbody">
+ 						{% for ticket in tickets_without_sprint %}
+ 						<tr data-ticket-id="{{ ticket.pk }}" data-backlog-order="{{ ticket.backlog_order }}">
+ 							<td draggable="true" class="draggable-handle" style="cursor:grab; user-select:none;">⋮⋮</td>
+ 							<td>
+ 								<a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a>
+ 								<span class="text-muted small ms-1">({{ ticket.project.key }}-{{ ticket.pk }})</span>
+  							</td>
+   					<td>{% type_badge ticket %}</td>
+   							<td>{% if ticket.state %}{% state_badge ticket=ticket %}{% endif %}</td>
+   							<td>{% priority_badge ticket small=True %}</td>
+   							<td>{{ ticket.assignee|default:"-" }}</td>
+   							<td>{{ ticket.due_date|naturalday|default:"-" }}</td>
+   						</tr>
+   						{% endfor %}
+   					</tbody>
+   				</table>
+   				{% else %}
+   				<div class="text-center text-muted py-5">No tickets without a sprint.</div>
+ 				{% endif %}
+ 			</div>
+ 		</div>
 
 		{% for sprint, tickets in sprint_ticket_list %}
 		<div class="card mt-4">
@@ -454,30 +457,39 @@
 			}
 		});
 
-		// Epic chart (horizontal bar)
-		const epicLabels = [
-			{% for epic in epic_data %}'{{ epic.title|truncatechars:30 }}',{% endfor %}
-		];
-		const epicData = [
-			{% for epic in epic_data %}{{ epic.child_count }},{% endfor %}
-		];
-		new Chart(document.getElementById('epicChart'), {
-			type: 'bar',
-			data: {
-				labels: epicLabels,
-				datasets: [{
-					label: 'Child tickets',
-					data: epicData,
-					backgroundColor: '#6f42c1'
-				}]
-			},
-			options: {
-				indexAxis: 'y',
-				responsive: true,
-				plugins: { legend: { display: false } },
-				scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
-			}
-		});
+ 		// Epic chart (horizontal bar)
+ 		const epicLabels = [
+ 			{% for epic in epic_data %}'{{ epic.title|truncatechars:30 }}',{% endfor %}
+ 		];
+ 		const epicData = [
+ 			{% for epic in epic_data %}{{ epic.child_count }},{% endfor %}
+ 		];
+ 		const epicCompletion = [
+ 			{% for epic in epic_data %}{{ epic.completion }},{% endfor %}
+ 		];
+ 		new Chart(document.getElementById('epicChart'), {
+ 			type: 'bar',
+ 			data: {
+ 				labels: epicLabels,
+ 				datasets: [
+ 					{
+ 						label: 'Child tickets',
+ 						data: epicData,
+ 						backgroundColor: '#6f42c1'
+ 					}, {
+ 						label: 'Completion %',
+ 						data: epicCompletion,
+ 						backgroundColor: '#198754'
+ 					}
+ 				]
+ 			},
+ 			options: {
+ 				indexAxis: 'y',
+ 				responsive: true,
+ 				plugins: { legend: { position: 'bottom' } },
+ 				scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+ 			}
+ 		});
 	})();
 	{% endif %}
 
@@ -604,6 +616,58 @@
 		}
 	})();
 	</script>
-	{% endif %}
-	</script>
+ 	{% endif %}
+
+ 	/* Backlog drag-to-reorder (SortableJS) */
+ 	{% if tab == 'backlog' %}
+ 	<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+ 	<script>
+ 	(function() {
+ 		var tbody = document.getElementById('backlog-tbody');
+ 		if (!tbody) return;
+ 		var csrftoken = getCookie('csrftoken');
+ 		var reorderTimer = null;
+ 		new Sortable(tbody, {
+ 			animation: 150,
+ 			ghostClass: 'backlog-ghost',
+ 			dragClass: 'backlog-drag',
+ 			draggable: 'tr',
+ 			handle: '.draggable-handle',
+ 			onEnd: function(evt) {
+ 				var items = tbody.querySelectorAll('tr');
+ 				var order = [];
+ 				items.forEach(function(item, index) {
+ 					order.push({ id: item.dataset.ticketId, order: index });
+ 				});
+ 				if (reorderTimer) clearTimeout(reorderTimer);
+ 				reorderTimer = setTimeout(function() {
+ 					fetch('/tracking/tickets/order/', {
+ 						method: 'POST',
+ 						headers: {
+ 							'Content-Type': 'application/json',
+ 							'X-CSRFToken': csrftoken,
+ 						},
+ 						body: JSON.stringify({ order: order }),
+ 					});
+ 				}, 400);
+ 			}
+ 		});
+ 		function getCookie(name) {
+ 			var cookieValue = null;
+ 			if (document.cookie && document.cookie !== '') {
+ 				var cookies = document.cookie.split(';');
+ 				for (var i = 0; i < cookies.length; i++) {
+ 					var cookie = cookies[i].trim();
+ 					if (cookie.substring(0, name.length + 1) === (name + '=')) {
+ 						cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+ 						break;
+ 					}
+ 				}
+ 			}
+ 			return cookieValue;
+ 		}
+ 	})();
+ 	</script>
+ 	{% endif %}
+ 	</script>
 {% endblock %}
