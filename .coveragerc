@@ -1,0 +1,16 @@
+[run]
+source = tracking
+omit =
+    */tests/*
+    */migrations/*
+    */__pycache__/*
+    setup/wsgi.py
+    setup/asgi.py
+
+[report]
+precision = 1
+show_missing = True
+fail_under = 80
+
+[html]
+directory = htmlcov

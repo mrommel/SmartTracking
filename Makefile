@@ -54,4 +54,12 @@ compiletranslations: venv
 # testing
 
 test: venv
-	./$(VENV)/bin/python3.12 manage.py test tracking
+	./$(VENV)/bin/python3.12 -m coverage run --source=tracking manage.py test tracking
+	./$(VENV)/bin/python3.12 -m coverage report
+
+coverage-report: venv
+	./$(VENV)/bin/python3.12 -m coverage html
+	@echo "HTML report generated at htmlcov/index.html"
+
+coverage-clean: venv
+	./$(VENV)/bin/python3.12 -m coverage erase
