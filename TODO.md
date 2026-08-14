@@ -20,10 +20,10 @@ the existing architecture.
 
 ### 2. Activity Log / Change History
 No audit trail today. JIRA's "History" tab is core.
-- [ ] Add a `TicketActivity`/`AuditLog` model recording state transitions, field edits,
+- [x] Add a `TicketActivity`/`AuditLog` model recording state transitions, field edits,
       assignments, relation/label/component changes.
-- [ ] Render a chronological "Activity" timeline on `ticket_detail.html` merged with comments.
-- [ ] Consider `django-simple-history` or a lightweight signal-based logger.
+- [x] Render a chronological "Activity" timeline on `ticket_detail.html` merged with comments.
+- [x] Consider `django-simple-history` or a lightweight signal-based logger.
 
 ### 3. Notifications & Watchers
 No notification system exists (email backend is console-only).
