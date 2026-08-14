@@ -8,6 +8,9 @@ All endpoints speak JSON and are CSRF-exempt (they are not browser-form driven).
 The state machine is *not* re-implemented here: state changes go through
 ``Ticket.can_transition_to`` exactly like the HTML views do.
 
+An OpenAPI 3.1.0 schema is available at ``/tracking/api/schema/`` for use with
+Swagger UI, ReDoc, or any OpenAPI-compatible tool.
+
 Routes are wired in ``tracking/urls.py`` under ``/tracking/api/``.
 """
 from __future__ import annotations

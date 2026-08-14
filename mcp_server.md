@@ -11,6 +11,10 @@ The implementation lives in `mcp_server.py`. Each MCP tool is a thin wrapper
 around a REST endpoint in `tracking/api.py`; all domain rules (valid enums, the
 state-transition graph, auth) stay enforced by the Django API.
 
+An **OpenAPI 3.1.0 spec** is available at `GET /tracking/api/schema/` — loads
+into Swagger UI, ReDoc, or any OpenAPI viewer for a complete machine-readable
+description of every endpoint, parameter, and response type.
+
 ---
 
 ## 1. Start it
