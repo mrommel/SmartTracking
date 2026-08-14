@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation
+from .models import (
+    Attachment, Comment, Component, Label, Project, Sprint,
+    Ticket, TicketActivity, TicketRelation, Version,
+)
 
 
 @admin.register(Project)
@@ -81,3 +84,20 @@ class TicketActivityAdmin(admin.ModelAdmin):
 	search_fields = ("ticket__title", "actor__username", "action")
 	readonly_fields = ("created_at",)
 	autocomplete_fields = ("ticket", "actor")
+
+
+@admin.register(Sprint)
+class SprintAdmin(admin.ModelAdmin):
+	list_display = ("name", "project", "start_date", "end_date", "created_at")
+	list_filter = ("project",)
+	search_fields = ("name",)
+	autocomplete_fields = ("project",)
+
+
+@admin.register(Version)
+class VersionAdmin(admin.ModelAdmin):
+	list_display = ("name", "project", "sprint", "target_date", "release_date", "archived")
+	list_filter = ("project", "archived")
+	search_fields = ("name",)
+	autocomplete_fields = ("project", "sprint")
+	readonly_fields = ("created_at",)

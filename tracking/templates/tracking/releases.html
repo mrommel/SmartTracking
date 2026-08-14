@@ -36,6 +36,9 @@
 
 	{% if selected_project %}
 		{% if versions %}
+			<div class="d-flex justify-content-end mb-3">
+				<a href="{% url 'version_roadmap' selected_project.pk %}" class="btn btn-sm btn-outline-info">View Roadmap</a>
+			</div>
 			<div class="card">
 				<div class="card-body p-0">
 					<table class="table table-hover mb-0 align-middle">

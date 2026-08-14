@@ -97,8 +97,8 @@ No profile/role model.
 ~`releases()` is a stub.~ Implemented with `Version` model and full CRUD.
 - [x] A `Version` model with `fix_version` and `affects_versions` on tickets,
       release notes generation, and a version roadmap.
-- [ ] **Release notes generation** from resolved tickets in a version.
-- [ ] **Version roadmap** (visual timeline of planned vs released versions).
+- [x] **Release notes generation** from resolved tickets in a version (markdown + HTML view via `{% url 'release_notes' %}`).
+- [x] **Version roadmap** (visual timeline of planned vs released versions via `{% url 'version_roadmap' project.pk %}`).
 
 ---
 

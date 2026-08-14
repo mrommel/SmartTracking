@@ -50,8 +50,10 @@ urlpatterns = [
     path('components/<int:pk>/delete/', views.component_delete, name='component_delete'),
     # Version / release management.
     path('projects/<int:project_pk>/versions/new/', views.version_create, name='version_create'),
+    path('projects/<int:project_pk>/roadmap/', views.version_roadmap, name='version_roadmap'),
     path('versions/<int:pk>/edit/', views.version_edit, name='version_edit'),
     path('versions/<int:pk>/delete/', views.version_delete, name='version_delete'),
+    path('versions/<int:pk>/release_notes/', views.release_notes, name='release_notes'),
 ]
 
 # JSON REST API for MCP integration (see tracking/api.py).

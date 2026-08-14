@@ -1,0 +1,155 @@
+{% extends "tracking/base.html" %}{% load humanize %}
+
+{% block content %}
+	<nav aria-label="breadcrumb">
+		<ol class="breadcrumb">
+			<li class="breadcrumb-item"><a href="{% url 'project_list' %}">Projects</a></li>
+			<li class="breadcrumb-item"><a href="{% url 'project_detail' project.pk %}?tab=releases">{{ project.key }}</a></li>
+			<li class="breadcrumb-item active">Roadmap</li>
+		</ol>
+	</nav>
+
+	<div class="d-flex justify-content-between align-items-center mb-4">
+		<h1 class="h4 mb-0">Version Roadmap — {{ project.key }}</h1>
+		<div class="d-flex gap-2">
+			<select class="form-select form-select-sm" id="roadmapProject" onchange="location='{% url 'version_roadmap' 0 %}'.replace('0', this.value)">
+				{% for proj in projects %}
+					<option value="{{ proj.pk }}" {% if proj == project %}selected{% endif %}>{{ proj.key }} — {{ proj.name }} ({{ proj.ticket_count }})</option>
+				{% endfor %}
+			</select>
+			<a class="btn btn-sm btn-outline-secondary" href="{% url 'releases' %}">Back to Releases</a>
+		</div>
+	</div>
+
+	{% if items %}
+		<div class="card">
+			<div class="card-body">
+				<!-- Legend -->
+				<div class="d-flex gap-3 mb-4 flex-wrap">
+					<div class="d-flex align-items-center gap-1">
+						<span class="badge bg-success" style="width:12px;height:12px;display:inline-block;"></span>
+						<span class="small text-muted">Released</span>
+					</div>
+					<div class="d-flex align-items-center gap-1">
+						<span class="badge bg-primary" style="width:12px;height:12px;display:inline-block;"></span>
+						<span class="small text-muted">Active / In Progress</span>
+					</div>
+					<div class="d-flex align-items-center gap-1">
+						<span class="badge bg-secondary" style="width:12px;height:12px;display:inline-block;"></span>
+						<span class="small text-muted">Planned</span>
+					</div>
+					<div class="d-flex align-items-center gap-1">
+						<span class="badge bg-dark" style="width:12px;height:12px;display:inline-block;"></span>
+						<span class="small text-muted">Archived</span>
+					</div>
+				</div>
+
+				<!-- Vertical timeline -->
+				<div class="timeline">
+					{% for item in items %}
+						{% if forloop.first %}<div class="timeline-year">{{ item.release_date|date:"Y"|default:item.target_date|date:"Y"|default:"—" }}</div>{% endif %}
+
+						<div class="timeline-item d-flex gap-3 mb-4{% if item.is_released %} released{% elif item.is_active %} active{% elif item.is_planned %} planned{% else %} archived{% endif %}">
+							<div class="timeline-marker flex-shrink-0">
+								{% if item.is_released %}
+									<div class="badge bg-success rounded-circle p-2">v{{ forloop.counter }}</div>
+								{% elif item.is_active %}
+									<div class="badge bg-primary rounded-circle p-2">{{ item.name|slice:":1" }}|</div>
+								{% else %}
+									<div class="badge {% if item.is_archived %}bg-dark{% else %}bg-secondary{% endif %} rounded-circle p-2">○</div>
+								{% endif %}
+							</div>
+							<div class="timeline-content flex-grow-1">
+								<div class="d-flex align-items-center gap-2 mb-1">
+									<a href="{% url 'version_edit' item.name|default:'x' %}" class="text-decoration-none">
+										<h6 class="mb-0">{{ item.name }}</h6>
+									</a>
+									{% if item.is_released %}
+										<span class="badge bg-success rounded-pill">Released</span>
+									{% elif item.is_active %}
+										<span class="badge bg-primary rounded-pill">Active</span>
+									{% else %}
+										<span class="badge bg-secondary rounded-pill">Planned</span>
+									{% endif %}
+									{% if item.is_archived %}
+										<span class="badge bg-dark rounded-pill">Archived</span>
+									{% endif %}
+								</div>
+								<div class="text-muted small">
+									{% if item.release_date %}
+										Released: {{ item.release_date|naturalday|default:"—" }}
+									{% else %}
+										Target: {{ item.target_date|naturalday|default:"—" }}
+									{% endif %}
+									{% if item.ticket_count %}
+										| {{ item.ticket_count }} ticket{{ item.ticket_count|pluralize }}
+									{% endif %}
+								</div>
+								<div class="mt-1">
+									<a href="{% url 'release_notes' item.pk|default:'0' %}" class="btn btn-sm btn-outline-primary py-0">Release Notes</a>
+								</div>
+							</div>
+						</div>
+					{% empty %}
+						<p class="text-muted text-center py-3">No versions yet for this project.</p>
+					{% endfor %}
+				</div>
+			</div>
+		</div>
+	{% else %}
+		<div class="text-center py-5">
+			<h4>No versions on the roadmap yet</h4>
+			<p class="text-muted">Create versions to plan and track releases.</p>
+			<a href="{% url 'version_create' project.pk %}" class="btn btn-primary">+ Create version</a>
+		</div>
+	{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	// Show/hide year labels
+	var items = document.querySelectorAll('.timeline-item');
+	if (items.length === 0) return;
+	timelineUpdateYear(items[0]);
+});
+function timelineUpdateYear(item) {
+	item.classList.add('timeline-year-visible');
+}
+</script>
+<style>
+	.timeline-year {
+		@extend .h5;
+		color: var(--bs-secondary-color);
+		margin-bottom: 1.5rem;
+	}
+	.timeline-item.released > .timeline-marker {
+		position: relative;
+	}
+	.timeline-item:not(.released)::after {
+		content: '';
+		position: absolute;
+		left: 17px;
+		top: 36px;
+		bottom: -20px;
+		width: 2px;
+		background-color: var(--bs-border-color);
+	}
+	.timeline-item:last-child::after {
+		display: none;
+	}
+	.timeline-item.released::after {
+		background-color: var(--bs-success);
+	}
+	.timeline-item.active::after {
+		background-color: var(--bs-primary);
+	}
+	.timeline-item.planned::after {
+		border-top: 2px dashed var(--bs-secondary-bg);
+		background: none;
+	}
+	.timeline-item.archived::after {
+		background-color: var(--bs-dark-bg-subtle);
+	}
+</style>
+{% endblock %}

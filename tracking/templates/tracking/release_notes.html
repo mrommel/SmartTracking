@@ -1,0 +1,98 @@
+{% extends "tracking/base.html" %}{% load humanize type_badge markdown_filters %}
+
+{% block content %}
+	<nav aria-label="breadcrumb">
+		<ol class="breadcrumb">
+			<li class="breadcrumb-item"><a href="{% url 'project_list' %}">Projects</a></li>
+			<li class="breadcrumb-item"><a href="{% url 'project_detail' project.pk %}?tab=releases">{{ project.key }}</a></li>
+			<li class="breadcrumb-item"><a href="{% url 'releases' %}?project={{ project.key }}">Releases</a></li>
+			<li class="breadcrumb-item active">Release Notes — {{ version.name }}</li>
+		</ol>
+	</nav>
+
+	<div class="d-flex justify-content-between align-items-center mb-4">
+		<div>
+			<h1 class="h4 mb-0">{{ version }}</h1>
+			<p class="text-muted mb-0">
+				{% if version.is_released %}
+					Released {{ version.release_date|naturalday }}
+				{% elif version.is_active %}
+					Active version
+				{% elif version.is_planned %}
+					Planned {{ version.target_date|naturalday|default:"no date" }}
+				{% else %}
+					Archived
+				{% endif %}
+				— {{ tickets|length }} resolved ticket{{ tickets|pluralize }}
+			</p>
+		</div>
+		<div class="d-flex gap-2">
+			<a class="btn btn-sm btn-outline-secondary" href="{% url 'releases' %}?project={{ project.key }}">Back to Releases</a>
+		</div>
+	</div>
+
+	{% if tickets %}
+		<div class="card mb-4">
+			<div class="card-body">
+				{% if markdown_html %}
+					<div class="release-notes-content">{{ markdown_html|safe }}</div>
+				{% else %}
+					<div class="release-notes-content">
+						<h2>Resolved Tickets</h2>
+						<p>{{ tickets|length }} ticket{{ tickets|pluralize }} resolved in {{ version.name }}.</p>
+						{% for type_name, type_tickets in by_type.items %}
+							<h3 class="mt-4">{{ type_name }}s ({{ type_tickets|length }})</h3>
+							<ul class="list-unstyled">
+								{% for ticket in type_tickets %}
+									<li class="mb-2">
+										<a href="{% url 'ticket_detail' ticket.pk %}">
+											{% type_badge tag class="d-inline" %}{{ ticket.project.key }}-{{ ticket.pk }}{% /type_badge %}
+											<strong>{{ ticket.title }}</strong>
+										</a>
+										{% if ticket.assignee %}
+											<span class="text-muted small ms-2">— {{ ticket.assignee }}</span>
+										{% endif %}
+									</li>
+								{% endfor %}
+							</ul>
+						{% endfor %}
+					</div>
+				{% endif %}
+			</div>
+		</div>
+
+		<div class="card">
+			<div class="card-header d-flex justify-content-between align-items-center">
+				<h5 class="mb-0">Ticket Breakdown</h5>
+				<span class="badge bg-secondary">{{ tickets|length }} tickets</span>
+			</div>
+			<div class="card-body p-0">
+				<table class="table table-hover mb-0 align-middle">
+					<thead class="table-light">
+						<tr>
+							<th>Type</th>
+							<th>Title</th>
+							<th>Assignee</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for type_name, type_tickets in by_type.items %}
+							{% for ticket in type_tickets %}
+								<tr>
+									<td>{% type_badge ticket %}</td>
+									<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></td>
+									<td>{{ ticket.assignee|default:"—" }}</td>
+								</tr>
+							{% endfor %}
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	{% else %}
+		<div class="text-center py-5">
+			<h4>No resolved tickets for this version</h4>
+			<p class="text-muted">Resolved tickets assigned to this version will appear here.</p>
+		</div>
+	{% endif %}
+{% endblock %}

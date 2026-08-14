@@ -326,7 +326,12 @@
 
 	{% elif tab == 'releases' %}
 		<div class="d-flex justify-content-between align-items-center mb-4">
-			<h4 class="mb-0">Versions</h4>
+			<div>
+				<h4 class="mb-0">Versions</h4>
+				<div class="text-muted small">
+					<a class="btn btn-sm btn-outline-info py-0 px-2" href="{% url 'version_roadmap' project.pk %}">View Roadmap</a>
+				</div>
+			</div>
 			<a class="btn btn-outline-primary btn-sm" href="{% url 'version_create' project.pk %}">+ Add version</a>
 		</div>
 
@@ -349,6 +354,9 @@
 								<tr>
 									<td>
 										<a href="{% url 'ticket_list' %}?project={{ project.key }}&fix_version={{ version.pk }}">{{ version.name }}</a>
+										{% if version.is_released %}
+											<a class="btn btn-sm btn-outline-primary py-0 ms-1" href="{% url 'release_notes' version.pk %}" title="Release notes">Notes</a>
+										{% endif %}
 									</td>
 									<td>{{ version.target_date|date:"M d, Y"|default:"—" }}</td>
 									<td>{{ version.release_date|date:"M d, Y"|default:"—" }}</td>

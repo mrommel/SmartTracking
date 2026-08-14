@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.db import models
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils.translation import gettext_lazy as _
 
 if TYPE_CHECKING:
@@ -612,7 +612,6 @@ class Version(models.Model):
 	@property
 	def is_active(self) -> bool:
 		"""In-progress versions have no release date and are not archived."""
-		from django.utils import timezone
 		return not self.archived and self.release_date is None
 
 	@property
@@ -622,6 +621,59 @@ class Version(models.Model):
 	@property
 	def is_planned(self) -> bool:
 		return not self.archived and not self.is_released
+
+	def release_notes(self) -> str:
+		"""Generate release-notes text from resolved tickets for this version."""
+		tickets = self.affected_tickets.filter(
+			fix_version=self,
+			state=Ticket.State.RESOLVED,
+		).order_by("type", "pk")
+		if not tickets:
+			return ""
+		by_type: dict[str, list[Ticket]] = {}
+		for t in tickets:
+			by_type.setdefault(t.get_type_display(), []).append(t)
+		parts = []
+		for type_name, type_tickets in by_type.items():
+			parts.append(f"## {type_name.title()}s ({len(type_tickets)})\n")
+			for t in type_tickets:
+				line = f"- #{t.pk} {t.project.key}-**{t.pk}** — `{t.title}`"
+				if t.assignee:
+					line += f" (assigned to {t.assignee})"
+				parts.append(line)
+			parts.append("")
+		body = f"# Release Notes — {self}\n\n"
+		if self.description:
+			body += self.description + "\n\n"
+		body += f"Released versions: {len(tickets)} ticket{'' if len(tickets) == 1 else 's'}.\n\n"
+		body += "\n".join(parts)
+		return body
+
+	def roadmap_items(self) -> list[dict]:
+		"""Return a list of roadmap items sorted by date for a timeline rendering."""
+		versions = (
+			self.project.versions.annotate(
+				fixed_ticket_count=Count(
+					"affected_tickets__fix_version",
+					filter=Q(affected_tickets__fix_version=self, affected_tickets__state=Ticket.State.RESOLVED),
+				),
+			)
+			.order_by("target_date", "-release_date")
+		)
+		items = []
+		for v in versions:
+			items.append({
+				"name": v.name,
+				"target_date": v.target_date,
+				"release_date": v.release_date,
+				"is_released": v.is_released,
+				"is_active": v.is_active,
+				"is_planned": v.is_planned,
+				"is_archived": v.archived,
+				"ticket_count": v.affected_tickets.filter(fix_version=v).count(),
+				"resolved_count": v.fixed_ticket_count,
+			})
+		return items
 
 
 class TicketRelation(models.Model):

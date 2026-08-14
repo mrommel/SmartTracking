@@ -2,16 +2,13 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Count, Q
-from django.db.models.query import QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404, redirect, render
@@ -20,10 +17,12 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 
+from mistune import markdown as render_markdown
+
 from .forms import (
-	AttachmentForm, BulkActionForm, CommentForm, ComponentDeleteForm, ComponentForm,
-	LabelDeleteForm, LabelForm, ProjectForm, SprintCloseForm, SprintDeleteForm,
-	SprintForm, TicketForm, TicketTransitionForm,
+	AttachmentForm, CommentForm, ComponentDeleteForm, ComponentForm,
+	LabelDeleteForm, LabelForm, ProjectForm, SprintCloseForm, SprintForm,
+	TicketForm, TicketTransitionForm,
 )
 from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation, Version
 
@@ -1281,22 +1280,78 @@ def version_delete(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Delete a version."""
 	version = get_object_or_404(Version, pk=pk)
 	project = version.project
-	from .forms import VersionDeleteForm as VersionDeleteFormCls
 	if request.method == "POST":
-		form = VersionDeleteFormCls(request.POST, project=project)
-		if form.is_valid():
-			selected_version = form.cleaned_data["version"]
-			name = selected_version.name
-			selected_version.delete()
-			messages.success(request, f"Version '{name}' deleted.")
-			return redirect("releases", project=project.key)
-	else:
-		form = VersionDeleteFormCls(project=project)
+		version.delete()
+		messages.success(request, f"Version '{version.name}' deleted.")
+		return redirect("releases", project=project.key)
 	return render(request, "tracking/version_delete.html", {
 		"title": f"Delete version — {project.key}",
-		"form": form,
 		"project": project,
 		"version": version,
+	})
+
+
+@login_required
+def release_notes(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Generate and display release notes for a version."""
+	version = get_object_or_404(Version, pk=pk)
+	project = version.project
+	notes = version.release_notes()
+	markdown_html = render_markdown(notes, escape=True) if notes else ""
+	tickets = list(version.affected_tickets.filter(
+		fix_version=version, state=Ticket.State.RESOLVED
+	).select_related("project", "assignee").order_by("type", "pk"))
+	by_type: dict[str, list[Ticket]] = {}
+	for t in tickets:
+		by_type.setdefault(t.get_type_display(), []).append(t)
+	return render(request, "tracking/release_notes.html", {
+		"title": f"Release Notes — {version}",
+		"version": version,
+		"project": project,
+		"markdown_html": markdown_html,
+		"tickets": tickets,
+		"by_type": by_type,
+	})
+
+
+@login_required
+def version_roadmap(request: HttpRequest, project_pk: int) -> HttpResponseBase:
+	"""Display a version roadmap / timeline for a project."""
+	project = get_object_or_404(Project, pk=project_pk)
+	projects = Project.objects.annotate(ticket_count=Count("tickets")).order_by("key")
+
+	def sort_key(item):
+		rd = item.get("release_date")
+		td = item.get("target_date")
+		cd = item.get("created_at")
+		if rd is not None:
+			return (rd, item["is_archived"])
+		elif td is not None:
+			return (td, item["is_archived"])
+		return (cd, item["is_archived"])
+
+	versions = project.versions.annotate(
+		ticket_count=Count("affected_tickets__fix_version")
+	).all()
+	items = []
+	for v in versions:
+		items.append({
+			"name": v.name,
+			"target_date": v.target_date,
+			"release_date": v.release_date,
+			"created_at": v.created_at,
+			"is_released": v.is_released,
+			"is_active": v.is_active,
+			"is_planned": v.is_planned,
+			"is_archived": v.archived,
+			"ticket_count": v.ticket_count,
+		})
+	items.sort(key=sort_key)
+	return render(request, "tracking/version_roadmap.html", {
+		"title": f"Roadmap — {project.key}",
+		"project": project,
+		"items": items,
+		"projects": projects,
 	})
 
 
@@ -1325,6 +1380,10 @@ def _build_tickets_queryset(request: HttpRequest) -> models.QuerySet[Ticket]:
 	label = request.GET.get("label")
 	if label:
 		tickets = tickets.filter(labels__name=label)
+
+	fix_version = request.GET.get("fix_version")
+	if fix_version:
+		tickets = tickets.filter(fix_version__pk=fix_version)
 
 	assignee = request.GET.get("assignee")
 	if assignee == "me":
