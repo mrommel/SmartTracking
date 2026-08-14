@@ -19,7 +19,7 @@ from .forms import (
 	LabelDeleteForm, LabelForm, ProjectForm, SprintCloseForm, SprintDeleteForm,
 	SprintForm, TicketForm, TicketTransitionForm,
 )
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketRelation
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation
 
 
 def _dashboard_tab_context(project, tickets, request, tab):
@@ -399,6 +399,7 @@ def ticket_detail(request, pk):
 			rel.label = str(rel.get_relation_type_display())
 		else:
 			rel.label = ticket._get_reverse_label(rel.relation_type)
+	activities = ticket.activities.select_related("actor").all()
 	return render(request, "tracking/ticket_detail.html", {
 		"title": ticket.title,
 		"ticket": ticket,
@@ -411,6 +412,7 @@ def ticket_detail(request, pk):
 		"relation_types": Ticket.RelationType.choices,
 		"child_tickets": child_tickets,
 		"sprints": Sprint.objects.filter(project=ticket.project).order_by("order"),
+		"activities": activities,
 	})
 
 
@@ -421,11 +423,27 @@ def ticket_edit(request, pk):
 	if request.method == "POST":
 		form = TicketForm(request.POST)
 		if form.is_valid():
-			for field in ["title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "due_date"]:
-				setattr(ticket, field, form.cleaned_data[field])
-			ticket.save(update_fields=["title", "description", "type", "estimation", "priority", "assignee", "parent_epic", "due_date", "updated_at"])
-			ticket.components.set(form.cleaned_data.get("components", []))
-			ticket.labels.set(form.cleaned_data.get("labels", []))
+			# Snapshot old values for activity logging
+			old_cmp = set(ticket.components.values_list("pk", flat=True))
+			old_lbl = set(ticket.labels.values_list("pk", flat=True))
+			ticket.title = form.cleaned_data["title"]
+			ticket.description = form.cleaned_data["description"]
+			ticket.type = form.cleaned_data["type"]
+			ticket.estimation = form.cleaned_data["estimation"]
+			ticket.priority = form.cleaned_data["priority"]
+			ticket.assignee = form.cleaned_data["assignee"]
+			ticket.parent_epic = form.cleaned_data["parent_epic"]
+			ticket.due_date = form.cleaned_data["due_date"]
+			ticket.save(update_fields=["title", "description", "type", "estimation",
+				"priority", "assignee", "parent_epic", "due_date", "updated_at"])
+			for cmp in set(ticket.components.all()) - old_cmp:
+				TicketActivity.objects.create(ticket=ticket, actor=request.user,
+					action=TicketActivity.Action.COMPONENT_ADDED,
+					field_name="component", new_value=cmp.name)
+			for lbl in set(ticket.labels.all()) - old_lbl:
+				TicketActivity.objects.create(ticket=ticket, actor=request.user,
+					action=TicketActivity.Action.LABEL_ADDED,
+					field_name="label", new_value=lbl.name)
 			messages.success(request, "Ticket updated.")
 			return redirect("ticket_detail", pk=ticket.pk)
 	else:
@@ -452,6 +470,8 @@ def ticket_create(request):
 			if request.user.is_authenticated:
 				ticket.reporter = request.user
 			ticket.save()
+			TicketActivity.objects.create(ticket=ticket, actor=request.user,
+				action=TicketActivity.Action.TICKET_CREATED)
 			messages.success(request, "Ticket created.")
 			return redirect("ticket_detail", pk=ticket.pk)
 	else:
@@ -479,8 +499,12 @@ def ticket_transition(request, pk):
 	if request.method == "POST":
 		form = TicketTransitionForm(request.POST, ticket=ticket)
 		if form.is_valid():
+			old_state = ticket.state
 			ticket.state = form.cleaned_data["state"]
 			ticket.save(update_fields=["state", "updated_at"])
+			TicketActivity.objects.create(ticket=ticket, actor=request.user,
+				action=TicketActivity.Action.STATE_CHANGED,
+				old_value=old_state, new_value=ticket.state)
 			messages.success(request, f"Ticket moved to '{ticket.get_state_display()}'.")
 		else:
 			messages.error(request, "Invalid state transition.")
@@ -491,6 +515,7 @@ def ticket_transition(request, pk):
 def ticket_sprint_assign(request, pk):
 	"""Assign a ticket to a sprint (only within the same project)."""
 	ticket = get_object_or_404(Ticket, pk=pk)
+	old_sprint = ticket.sprint_id
 	if request.method == "POST":
 		sprint_id = request.POST.get("sprint")
 		if sprint_id == "":
@@ -499,6 +524,11 @@ def ticket_sprint_assign(request, pk):
 			sprint_obj = get_object_or_404(Sprint, pk=sprint_id, project=ticket.project)
 			ticket.sprint = sprint_obj
 		ticket.save(update_fields=["sprint", "updated_at"])
+		if old_sprint != ticket.sprint_id:
+			new_sprint_name = ticket.sprint.name if ticket.sprint else "(backlog)"
+			TicketActivity.objects.create(ticket=ticket, actor=request.user,
+				action=TicketActivity.Action.SPRINT_CHANGED,
+				old_value=str(old_sprint), new_value= new_sprint_name)
 		messages.success(request, f"Ticket assigned to sprint.")
 	return redirect(reverse("ticket_detail", args=[ticket.pk]))
 
@@ -581,6 +611,8 @@ def ticket_comment_create(request, pk):
 			comment.ticket = ticket
 			comment.author = request.user
 			comment.save()
+			TicketActivity.objects.create(ticket=ticket, actor=request.user,
+				action=TicketActivity.Action.COMMENT_ADDED)
 			messages.success(request, "Comment added.")
 			return redirect("ticket_detail", pk=ticket.pk)
 	return redirect("ticket_detail", pk=ticket.pk)
@@ -616,11 +648,14 @@ def ticket_relation_add(request, pk):
 		).exists():
 			messages.info(request, "This relation already exists.")
 			return redirect("ticket_detail", pk=ticket.pk)
-		TicketRelation.objects.create(
+		relation = TicketRelation.objects.create(
 			subject=ticket,
 			target=target,
 			relation_type=relation_type,
 		)
+		TicketActivity.objects.create(ticket=ticket, actor=request.user,
+			action=TicketActivity.Action.RELATION_ADDED,
+			new_value=f"{target.pk}: {relation.get_relation_type_display()}")
 		messages.success(request, "Relation added.")
 		return redirect("ticket_detail", pk=ticket.pk)
 	return redirect("ticket_detail", pk=ticket.pk)
@@ -636,6 +671,9 @@ def ticket_relation_delete(request, pk):
 		return redirect("ticket_detail", pk=relation.subject.pk)
 	ticket = relation.subject
 	if request.method == "POST":
+		TicketActivity.objects.create(ticket=ticket, actor=request.user,
+			action=TicketActivity.Action.RELATION_REMOVED,
+			new_value=f"{relation.target.pk}: {relation.get_relation_type_display()}")
 		relation.delete()
 		# Also delete the symmetric counterpart if it exists
 		reverse_map = Ticket._REVERSE_LABELS or {}
@@ -840,6 +878,8 @@ def ticket_delete(request, project_pk, pk):
 	if ticket.project.pk != project_pk:
 		return redirect("ticket_detail", pk=ticket.pk)
 	if request.method == "POST":
+		TicketActivity.objects.create(ticket=ticket, actor=request.user,
+			action=TicketActivity.Action.TICKET_DELETED)
 		title = ticket.title
 		ticket.delete()
 		messages.success(request, f"Ticket '{title}' deleted.")
@@ -863,6 +903,9 @@ def ticket_attachment_upload(request, pk):
 				"pdf": "application/pdf", "txt": "text/plain", "log": "text/plain",
 				"json": "application/json"}.get(ext.lower(), "application/octet-stream")
 			attachment.save()
+			TicketActivity.objects.create(ticket=ticket, actor=request.user,
+				action=TicketActivity.Action.ATTACHMENT_ADDED,
+				new_value=attachment.name)
 			messages.success(request, "Attachment uploaded.")
 			return redirect("ticket_detail", pk=ticket.pk)
 	return redirect("ticket_detail", pk=ticket.pk)
@@ -873,6 +916,9 @@ def ticket_attachment_upload(request, pk):
 def ticket_attachment_delete(request, pk):
 	attachment = get_object_or_404(Attachment, pk=pk)
 	ticket = attachment.ticket
+	TicketActivity.objects.create(ticket=ticket, actor=request.user,
+		action=TicketActivity.Action.ATTACHMENT_REMOVED,
+		new_value=attachment.name)
 	attachment.file.delete()
 	attachment.delete()
 	messages.success(request, "Attachment deleted.")

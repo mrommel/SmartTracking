@@ -434,6 +434,60 @@ class Attachment(models.Model):
 			)
 
 
+class TicketActivity(models.Model):
+	"""Records meaningful changes and events on a ticket (activity log)."""
+
+	class Action(models.TextChoices):
+		STATE_CHANGED = "state_changed", _("State changed")
+		TITLE_CHANGED = "title_changed", _("Title changed")
+		DESCRIPTION_CHANGED = "description_changed", _("Description changed")
+		KEY_CHANGED = "key_changed", _("Related ticket added")
+		COMMENT_ADDED = "comment_added", _("Comment added")
+		COMPONENT_ADDED = "component_added", _("Component added")
+		COMPONENT_REMOVED = "component_removed", _("Component removed")
+		LABEL_ADDED = "label_added", _("Label added")
+		LABEL_REMOVED = "label_removed", _("Label removed")
+		RELATION_ADDED = "relation_added", _("Relation added")
+		RELATION_REMOVED = "relation_removed", _("Relation removed")
+		SPRINT_CHANGED = "sprint_changed", _("Sprint changed")
+		ATTACHMENT_ADDED = "attachment_added", _("Attachment added")
+		ATTACHMENT_REMOVED = "attachment_removed", _("Attachment removed")
+		TICKET_CREATED = "ticket_created", _("Ticket created")
+		TICKET_DELETED = "ticket_deleted", _("Ticket deleted")
+
+	ticket = models.ForeignKey(
+		Ticket,
+		on_delete=models.CASCADE,
+		related_name="activities",
+		verbose_name=_("ticket"),
+	)
+	actor = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name="activities",
+		verbose_name=_("actor"),
+	)
+	action = models.CharField(
+		_("action"), max_length=30, choices=Action.choices, db_index=True
+	)
+	field_name = models.CharField(
+		_("field"), max_length=50, blank=True, default=""
+	)
+	old_value = models.TextField(_("old value"), blank=True, default="")
+	new_value = models.TextField(_("new value"), blank=True, default="")
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True, editable=False)
+
+	class Meta:
+		verbose_name = _("activity log entry")
+		verbose_name_plural = _("activity log entries")
+		ordering = ["created_at"]
+
+	def __str__(self):
+		return f"[{self.ticket}] {self.get_action_display()} by {self.actor}"
+
+
 class TicketRelation(models.Model):
 	"""One direction of a symmetric relation between two tickets."""
 

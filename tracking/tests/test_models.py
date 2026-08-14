@@ -1,10 +1,13 @@
 """Model-level tests, focused on the Ticket state machine, Attachment, Sprint, and TicketRelation."""
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from tracking.models import Attachment, Project, Sprint, Ticket, TicketRelation
+from tracking.models import Attachment, Project, Sprint, Ticket, TicketActivity, TicketRelation
+
+User = get_user_model()
 
 
 class TicketStateMachineTests(TestCase):
@@ -522,4 +525,52 @@ class EpicTests(TestCase):
 		filtered = Ticket.objects.filter(parent_epic=self.epic)
 		self.assertEqual(filtered.count(), 1)
 		self.assertEqual(filtered.first().pk, self.child_ticket.pk)
+
+
+class TicketActivityTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user(username="alice", password="pass")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket = Ticket.objects.create(project=cls.project, title="t", state=Ticket.State.OPEN)
+
+	def test_create_activity_entry(self):
+		entry = TicketActivity.objects.create(
+			ticket=self.ticket,
+			actor=self.user,
+			action=TicketActivity.Action.TICKET_CREATED,
+		)
+		self.assertIsNotNone(entry.pk)
+		self.assertEqual(entry.ticket, self.ticket)
+		self.assertEqual(entry.actor, self.user)
+
+	def test_str_format(self):
+		entry = TicketActivity.objects.create(
+			ticket=self.ticket,
+			actor=self.user,
+			action=TicketActivity.Action.TICKET_CREATED,
+		)
+		self.assertIn("SMT", str(entry))
+		self.assertIn("Ticket created", str(entry))
+
+	def test_ordering(self):
+		entry1 = TicketActivity.objects.create(
+			ticket=self.ticket, actor=self.user, action=TicketActivity.Action.TICKET_CREATED,
+		)
+		import time
+		time.sleep(0.01)
+		entry2 = TicketActivity.objects.create(
+			ticket=self.ticket, actor=self.user, action=TicketActivity.Action.STATE_CHANGED,
+		)
+		ordering = list(TicketActivity.objects.filter(ticket=self.ticket).values_list("pk", flat=True))
+		self.assertEqual(ordering, [entry1.pk, entry2.pk])
+
+	def test_cascade_delete_on_ticket_deletion(self):
+		TicketActivity.objects.create(
+			ticket=self.ticket, actor=self.user, action=TicketActivity.Action.TICKET_CREATED,
+		)
+		ticket_pk = self.ticket.pk
+		self.assertEqual(TicketActivity.objects.filter(ticket_id=ticket_pk).count(), 1)
+		self.ticket.delete()
+		self.assertEqual(TicketActivity.objects.filter(ticket_id=ticket_pk).count(), 0)
 

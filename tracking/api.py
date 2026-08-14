@@ -23,7 +23,7 @@ from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketRelation
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation
 
 
 # --- Authentication --------------------------------------------------------
@@ -310,6 +310,8 @@ def ticket_collection(request):
 	if request.user.is_authenticated:
 		ticket.reporter = request.user
 	ticket.save()
+	TicketActivity.objects.create(ticket=ticket, actor=request.user if request.user.is_authenticated else None,
+		action=TicketActivity.Action.TICKET_CREATED)
 
 	# Set components and labels if provided
 	component_names = data.get("components", [])
@@ -418,6 +420,19 @@ def ticket_detail(request, pk):
 				pass  # silently ignore unknown component names
 
 	if changed:
+		user = request.user if request.user.is_authenticated else None
+		for field in changed:
+			val = data.get(field)
+			old_val = str(getattr(ticket, field, ''))
+			if field == "priority":
+				old_val = ticket.get_priority_display()
+			elif field == "type":
+				old_val = ticket.get_type_display()
+			new_val = str(val) if val is not None else ""
+			if old_val or new_val:
+				TicketActivity.objects.create(ticket=ticket, actor=user,
+					action=TicketActivity.Action.STATE_CHANGED,
+					field_name=field, old_value=old_val, new_value=new_val)
 		ticket.save(update_fields=[*changed, "updated_at"])
 	return JsonResponse(serialize_ticket(ticket))
 
@@ -445,8 +460,13 @@ def ticket_transition(request, pk):
 			allowed_transitions=[s.value for s in ticket.allowed_transitions()],
 		)
 
+	old_state = ticket.state
 	ticket.state = new_state
 	ticket.save(update_fields=["state", "updated_at"])
+	user = request.user if request.user.is_authenticated else None
+	TicketActivity.objects.create(ticket=ticket, actor=user,
+		action=TicketActivity.Action.STATE_CHANGED,
+		old_value=old_state, new_value=new_state)
 	return JsonResponse(serialize_ticket(ticket))
 
 
@@ -483,6 +503,9 @@ def comment_collection(request):
 		body=body,
 		author=request.user if request.user.is_authenticated else None,
 	)
+	user = request.user if request.user.is_authenticated else None
+	TicketActivity.objects.create(ticket=ticket, actor=user,
+		action=TicketActivity.Action.COMMENT_ADDED)
 	return JsonResponse(serialize_comment(comment), status=201)
 
 
@@ -634,6 +657,10 @@ def attachment_collection(request):
 		file=file,
 		mime_type=mime_map.get(ext, "application/octet-stream"),
 	)
+	user = request.user if request.user.is_authenticated else None
+	TicketActivity.objects.create(ticket=ticket, actor=user,
+		action=TicketActivity.Action.ATTACHMENT_ADDED,
+		new_value=file.name)
 	return JsonResponse(serialize_attachment(attachment), status=201)
 
 
@@ -645,6 +672,10 @@ def attachment_detail(request, pk):
 	if request.method == "GET":
 		return JsonResponse(serialize_attachment(attachment))
 	# DELETE -> remove attachment
+	if request.user.is_authenticated:
+		TicketActivity.objects.create(ticket=attachment.ticket, actor=request.user,
+			action=TicketActivity.Action.ATTACHMENT_REMOVED,
+			new_value=attachment.name)
 	attachment.file.delete()
 	attachment.delete()
 	return JsonResponse({"status": "deleted"})
@@ -830,6 +861,10 @@ def ticket_relation_create(request, ticket_id):
 	relation = TicketRelation.objects.create(
 		subject=ticket, target=target, relation_type=relation_type,
 	)
+	user = request.user if request.user.is_authenticated else None
+	TicketActivity.objects.create(ticket=ticket, actor=user,
+		action=TicketActivity.Action.RELATION_ADDED,
+		new_value=f"{target.pk}: {relation.get_relation_type_display()}")
 	return JsonResponse(serialize_relation(relation), status=201)
 
 
@@ -839,6 +874,11 @@ def ticket_relation_create(request, ticket_id):
 def ticket_relation_delete_api(request, pk):
 	"""Delete a ticket relation by its ID."""
 	relation = get_object_or_404(TicketRelation, pk=pk)
+	ticket = relation.subject
+	user = request.user if request.user.is_authenticated else None
+	TicketActivity.objects.create(ticket=ticket, actor=user,
+		action=TicketActivity.Action.RELATION_REMOVED,
+		new_value=f"{relation.target.pk}: {relation.get_relation_type_display()}")
 	rev_types = Ticket._REVERSE_LABELS or {}
 	if relation.relation_type in rev_types:
 		try:
