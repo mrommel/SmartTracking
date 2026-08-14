@@ -1216,7 +1216,110 @@ html {
 	color: #495057 !important;
 }
 
-.badge-sm {
-	font-size: 0.7rem;
-}
+ .badge-sm {
+ 	font-size: 0.7rem;
+ }
+
+ /* ============================================================
+    Image gallery & lightbox
+    ============================================================ */
+ .image-gallery {
+ 	display: flex;
+ 	flex-wrap: wrap;
+ 	gap: 8px;
+ 	margin-bottom: 16px;
+ }
+
+ .image-gallery .image-thumb {
+ 	display: inline-block;
+ 	width: 100px;
+ 	height: 100px;
+ 	border-radius: 3px;
+ 	overflow: hidden;
+ 	border: 1px solid var(--atlas-grey-border);
+ 	cursor: pointer;
+ 	transition: box-shadow 0.15s ease, border-color 0.15s ease;
+ }
+
+ .image-gallery .image-thumb:hover {
+ 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+ 	border-color: var(--atlas-blue);
+ }
+
+ .image-gallery .image-thumb img {
+ 	width: 100%;
+ 	height: 100%;
+ 	object-fit: cover;
+ 	display: block;
+ }
+
+ #lightboxModal .modal-body {
+ 	padding: 0;
+ 	background: #000;
+ }
+
+ #lightboxModal .modal-body img {
+ 	max-width: 100%;
+ 	max-height: 85vh;
+ 	object-fit: contain;
+ }
+
+ /* Drag & drop zones */
+ .dropzone-active {
+ 	position: relative;
+ }
+
+ .drop-area {
+ 	border: 2px dashed var(--atlas-grey-border);
+ 	border-radius: 3px;
+ 	padding: 32px 16px;
+ 	text-align: center;
+ 	cursor: pointer;
+ 	transition: border-color 0.15s ease, background-color 0.15s ease;
+ 	background-color: transparent;
+ }
+
+ .drop-area:hover,
+ .drop-area.drag-over {
+ 	border-color: var(--atlas-blue);
+ 	background-color: var(--atlas-blue-light);
+ }
+
+ .drop-area.drop-over {
+ 	border-color: var(--atlas-green);
+ 	background-color: var(--atlas-green-light);
+ }
+
+ .drop-area-content {
+ 	pointer-events: none;
+ }
+
+ .drop-area-content p {
+ 	margin-bottom: 0;
+ }
+
+ .comment-edit-btn,
+ .comment-delete-btn {
+ 	font-size: 0.75rem;
+ 	padding: 1px 6px;
+ }
+
+ .edit-history-entry {
+ 	background-color: var(--atlas-grey-bg);
+ 	border-radius: 3px;
+ 	padding: 8px;
+ }
+
+ .edit-history dl {
+ 	margin-bottom: 4px;
+ }
+
+ .edit-history dt {
+ 	margin-bottom: 2px;
+ }
+
+ .text-bg-light {
+ 	background-color: #e9ecef !important;
+ 	color: #495057 !important;
+ }
 

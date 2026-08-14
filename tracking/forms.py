@@ -85,6 +85,25 @@ class CommentForm(forms.ModelForm):
 			"body": forms.Textarea(attrs={"rows": 3}),
 		}
 
+
+class CommentEditForm(forms.ModelForm):
+	"""Edit an existing comment."""
+
+	class Meta:
+		model = Comment
+		fields = [
+			"body",
+		]
+		widgets = {
+			"body": forms.Textarea(attrs={"rows": 3}),
+		}
+
+
+class CommentDeleteForm(forms.Form):
+	"""Delete a comment."""
+
+	ticket_pk = forms.IntegerField(widget=forms.HiddenInput())
+
 class LabelForm(forms.ModelForm):
 	"""Create / edit a label."""
 

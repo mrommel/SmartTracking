@@ -615,6 +615,65 @@ def comment_collection(request: HttpRequest) -> HttpResponseBase:
 	return JsonResponse(serialize_comment(comment), status=201)
 
 
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["PATCH"])
+def comment_update(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Update an existing comment."""
+	comment = get_object_or_404(Comment, pk=pk)
+	try:
+		data = _parse_json(request)
+	except (ValueError, json.JSONDecodeError):
+		return _error("Request body must be valid JSON.")
+
+	body = (data.get("body") or "").strip()
+	if not body:
+		return _error("Field 'body' is required.")
+
+	old_body = comment.body
+	comment.body = body
+	comment.save(update_fields=["body", "updated_at"])
+
+	if old_body != body:
+		CommentEditHistory.objects.create(
+			comment=comment,
+			old_body=old_body,
+			new_body=body,
+			actor=request.user if request.user.is_authenticated else None,
+		)
+
+	try:
+		TicketActivity.objects.create(
+			ticket=comment.ticket,
+			actor=request.user if request.user.is_authenticated else None,
+			action=TicketActivity.Action.COMMENT_ADDED,
+		)
+	except Exception:
+		pass
+
+	return JsonResponse(serialize_comment(comment))
+
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET"])
+def comment_edit_history(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Return edit history for a comment."""
+	comment = get_object_or_404(Comment, pk=pk)
+	history = CommentEditHistory.objects.select_related("actor").filter(comment=comment)
+	entries = [
+		{
+			"id": h.pk,
+			"old_body": h.old_body,
+			"new_body": h.new_body,
+			"actor": str(h.actor) if h.actor else None,
+			"created_at": h.created_at.isoformat(),
+		}
+		for h in history
+	]
+	return JsonResponse({"results": entries})
+
+
 # --- Components -------------------------------------------------------------
 
 @csrf_exempt
@@ -1913,7 +1972,9 @@ urlpatterns: list[path] = [
 	path("tickets/<int:pk>/", ticket_detail, name="api_ticket_detail"),
 	path("tickets/<int:pk>/transition/", ticket_transition, name="api_ticket_transition"),
 	path("tickets/<int:pk>/relations/add/", ticket_relation_create, name="api_ticket_relation_create"),
-	path("comments/", comment_collection, name="api_comment_collection"),
+ 	path("comments/", comment_collection, name="api_comment_collection"),
+ 	path("comments/<int:pk>/update/", comment_update, name="api_comment_update"),
+ 	path("comments/<int:pk>/history/", comment_edit_history, name="api_comment_edit_history"),
 	path("components/", component_collection, name="api_component_collection"),
 	path("components/<int:pk>/", component_detail, name="api_component_detail"),
 	path("labels/", label_collection, name="api_label_collection"),

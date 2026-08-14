@@ -418,6 +418,36 @@ class Comment(models.Model):
 		return f"Comment on {self.ticket} by {self.author}"
 
 
+class CommentEditHistory(models.Model):
+	"""Tracks edit history for comments."""
+
+	comment = models.ForeignKey(
+		Comment,
+		on_delete=models.CASCADE,
+		related_name="edit_history",
+		verbose_name=_("comment"),
+	)
+	old_body = models.TextField(_("old body"), blank=True, default="")
+	new_body = models.TextField(_("new body"))
+	actor = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name="comment_edits",
+		verbose_name=_("actor"),
+	)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+
+	class Meta:
+		verbose_name = _("comment edit history")
+		verbose_name_plural = _("comment edit histories")
+		ordering = ["-created_at"]
+
+	def __str__(self) -> str:
+		return f"Edit #{self.pk} on comment {self.comment.pk}"
+
+
 # Allowed file extensions and their MIME types.
 _ALLOWED_EXTENSIONS = {
 	"png": "image/png",

@@ -83,9 +83,9 @@ No profile/role model.
 - [ ] Per-ticket export/print view.
 
 ### 12. Attachments & Comments polish
-- [ ] **Inline image thumbnails / gallery** (already detect `is_image`).
-- [ ] **Comment editing/deletion** with edit history.
-- [ ] **Drag-and-drop upload** and paste-to-attach.
+- [x] **Inline image thumbnails / gallery** (already detect `is_image`).
+- [x] **Comment editing/deletion** with edit history.
+- [x] **Drag-and-drop upload** and paste-to-attach.
 
 ### 13. Custom Fields & Workflows
 - [ ] Admin-configurable **custom fields** per project/type.

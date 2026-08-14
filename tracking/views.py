@@ -607,6 +607,7 @@ def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 	)
 	comments = ticket.comments.select_related("author").all()
 	attachments = ticket.attachments.all()
+	image_attachments = [a for a in attachments if a.is_image]
 	child_tickets = Ticket.objects.filter(parent_epic=ticket).select_related("project", "assignee").order_by("backlog_order", "pk")
 	relations = list(ticket.relations.prefetch_related("subject", "target").all())
 	for rel in relations:
@@ -624,7 +625,8 @@ def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 		"transition_form": TicketTransitionForm(ticket=ticket),
 		"comment_form": CommentForm(),
 		"comments": comment_page,
-		"attachments": attachments,
+ 		"attachments": attachments,
+ 		"image_attachments": image_attachments,
 		"relations": relations,
 		"available_tickets": ticket.available_rels_for("current_project"),
 		"relation_types": Ticket.RelationType.choices,
@@ -867,6 +869,46 @@ def ticket_comment_create(request: HttpRequest, pk: int) -> HttpResponseBase:
 				action=TicketActivity.Action.COMMENT_ADDED)
 			messages.success(request, "Comment added.")
 			return redirect("ticket_detail", pk=ticket.pk)
+		return redirect("ticket_detail", pk=ticket.pk)
+
+
+@login_required
+def ticket_comment_edit(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Edit an existing comment on a ticket."""
+	comment = get_object_or_404(Comment, pk=pk)
+	ticket = comment.ticket
+	if request.method == "POST":
+		form = CommentEditForm(request.POST, instance=comment)
+		if form.is_valid():
+			old_body = comment.body
+			new_body = form.cleaned_data["body"]
+			comment = form.save()
+			if old_body != new_body:
+				CommentEditHistory.objects.create(
+					comment=comment,
+					old_body=old_body,
+					new_body=new_body,
+					actor=request.user,
+				)
+				TicketActivity.objects.create(ticket=ticket, actor=request.user,
+					action=TicketActivity.Action.COMMENT_ADDED)
+			messages.success(request, "Comment updated.")
+			return redirect("ticket_detail", pk=ticket.pk)
+	else:
+		form = CommentEditForm(instance=comment)
+	return redirect("ticket_detail", pk=ticket.pk)
+
+
+@login_required
+def ticket_comment_delete(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Delete a comment."""
+	comment = get_object_or_404(Comment, pk=pk)
+	ticket = comment.ticket
+	if request.method == "POST":
+		TicketActivity.objects.create(ticket=ticket, actor=request.user,
+			action=TicketActivity.Action.COMMENT_DELETED)
+		comment.delete()
+		messages.success(request, "Comment deleted.")
 	return redirect("ticket_detail", pk=ticket.pk)
 
 

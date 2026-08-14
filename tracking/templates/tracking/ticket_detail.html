@@ -134,7 +134,48 @@
  					{% endif %}
  				</div>
  			</div>
- 		{% endif %}
+ 	</div>
+
+ 	<!-- Edit comment modal -->
+ 	{% if user.is_authenticated %}
+ 	<div class="modal fade" id="editCommentModal" tabindex="-1" aria-labelledby="editCommentModalLabel" aria-hidden="true">
+ 		<div class="modal-dialog">
+ 			<div class="modal-content">
+ 				<form method="post" id="editCommentForm">
+ 					{% csrf_token %}
+ 					<div class="modal-header">
+ 						<h5 class="modal-title" id="editCommentModalLabel">Edit Comment</h5>
+ 						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+ 					</div>
+ 					<div class="modal-body">
+ 						<input type="hidden" name="ticket_pk" id="editCommentTicketPk">
+ 						<div class="mb-3">
+ 							<label for="editCommentBody" class="form-label">Comment</label>
+ 							<textarea name="body" class="form-control" id="editCommentBody" rows="4" required></textarea>
+ 						</div>
+ 					</div>
+ 					<div class="modal-footer">
+ 						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+ 						<button type="submit" class="btn btn-primary">Save changes</button>
+ 					</div>
+ 				</form>
+ 			</div>
+ 		</div>
+ 	</div>
+ 	{% endif %}
+ 	{% endif %}
+
+ 	<!-- Image lightbox modal -->
+ 	<div class="modal fade" id="lightboxModal" tabindex="-1" aria-hidden="true">
+ 		<div class="modal-dialog modal-lg modal-dialog-centered">
+ 			<div class="modal-content">
+ 				<div class="modal-body p-0 text-center">
+ 					<button type="button" class="btn-close position-absolute top-0 end-0 m-3 z-3" data-bs-dismiss="modal" aria-label="Close"></button>
+ 					<img id="lightboxImage" src="" class="img-fluid" alt="">
+ 				</div>
+ 			</div>
+ 		</div>
+ 	</div>
 
  		<!-- Child Tickets section -->
  		<div class="card mb-3">
@@ -229,71 +270,164 @@
 				{% endif %}
 			</div>
 
-			{% for attachment in attachments %}
-				<div class="attachment-item mb-3 pb-2{% if not forloop.last %} border-bottom{% endif %}">
-					<div class="d-flex justify-content-between align-items-start">
-						<div>
-							<a href="{% url 'ticket_attachment_serve' ticket.pk attachment.pk %}" target="_blank">
-								<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="me-1 text-muted"><path d="M3 2a1 1 0 0 0-1 1v10a2 2 0 0 0 4 0V3a1 1 0 0 0-1-1H3zm5.744.146a1 1 0 0 0-1.49 0l-3 3a1 1 0 0 0 0 1.491l3 3a1 1 0 0 0 .745.374H13a1 1 0 0 0 1-1V7h-3a1 1 0 0 1-1-1V3.146zM13 1H6a1 1 0 0 0-1 1v10a4 4 0 0 0 8 0V7a1 1 0 0 0-1-1h-2V2a1 1 0 0 0-1-1z"/></svg>
-								{{ attachment.name }}
+			<div class="attachment-drop-zone{% if user.is_authenticated %} dropzone-active{% endif %}">
+				{% if image_attachments %}
+					<div class="image-gallery mb-3">
+						{% for attachment in image_attachments %}
+							<a href="{% url 'ticket_attachment_serve' ticket.pk attachment.pk %}" class="image-thumb" data-full="{% url 'ticket_attachment_serve' ticket.pk attachment.pk %}" title="{{ attachment.name }}">
+								<img src="{% url 'ticket_attachment_serve' ticket.pk attachment.pk %}" alt="{{ attachment.name }}">
 							</a>
-							<small class="text-muted ms-2">{{ attachment.mime_type }}</small>
-							<small class="text-muted ms-1">({{ attachment.created_at|naturaltime }})</small>
-						</div>
-						<form method="post" action="{% url 'ticket_attachment_delete' attachment.pk %}">
-							{% csrf_token %}
-							<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-						</form>
+						{% endfor %}
 					</div>
-				</div>
-			{% empty %}
+				{% endif %}
+				{% for attachment in attachments %}
+					<div class="attachment-item mb-3 pb-2{% if not forloop.last %} border-bottom{% endif %}">
+						<div class="d-flex justify-content-between align-items-start">
+							<div>
+								{% if attachment.is_image %}
+									<a href="{% url 'ticket_attachment_serve' ticket.pk attachment.pk %}" target="_blank" class="image-link">
+										<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="me-1 text-muted"><path d="M6.003 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3.994a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H6.003zm8 10.5a1.5 1.5 0 0 1-1.5 1.5h-1.328a1.25 1.25 0 0 1-1.028-.53l-.57-.76a.625.625 0 0 0-1.02 0l-.57.76A1.25 1.25 0 0 1 8.821 14H7.5a1.5 1.5 0 0 1-1.5-1.5V8.5c0-.272.085-.534.243-.754l3.4-4.76a1 1 0 0 1 1.65 0l3.4 4.76c.158.22.243.482.243.754V12.5zM6.003 0h3.994a3 3 0 0 1 3 3v9.5a3 3 0 0 1-3 3H6.003a3 3 0 0 1-3-3V3a3 3 0 0 1 3-3z"/></svg>
+										{{ attachment.name }}
+									</a>
+								{% else %}
+									<a href="{% url 'ticket_attachment_serve' ticket.pk attachment.pk %}" target="_blank">
+										<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" class="me-1 text-muted"><path d="M3 2a1 1 0 0 0-1 1v10a2 2 0 0 0 4 0V3a1 1 0 0 0-1-1H3zm5.744.146a1 1 0 0 0-1.49 0l-3 3a1 1 0 0 0 0 1.491l3 3a1 1 0 0 0 .745.374H13a1 1 0 0 0 1-1V7h-3a1 1 0 0 1-1-1V3.146zM13 1H6a1 1 0 0 0-1 1v10a4 4 0 0 0 8 0V7a1 1 0 0 0-1-1h-2V2a1 1 0 0 0-1-1z"/></svg>
+										{{ attachment.name }}
+									</a>
+								{% endif %}
+								<small class="text-muted ms-2">{{ attachment.mime_type }}</small>
+								<small class="text-muted ms-1">({{ attachment.created_at|naturaltime }})</small>
+							</div>
+							<form method="post" action="{% url 'ticket_attachment_delete' attachment.pk %}">
+								{% csrf_token %}
+								<button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+							</form>
+						</div>
+					</div>
+				{% endfor %}
+			</div>
+			{% if not attachments and not image_attachments %}
 				<p class="text-muted mb-0">No attachments yet.</p>
-			{% endfor %}
+			{% endif %}
 		</div>
 	</div>
 
 	<!-- Upload modal -->
 	{% if user.is_authenticated %}
-	<div class="modal fade" id="uploadAttachmentModal" tabindex="-1" aria-labelledby="uploadAttachmentModalLabel" aria-hidden="true">
-		<div class="modal-dialog">
-			<div class="modal-content">
-				<form method="post" action="{% url 'ticket_attachment_upload' ticket.pk %}" enctype="multipart/form-data">
-					{% csrf_token %}
-					<div class="modal-header">
-						<h5 class="modal-title" id="uploadAttachmentModalLabel">Upload Attachment</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-					</div>
-					<div class="modal-body">
-						<p class="text-muted small">Allowed: PNG, JPEG, PDF, TXT, LOG, JSON (max 10 MB)</p>
-						<div class="mb-3">
-							<label for="id_file" class="form-label">File</label>
-							<input type="file" name="file" class="form-control" id="id_file" required
-								accept=".png,.jpg,.jpeg,.pdf,.txt,.log,.json">
-						</div>
-					</div>
-					<div class="modal-footer">
-						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-						<button type="submit" class="btn btn-primary">Upload</button>
-					</div>
-				</form>
-			</div>
-		</div>
-	</div>
-	{% endif %}
+ 	<div class="modal fade" id="uploadAttachmentModal" tabindex="-1" aria-labelledby="uploadAttachmentModalLabel" aria-hidden="true">
+ 		<div class="modal-dialog">
+ 			<div class="modal-content">
+ 				<form method="post" action="{% url 'ticket_attachment_upload' ticket.pk %}" enctype="multipart/form-data" id="uploadForm">
+ 					{% csrf_token %}
+ 					<div class="modal-header">
+ 						<h5 class="modal-title" id="uploadAttachmentModalLabel">Upload Attachment</h5>
+ 						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+ 					</div>
+ 					<div class="modal-body">
+ 						<p class="text-muted small">Allowed: PNG, JPEG, PDF, TXT, LOG, JSON (max 10 MB)</p>
+ 						<div id="dropZone" class="drop-area mb-3">
+ 							<div class="drop-area-content">
+ 								<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 16 16" fill="currentColor" class="text-muted mx-auto d-block mb-2"><path d="M5.967.723a2 2 0 0 1 1.647 0l1.365.567a2 2 0 0 0 1.572 0l1.366-.567A2 2 0 0 1 14.26 2.06l-.297 1.488a2 2 0 0 0 0 1.044l.297 1.488a2 2 0 0 1-1.343 2.337l-1.366.567a2 2 0 0 0-1.572 0l-1.365.567a2 2 0 0 1-1.647 0l-1.366-.567a2 2 0 0 0-1.572 0l-1.365.567A2 2 0 0 1 1.46 6.58l.297-1.488a2 2 0 0 0 0-1.044L1.46 2.56a2 2 0 0 1 1.343-2.337l1.366-.567zM8 5a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm-.5 3a.5.5 0 0 0-1 0v2.293l-1.146-1.147a.5.5 0 0 0-.708.708l2 2a.5.5 0 0 0 .708 0l2-2a.5.5 0 0 0-.708-.708L8.5 10.293V8z"/></svg>
+ 								<p class="text-muted text-center mb-0">Drag & drop files here, or click to browse</p>
+ 							</div>
+ 							<input type="file" name="file" class="form-control d-none" id="id_file" accept=".png,.jpg,.jpeg,.pdf,.txt,.log,.json">
+ 						</div>
+ 					</div>
+ 					<div class="modal-footer">
+ 						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+ 						<button type="submit" class="btn btn-primary">Upload</button>
+ 					</div>
+ 				</form>
+ 			</div>
+ 		</div>
+ 	</div>
+ 	{% endif %}
 
-	<!-- Comments section -->
+ 	<!-- Edit comment modal -->
+ 	{% if user.is_authenticated %}
+ 	<div class="modal fade" id="editCommentModal" tabindex="-1" aria-labelledby="editCommentModalLabel" aria-hidden="true">
+ 		<div class="modal-dialog">
+ 			<div class="modal-content">
+ 				<form method="post" id="editCommentForm">
+ 					{% csrf_token %}
+ 					<div class="modal-header">
+ 						<h5 class="modal-title" id="editCommentModalLabel">Edit Comment</h5>
+ 						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+ 					</div>
+ 					<div class="modal-body">
+ 						<input type="hidden" name="ticket_pk" id="editCommentTicketPk">
+ 						<div class="mb-3">
+ 							<label for="editCommentBody" class="form-label">Comment</label>
+ 							<textarea name="body" class="form-control" id="editCommentBody" rows="4" required></textarea>
+ 						</div>
+ 					</div>
+ 					<div class="modal-footer">
+ 						<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+ 						<button type="submit" class="btn btn-primary">Save changes</button>
+ 					</div>
+ 				</form>
+ 			</div>
+ 		</div>
+ 	</div>
+ 	{% endif %}
+
+ 	<!-- Comments section -->
 	<div class="card mt-4">
 		<div class="card-body">
 			<h2 class="h6 text-muted">Comments ({{ comments.paginator.count }})</h2>
 
-			{% for comment in comments %}
-				<div class="comment mb-3 pb-3{% if not forloop.last %} border-bottom{% endif %}">
-					<div class="d-flex justify-content-between align-items-start mb-1">
-						<strong class="comment-author">{{ comment.author.get_username|default:"—" }}</strong>
-						<small class="text-muted comment-date">{{ comment.created_at|naturaltime }}</small>
-					</div>
-					<p class="comment-body" style="white-space: pre-wrap">{{ comment.body|markdown }}</p>
-				</div>
+ 			{% for comment in comments %}
+ 				<div class="comment mb-3 pb-3{% if not forloop.last %} border-bottom{% endif %}" id="comment-{{ comment.pk }}">
+ 					<div class="d-flex justify-content-between align-items-start mb-1">
+ 						<div class="d-flex gap-2 align-items-center">
+ 							<strong class="comment-author">{{ comment.author.get_username|default:"—" }}</strong>
+ 							{% if comment.updated_at != comment.created_at %}
+ 								<small class="text-muted">(edited)</small>
+ 							{% endif %}
+ 						</div>
+ 						<div class="d-flex gap-1 align-items-center">
+ 							<small class="text-muted comment-date">{{ comment.created_at|naturaltime }}</small>
+ 							{% if user == comment.author or user.is_superuser %}
+ 								<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 comment-edit-btn" data-comment-id="{{ comment.pk }}" data-comment-body="{{ comment.body|escapejs }}" data-bs-toggle="modal" data-bs-target="#editCommentModal">Edit</button>
+ 								<form method="post" action="{% url 'ticket_comment_delete' comment.pk %}" class="d-inline" onsubmit="return confirm('Delete this comment?');">
+ 									{% csrf_token %}
+ 									<button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1">Delete</button>
+ 								</form>
+ 							{% endif %}
+ 						</div>
+ 					</div>
+ 					<p class="comment-body" style="white-space: pre-wrap">{{ comment.body|markdown }}</p>
+ 					{% if comment.edit_history.exists %}
+ 						<div class="edit-history mt-2">
+ 							<button type="button" class="btn btn-sm btn-link py-0 text-muted small text-decoration-none" data-bs-toggle="collapse" data-bs-target="#editHistory-{{ comment.pk }}">
+ 								Show {{ comment.edit_history.count }} edit{{ comment.edit_history.count|pluralize }} ▼
+ 							</button>
+ 							<div id="editHistory-{{ comment.pk }}" class="collapse">
+ 								{% for edit in comment.edit_history.all %}
+ 									<div class="edit-history-entry border-start border-2 border-secondary ps-2 mt-2">
+ 										<small class="text-muted">
+ 											Edited by {{ edit.actor.get_username|default:"—" }} at {{ edit.created_at|naturaltime }}
+ 										</small>
+ 										<div class="small mt-1">
+ 											{% if edit.old_body and edit.old_body != comment.body %}
+ 												<dl>
+ 													<dt class="text-muted small">Removed:</dt>
+ 													<dd class="text-danger small">{{ edit.old_body|truncatechars:200 }}</dd>
+ 												</dl>
+ 											{% endif %}
+ 											{% if edit.new_body != edit.old_body %}
+ 												<dl>
+ 													<dt class="text-muted small">Added:</dt>
+ 													<dd class="text-success small">{{ edit.new_body|truncatechars:200 }}</dd>
+ 												</dl>
+ 											{% endif %}
+ 										</div>
+ 									</div>
+ 								{% endfor %}
+ 							</div>
+ 						</div>
+ 					{% endif %}
+ 				</div>
 			{% empty %}
 				<p class="text-muted">No comments yet.</p>
 			{% endfor %}
