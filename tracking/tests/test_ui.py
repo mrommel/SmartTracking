@@ -137,14 +137,12 @@ class ReportsReleasesTests(TestCase):
     def test_reports_page(self):
         response = self.client.get(reverse("reports"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Coming Soon")
-        self.assertContains(response, "Reports are under development")
+        self.assertContains(response, "Select a project to view reports")
 
     def test_releases_page(self):
         response = self.client.get(reverse("releases"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Coming Soon")
-        self.assertContains(response, "Releases are under development")
+        self.assertContains(response, "Select a project to view releases")
 
 
 # ── Project list ─────────────────────────────────────────────────────────────

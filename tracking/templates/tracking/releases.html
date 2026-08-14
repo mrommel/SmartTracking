@@ -1,10 +1,94 @@
-{% extends "tracking/base.html" %}
+{% extends "tracking/base.html" %}{% load humanize dict_tags %}
 
 {% block content %}
-	<div class="text-center py-5">
-		<h1 class="display-4">Coming Soon</h1>
-		<p class="lead text-muted">Releases are under development.</p>
-		<p>We're building version control and release management features. Check back soon!</p>
-		<a class="btn btn-primary mt-3" href="?tab=overview">Back to Dashboard</a>
+	<div class="d-flex justify-content-between align-items-center mb-4">
+		<h1 class="h4 mb-0">Releases</h1>
+		{% if version_form and selected_project %}
+			<button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#versionFormCollapse">+ Add version</button>
+		{% endif %}
+		{% if selected_project %}
+			<div class="d-flex gap-2 ms-3">
+				<select class="form-select form-select-sm" id="releaseProject" onchange="location='{% url 'releases' %}?project=' + this.value;">
+					{% for proj in projects %}
+						<option value="{{ proj.key }}" {% if proj == selected_project %}selected{% endif %}>{{ proj.key }} — {{ proj.name }} ({{ proj.ticket_count }})</option>
+					{% endfor %}
+				</select>
+			</div>
+		{% endif %}
 	</div>
+
+	<div id="versionFormCollapse" class="collapse{% if not version_form %} d-none{% endif %}">
+		{% if version_form %}
+			<div class="card mb-4">
+				<div class="card-body">
+					<form method="post">
+						{% csrf_token %}
+						{{ version_form.as_p }}
+						<div class="d-flex gap-2">
+							<button type="submit" class="btn btn-primary">Create version</button>
+							<a href="{% url 'releases' %}" class="btn btn-secondary">Cancel</a>
+						</div>
+					</form>
+				</div>
+			</div>
+		{% endif %}
+	</div>
+
+	{% if selected_project %}
+		{% if versions %}
+			<div class="card">
+				<div class="card-body p-0">
+					<table class="table table-hover mb-0 align-middle">
+						<thead class="table-light">
+							<tr>
+								<th>Name</th>
+								<th>Target date</th>
+								<th>Release date</th>
+								<th>Status</th>
+								<th>Tickets</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for version in versions %}
+								<tr>
+									<td>
+										<a href="{% url 'ticket_list' %}?project={{ selected_project.key }}&fix_version={{ version.pk }}">{{ version.name }}</a>
+									</td>
+									<td>{{ version.target_date|date:"M d, Y"|default:"—" }}</td>
+									<td>{{ version.release_date|date:"M d, Y"|default:"—" }}</td>
+									<td>
+										{% if version.is_released %}
+											{% #badge variant="success" %}Released{% /badge %}
+										{% elif version.is_active %}
+											{% #badge variant="primary" %}Active{% /badge %}
+										{% else %}
+											{% #badge variant="secondary" %}Planned{% /badge %}
+										{% endif %}
+									</td>
+									<td>{% #badge pill=True %}{{ version.ticket_count }}{% /badge %}</td>
+									<td>
+										<div class="d-flex gap-1">
+											<a class="btn btn-sm btn-outline-secondary" href="{% url 'version_edit' version.pk %}">Edit</a>
+											<a class="btn btn-sm btn-outline-danger" href="{% url 'version_delete' version.pk %}">Delete</a>
+										</div>
+									</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		{% else %}
+			<div class="text-center py-4">
+				<p class="text-muted">No versions yet. Toggle the "+ Add version" button to create one.</p>
+			</div>
+		{% endif %}
+
+	{% else %}
+		<div class="text-center py-5">
+			<h4>Select a project to view releases</h4>
+			<p class="text-muted">Choose a project from the list above.</p>
+		</div>
+	{% endif %}
 {% endblock %}

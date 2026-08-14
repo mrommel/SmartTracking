@@ -1,4 +1,4 @@
-{% extends "tracking/base.html" %}{% load humanize type_badge %}
+{% extends "tracking/base.html" %}{% load humanize type_badge dict_tags %}
 
 {% block content %}
 	<nav aria-label="breadcrumb">
@@ -284,46 +284,157 @@
 		{% endif %}
 
 	{% elif tab == 'reports' %}
-		<div class="card">
-			<div class="card-body text-center py-5">
-				<h3>Coming soon</h3>
-				<p class="text-muted">Reports will be available here for {{ project.key }}.</p>
+		<div class="row g-3 mb-4">
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-success">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Total tickets</div>
+						<div class="display-6">{{ project.ticket_count }}</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-info">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Open</div>
+						<div class="display-6">{{ state_counts.open|default:0 }}</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-warning">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">In Progress</div>
+						<div class="display-6">{{ state_counts.in_progress|default:0 }}</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-danger">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Overdue</div>
+						<div class="display-6">{{ overdue_count|default:0 }}</div>
+					</div>
+				</div>
 			</div>
 		</div>
 
-	{% elif tab == 'components' %}
-		<div class="card">
-			<div class="card-body">
-				<h2 class="h6 text-muted mb-2">Components ({{ components|length }})</h2>
-				{% if components %}
+		<div class="row g-3 mb-4">
+			<div class="col-md-6">
+				<div class="card h-100">
+					<div class="card-header">Tickets by state</div>
+					<div class="card-body">
+						<canvas id="reportStateChart"></canvas>
+					</div>
+				</div>
+			</div>
+			<div class="col-md-6">
+				<div class="card h-100">
+					<div class="card-header">Tickets by component</div>
+					<div class="card-body">
+						<canvas id="reportComponentChart"></canvas>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="row g-3">
+			<div class="col-lg-5">
+				<div class="card h-100">
+					<div class="card-header">State breakdown</div>
 					<ul class="list-group list-group-flush mb-0">
-						{% for component in components %}
-							<li class="list-group-item px-0 py-1">
-								<div class="d-flex justify-content-between">
-									<strong>{{ component.name }}</strong>
-									<small class="text-muted">{{ component.tickets.count }} ticket{{ component.tickets.count|pluralize }}</small>
-								</div>
-								{% if component.description %}
-									<small class="text-muted">{{ component.description|truncatewords:15 }}</small>
-								{% endif %}
+						{% for state in Ticket.State %}
+							<li class="list-group-item d-flex justify-content-between align-items-center">
+								<a href="{% url 'ticket_list' %}?project={{ project.key }}&state={{ state.value }}" class="text-decoration-none">{{ state.label }}</a>
+								{% #badge pill=True %}{{ state_counts|getint:state.value }}{% /badge %}
 							</li>
 						{% endfor %}
 					</ul>
-				{% else %}
-					<p class="text-muted mb-0 small">No components. <a href="{% url 'component_create' pk=project.pk %}">Add one.</a></p>
-				{% endif %}
+				</div>
+			</div>
+
+			<div class="col-lg-7">
+				<div class="card h-100">
+					<div class="card-header">Assignee workload</div>
+					<table class="table table-hover mb-0 align-middle">
+						<thead class="table-light">
+							<tr>
+								<th>Assignee</th>
+								<th>Assigned</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for assignee, count in assignee_counts.items %}
+								<tr>
+									<td>{{ assignee }}</td>
+									<td>{% #badge pill=True %}{{ count }}{% /badge %}</td>
+								</tr>
+							{% empty %}
+								<tr><td class="text-muted">No assignee data.</td></tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
 			</div>
 		</div>
 
 	{% elif tab == 'releases' %}
-		<div class="card">
-			<div class="card-body text-center py-5">
-				<h3>Coming soon</h3>
-				<p class="text-muted">Releases will be available here for {{ project.key }}.</p>
-			</div>
+		<div class="d-flex justify-content-between align-items-center mb-4">
+			<h4 class="mb-0">Versions</h4>
+			<a class="btn btn-outline-primary btn-sm" href="{% url 'version_create' project.pk %}">+ Add version</a>
 		</div>
 
-	{% endif %}
+		{% if versions %}
+			<div class="card">
+				<div class="card-body p-0">
+					<table class="table table-hover mb-0 align-middle">
+						<thead class="table-light">
+							<tr>
+								<th>Name</th>
+								<th>Target date</th>
+								<th>Release date</th>
+								<th>Status</th>
+								<th>Tickets</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for version in versions %}
+								<tr>
+									<td>
+										<a href="{% url 'ticket_list' %}?project={{ project.key }}&fix_version={{ version.pk }}">{{ version.name }}</a>
+									</td>
+									<td>{{ version.target_date|date:"M d, Y"|default:"—" }}</td>
+									<td>{{ version.release_date|date:"M d, Y"|default:"—" }}</td>
+									<td>
+										{% if version.is_released %}
+											{% #badge variant="success" %}Released{% /badge %}
+										{% elif version.is_active %}
+											{% #badge variant="primary" %}Active{% /badge %}
+										{% else %}
+											{% #badge variant="secondary" %}Planned{% /badge %}
+										{% endif %}
+									</td>
+									<td>{% #badge pill=True %}{{ version.ticket_count }}{% /badge %}</td>
+									<td>
+										<div class="d-flex gap-1">
+											<a class="btn btn-sm btn-outline-secondary" href="{% url 'version_edit' version.pk %}">Edit</a>
+											<a class="btn btn-sm btn-outline-danger" href="{% url 'version_delete' version.pk %}">Delete</a>
+										</div>
+									</td>
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+			</div>
+		{% else %}
+			<div class="text-center py-4">
+				<p class="text-muted">No versions yet. <a href="{% url 'version_create' project.pk %}">Add the first one.</a></p>
+			</div>
+		{% endif %}
+
+{% endif %}
 
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 	<script>

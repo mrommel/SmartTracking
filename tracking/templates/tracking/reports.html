@@ -1,10 +1,115 @@
-{% extends "tracking/base.html" %}
+{% extends "tracking/base.html" %}{% load humanize dict_tags type_badge %}
 
 {% block content %}
-	<div class="text-center py-5">
-		<h1 class="display-4">Coming Soon</h1>
-		<p class="lead text-muted">Reports are under development.</p>
-		<p>We're building powerful analytics and reporting features. Check back soon!</p>
-		<a class="btn btn-primary mt-3" href="?tab=overview">Back to Dashboard</a>
+	<div class="d-flex justify-content-between align-items-center mb-4">
+		<h1 class="h4 mb-0">Reports</h1>
+		{% if selected_project %}
+			<div class="d-flex gap-2">
+				<select class="form-select form-select-sm" id="reportProject" onchange="location='{% url 'reports' %}?project=' + this.value;">
+					{% for proj in projects %}
+						<option value="{{ proj.key }}" {% if proj == selected_project %}selected{% endif %}>{{ proj.key }} — {{ proj.name }} ({{ proj.ticket_count }})</option>
+					{% endfor %}
+				</select>
+			</div>
+		{% endif %}
 	</div>
+
+	{% if selected_project %}
+		<div class="row g-3 mb-4">
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-success">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Total tickets</div>
+						<div class="display-6">{{ selected_project.ticket_count }}</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-info">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Open</div>
+						<div class="display-6">{{ state_counts.open|getint:"" }}</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-warning">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">In Progress</div>
+						<div class="display-6">{{ state_counts.in_progress|getint:"" }}</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-6 col-lg-3">
+				<div class="card h-100 border-danger">
+					<div class="card-body">
+						<div class="text-muted small text-uppercase">Overdue</div>
+						<div class="display-6">{{ overdue_count }}</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="row g-3 mb-4">
+			<div class="col-md-6">
+				<div class="card h-100">
+					<div class="card-header">Tickets by component</div>
+					<div class="card-body">
+						<canvas id="reportComponentChart"></canvas>
+					</div>
+				</div>
+			</div>
+			<div class="col-md-6">
+				<div class="card h-100">
+					<div class="card-header">Assignee workload</div>
+					<div class="card-body">
+						<ul class="list-group list-group-flush mb-0">
+							{% for assignee, count in assignee_counts.items %}
+								<li class="list-group-item d-flex justify-content-between align-items-center">
+									{{ assignee }}
+									{% #badge pill=True %}{{ count }}{% /badge %}
+								</li>
+							{% endfor %}
+						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+
+	{% else %}
+		<div class="text-center py-5">
+			<h4>Select a project to view reports</h4>
+			<p class="text-muted">Choose a project from the list above.</p>
+		</div>
+	{% endif %}
+
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+	<script>
+	{% if selected_project and component_counts %}
+	(function() {
+		const labels = [
+			{% for name, count in component_counts.items %}'{{ name }}',{% endfor %}
+		];
+		const data = [
+			{% for name, count in component_counts.items %}{{ count }},{% endfor %}
+		];
+		new Chart(document.getElementById('reportComponentChart'), {
+			type: 'bar',
+			data: {
+				labels: labels,
+				datasets: [{
+					label: 'Tickets',
+					data: data,
+					backgroundColor: '#0d6efd'
+				}]
+			},
+			options: {
+				responsive: true,
+				plugins: { legend: { display: false } },
+				scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+			}
+		});
+	})();
+	{% endif %}
+	</script>
 {% endblock %}

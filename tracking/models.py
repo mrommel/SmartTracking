@@ -267,6 +267,19 @@ class Ticket(models.Model):
 		verbose_name=_("labels"),
 	)
 	due_date = models.DateField(_("due date"), null=True, blank=True)
+	fix_version = models.ForeignKey(
+		"Version",
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		verbose_name=_("fix version"),
+	)
+	affects_versions = models.ManyToManyField(
+		"Version",
+		blank=True,
+		related_name="affected_tickets",
+		verbose_name=_("affects versions"),
+	)
 	relation_tickets = models.ManyToManyField(
 		"self",
 		blank=True,
@@ -495,6 +508,52 @@ class TicketActivity(models.Model):
 
 	def __str__(self) -> str:
 		return f"[{self.ticket}] {self.get_action_display()} by {self.actor}"
+
+
+class Version(models.Model):
+	"""A software version / release tracking which tickets are included."""
+
+	project = models.ForeignKey(
+		Project,
+		on_delete=models.CASCADE,
+		related_name="versions",
+		verbose_name=_("project"),
+	)
+	name = models.CharField(_("name"), max_length=100)
+	sprint = models.ForeignKey(
+		Sprint,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		verbose_name=_("sprint"),
+	)
+	target_date = models.DateField(_("target date"), null=True, blank=True)
+	release_date = models.DateField(_("release date"), null=True, blank=True)
+	description = models.TextField(_("description"), blank=True)
+	archived = models.BooleanField(_("archived"), default=False)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+
+	class Meta:
+		verbose_name = _("version")
+		verbose_name_plural = _("versions")
+		ordering = ["-release_date", "-target_date", "-created_at"]
+
+	def __str__(self) -> str:
+		return f"{self.project.key} — {self.name}"
+
+	@property
+	def is_active(self) -> bool:
+		"""In-progress versions have no release date and are not archived."""
+		from django.utils import timezone
+		return not self.archived and self.release_date is None
+
+	@property
+	def is_released(self) -> bool:
+		return self.release_date is not None
+
+	@property
+	def is_planned(self) -> bool:
+		return not self.archived and not self.is_released
 
 
 class TicketRelation(models.Model):

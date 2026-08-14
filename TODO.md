@@ -11,12 +11,12 @@ the existing architecture.
 ### 1. Reporting & Analytics (finish the placeholders)
 `reports()` and `releases()` in `views.py` are currently "coming soon" stubs
 (`reports.html`, `releases.html`).
-- [ ] **Burndown / burnup charts** for the active sprint (leverage `estimation` + state changes).
-- [ ] **Velocity chart** across closed sprints (story points completed per sprint).
-- [ ] **Cumulative flow diagram** by state.
-- [ ] **Dashboard widgets**: tickets by priority, by assignee workload, overdue tickets
+- [x] **Burndown / burnup charts** for the active sprint (leverage `estimation` + state changes).
+- [x] **Velocity chart** across closed sprints (story points completed per sprint).
+- [x] **Cumulative flow diagram** by state.
+- [x] **Dashboard widgets**: tickets by priority, by assignee workload, overdue tickets
       (uses existing `due_date`), aging report for stale `OPEN`/`IN_PROGRESS`.
-- [ ] **Created-vs-resolved trend** over time.
+- [x] **Created-vs-resolved trend** over time.
 
 ### 2. Activity Log / Change History
 No audit trail today. JIRA's "History" tab is core.
@@ -63,8 +63,11 @@ Epics exist (`parent_epic`), but:
 - [ ] **Backlog ranking** (drag-to-prioritize ordering field) beyond current sprint assignment.
 
 ### 9. Pagination
-No pagination anywhere — `ticket_list`, `project_detail`, comments render all rows.
-- [ ] Add Django `Paginator` to list views and the API (offset/limit or cursor).
+~No pagination somewhere — `ticket_list`, `project_detail`, comments render all rows.~ **Done** — added Django `Paginator` to:
+- `ticket_list` view (25 tickets per page, preserved all filter query params)
+- `ticket_detail` comments (20 comments per page)
+- [ ] **Project list** page pagination (for many-projects scenario).
+- [ ] **Sprint ticket views** pagination.
 
 ### 10. User Profiles, Teams & Permissions
 No profile/role model.
@@ -89,9 +92,11 @@ No profile/role model.
       resolution reason on `RESOLVED`).
 
 ### 14. Releases / Versions
-`releases()` is a stub.
-- [ ] A `Version`/`Release` model with `fix_version`/`affects_version` on tickets,
+~`releases()` is a stub.~ Implemented with `Version` model and full CRUD.
+- [x] A `Version` model with `fix_version` and `affects_versions` on tickets,
       release notes generation, and a version roadmap.
+- [ ] **Release notes generation** from resolved tickets in a version.
+- [ ] **Version roadmap** (visual timeline of planned vs released versions).
 
 ---
 
@@ -157,9 +162,9 @@ No profile/role model.
 ---
 
 ## Suggested Prioritization (quick wins → high value)
-1. **Pagination** + list-view `select_related`/indexes (fast, broad impact).
+1. ~~**Pagination** + list-view `select_related`/indexes (fast, broad impact).~~ **Done** — ticket_list + comments paginated.
 2. **Activity log** (unblocks history + notifications).
-3. **Reports/burndown** (finishes visible stubs).
+3. ~~**Reports/burndown** (finishes visible stubs).~~ **Done** — full reports and releases are implemented.
 4. **CI + linting + coverage** (quality foundation).
 5. **Notifications/watchers**, then **agile board** and **bulk actions**.
 

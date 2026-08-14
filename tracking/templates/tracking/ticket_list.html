@@ -71,7 +71,7 @@
 	<div class="card">
 		<table class="table table-hover mb-0 align-middle">
 			<div class="filter-summary small text-muted mb-2">
-				{{ tickets|length }} ticket{{ tickets.count|pluralize }}
+				{{ tickets.paginator.count }} ticket{{ tickets.paginator.count|pluralize }}
 				{% if current_query or current_project or current_state or current_component or current_label or current_assignee %} · <a href="{% url 'ticket_list' %}">Clear all filters</a>{% endif %}
 			</div>
 
@@ -119,4 +119,43 @@
 			</tbody>
 		</table>
 	</div>
+
+	{% if tickets.has_other_pages %}
+		<nav aria-label="Ticket pagination">
+			<ul class="pagination justify-content-center mt-3 mb-0">
+				{% if tickets.has_previous %}
+					<li class="page-item">
+						<a class="page-link" href="?page={{ tickets.previous_page_number }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">Previous</a>
+					</li>
+				{% else %}
+					<li class="page-item disabled">
+						<span class="page-link">Previous</span>
+					</li>
+				{% endif %}
+
+				{% for num in tickets.paginator.page_range %}
+					{% if tickets.number == num %}
+						<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+					{% elif num == 1 or num == tickets.paginator.num_pages or num|add:"-1" == tickets.number or num|add:"1" == tickets.number %}
+						<li class="page-item"><a class="page-link" href="?page={{ num }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">{{ num }}</a></li>
+					{% elif num|add:"-1" == tickets.number or num|add:"1" == tickets.number %}
+						<li class="page-item disabled"><span class="page-link">…</span></li>
+					{% endif %}
+				{% endfor %}
+
+				{% if tickets.has_next %}
+					<li class="page-item">
+						<a class="page-link" href="?page={{ tickets.next_page_number }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">Next</a>
+					</li>
+				{% else %}
+					<li class="page-item disabled">
+						<span class="page-link">Next</span>
+					</li>
+				{% endif %}
+			</ul>
+		</nav>
+		<div class="text-center text-muted small mt-1">
+			Page {{ tickets.number }} of {{ tickets.paginator.num_pages }}
+		</div>
+	{% endif %}
 {% endblock %}

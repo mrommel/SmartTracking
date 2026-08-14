@@ -259,7 +259,7 @@
 	<!-- Comments section -->
 	<div class="card mt-4">
 		<div class="card-body">
-			<h2 class="h6 text-muted">Comments ({{ comments|length }})</h2>
+			<h2 class="h6 text-muted">Comments ({{ comments.paginator.count }})</h2>
 
 			{% for comment in comments %}
 				<div class="comment mb-3 pb-3{% if not forloop.last %} border-bottom{% endif %}">
@@ -272,6 +272,42 @@
 			{% empty %}
 				<p class="text-muted">No comments yet.</p>
 			{% endfor %}
+
+			{% if comments.has_other_pages %}
+				<nav aria-label="Comment pagination">
+					<ul class="pagination justify-content-center mt-3 mb-3">
+						{% if comments.has_previous %}
+							<li class="page-item">
+								<a class="page-link" href="?comments_page={{ comments.previous_page_number }}">Previous</a>
+							</li>
+						{% else %}
+							<li class="page-item disabled">
+								<span class="page-link">Previous</span>
+							</li>
+						{% endif %}
+
+						{% for num in comments.paginator.page_range %}
+							{% if comments.number == num %}
+								<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+							{% elif num == 1 or num == comments.paginator.num_pages or num|add:"-1" == comments.number or num|add:"1" == comments.number %}
+								<li class="page-item"><a class="page-link" href="?comments_page={{ num }}">{{ num }}</a></li>
+							{% elif num|add:"-1" == comments.number or num|add:"1" == comments.number %}
+								<li class="page-item disabled"><span class="page-link">…</span></li>
+							{% endif %}
+						{% endfor %}
+
+						{% if comments.has_next %}
+							<li class="page-item">
+								<a class="page-link" href="?comments_page={{ comments.next_page_number }}">Next</a>
+							</li>
+						{% else %}
+							<li class="page-item disabled">
+								<span class="page-link">Next</span>
+							</li>
+						{% endif %}
+					</ul>
+				</nav>
+			{% endif %}
 
 			{% if user.is_authenticated %}
 				<hr>

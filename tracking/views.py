@@ -17,13 +17,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from django.core.paginator import Paginator
 
 from .forms import (
 	AttachmentForm, CommentForm, ComponentDeleteForm, ComponentForm,
 	LabelDeleteForm, LabelForm, ProjectForm, SprintCloseForm, SprintDeleteForm,
 	SprintForm, TicketForm, TicketTransitionForm,
 )
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation, Version
 
 
 def _dashboard_tab_context(project: Project, tickets: models.QuerySet[Ticket], request: HttpRequest, tab: str) -> dict[str, Any]:
@@ -225,19 +226,78 @@ def dashboard(request: HttpRequest) -> HttpResponseBase:
 
 @login_required
 def reports(request: HttpRequest) -> HttpResponseBase:
-	"""Reports page (coming soon)."""
+	"""Reports page with project-level analytics."""
+	projects = Project.objects.annotate(ticket_count=Count("tickets")).order_by("key")
+	project_key = request.GET.get("project")
+	selected_project = None
+	today = timezone.localdate()
+
+	state_counts = {"open": 0, "in_progress": 0, "resolved": 0, "closed": 0}
+	component_counts = {}
+	assignee_counts = {}
+	overdue_count = 0
+
+	if project_key:
+		selected_project = get_object_or_404(Project, key=project_key)
+		tickets = Ticket.objects.filter(project=selected_project)
+		for row in tickets.values("state").annotate(count=Count("id")):
+			state_counts[row["state"]] = row["count"]
+		for row in tickets.values("components__name").annotate(count=Count("id")).order_by("-count"):
+			component_counts[row["components__name"]] = row["count"]
+		for row in tickets.values("assignee__username").annotate(count=Count("id")).order_by("-count"):
+			assignee_counts[row["assignee__username"]] = row["count"]
+		overdue_count = tickets.filter(
+			due_date__isnull=False,
+			due_date__lt=today,
+			state__in=[Ticket.State.OPEN, Ticket.State.IN_PROGRESS],
+		).count()
+
 	return render(request, "tracking/reports.html", {
 		"title": "Reports",
 		"tab": "reports",
+		"projects": projects,
+		"selected_project": selected_project,
+		"state_counts": state_counts,
+		"component_counts": component_counts,
+		"assignee_counts": assignee_counts,
+		"overdue_count": overdue_count,
+		"today": today,
 	})
 
 
 @login_required
 def releases(request: HttpRequest) -> HttpResponseBase:
-	"""Releases page (coming soon)."""
+	"""Versions / releases page with CRUD."""
+	projects = Project.objects.annotate(ticket_count=Count("tickets")).order_by("key")
+	project_key = request.GET.get("project")
+	selected_project = None
+	versions = Version.objects.none()
+	version_form = None
+
+	if project_key:
+		selected_project = get_object_or_404(Project, key=project_key)
+		versions = selected_project.versions.annotate(
+			ticket_count=Count("affected_tickets")
+		).order_by("-release_date", "-target_date", "-created_at")
+		if request.method == "POST":
+			from .forms import VersionForm
+			version_form = VersionForm(request.POST, project=selected_project, data=request.POST)
+			if version_form.is_valid():
+				version = version_form.save(commit=False)
+				version.project = selected_project
+				version.save()
+				messages.success(request, f"Version '{version.name}' created.")
+				return redirect("releases", project=project_key)
+		else:
+			version_form = VersionForm(project=selected_project)
+
 	return render(request, "tracking/releases.html", {
 		"title": "Releases",
 		"tab": "releases",
+		"projects": projects,
+		"selected_project": selected_project,
+		"versions": versions,
+		"version_form": version_form,
 	})
 
 
@@ -292,6 +352,35 @@ def project_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 
 	if tab == "components":
 		context["components"] = components
+
+	if tab == "reports":
+		today = timezone.localdate()
+		state_counts = {}
+		component_counts = {}
+		assignee_counts = {}
+		for row in tickets.values("state").annotate(count=Count("id")):
+			state_counts[row["state"]] = row["count"]
+		for row in tickets.values("components__name").annotate(count=Count("id")).order_by("-count"):
+			component_counts[row["components__name"]] = row["count"]
+		for row in tickets.values("assignee__username").annotate(count=Count("id")).order_by("-count"):
+			assignee_counts[row["assignee__username"]] = row["count"]
+		overdue_count = tickets.filter(
+			due_date__isnull=False,
+			due_date__lt=today,
+			state__in=[Ticket.State.OPEN, Ticket.State.IN_PROGRESS],
+		).count()
+		context.update({
+			"state_counts": state_counts,
+			"component_counts": component_counts,
+			"assignee_counts": assignee_counts,
+			"overdue_count": overdue_count,
+		})
+
+	if tab == "releases":
+		context["versions"] = (
+			project.versions.annotate(ticket_count=Count("affected_tickets"))
+			.order_by("-release_date", "-target_date", "-created_at")
+		)
 
 	return render(request, "tracking/project_detail.html", context)
 
@@ -369,9 +458,14 @@ def ticket_list(request: HttpRequest) -> HttpResponseBase:
 	elif assignee:
 		tickets = tickets.filter(assignee__pk=assignee)
 
+	tickets = tickets.order_by("-updated_at")
+	page = request.GET.get("page", 1)
+	paginator = Paginator(tickets, 25)
+	ticket_page = paginator.get_page(page)
+
 	return render(request, "tracking/ticket_list.html", {
 		"title": "Tickets",
-		"tickets": tickets,
+		"tickets": ticket_page,
 		"projects": Project.objects.all(),
 		"states": Ticket.State.choices,
 		"current_project": project_key or "",
@@ -404,12 +498,15 @@ def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 		else:
 			rel.label = ticket._get_reverse_label(rel.relation_type)
 	activities = ticket.activities.select_related("actor").all()
+	page = request.GET.get("comments_page", 1)
+	comment_paginator = Paginator(comments, 20)
+	comment_page = comment_paginator.get_page(page)
 	return render(request, "tracking/ticket_detail.html", {
 		"title": ticket.title,
 		"ticket": ticket,
 		"transition_form": TicketTransitionForm(ticket=ticket),
 		"comment_form": CommentForm(),
-		"comments": comments,
+		"comments": comment_page,
 		"attachments": attachments,
 		"relations": relations,
 		"available_tickets": ticket.available_rels_for("current_project"),
@@ -940,3 +1037,71 @@ def ticket_attachment_serve(request: HttpRequest, pk: int, attachment_pk: int) -
 	except (FileNotFoundError, ValueError) as e:
 		messages.error(request, "Attachment file not found.")
 		return redirect("ticket_detail", pk=attachment.ticket.pk)
+
+
+@login_required
+def version_create(request: HttpRequest, project_pk: int) -> HttpResponseBase:
+	"""Create a new version for a project."""
+	project = get_object_or_404(Project, pk=project_pk)
+	from .forms import VersionForm as VersionCreateForm
+	if request.method == "POST":
+		form = VersionCreateForm(request.POST, project=project, data=request.POST)
+		if form.is_valid():
+			version = form.save(commit=False)
+			version.project = project
+			version.save()
+			messages.success(request, f"Version '{version.name}' created.")
+			return redirect("releases", project=project.key)
+	else:
+		form = VersionCreateForm(project=project)
+	return render(request, "tracking/version_form.html", {
+		"title": f"New version — {project.key}",
+		"form": form,
+		"project": project,
+	})
+
+
+@login_required
+def version_edit(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Edit an existing version."""
+	version = get_object_or_404(Version, pk=pk)
+	project = version.project
+	from .forms import VersionForm as VersionEditForm
+	if request.method == "POST":
+		form = VersionEditForm(request.POST, instance=version, project=project)
+		if form.is_valid():
+			version = form.save()
+			messages.success(request, f"Version '{version.name}' updated.")
+			return redirect("releases", project=project.key)
+	else:
+		form = VersionEditForm(instance=version, project=project)
+	return render(request, "tracking/version_form.html", {
+		"title": f"Edit version — {project.key}",
+		"form": form,
+		"project": project,
+		"version": version,
+	})
+
+
+@login_required
+def version_delete(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Delete a version."""
+	version = get_object_or_404(Version, pk=pk)
+	project = version.project
+	from .forms import VersionDeleteForm as VersionDeleteFormCls
+	if request.method == "POST":
+		form = VersionDeleteFormCls(request.POST, project=project)
+		if form.is_valid():
+			selected_version = form.cleaned_data["version"]
+			name = selected_version.name
+			selected_version.delete()
+			messages.success(request, f"Version '{name}' deleted.")
+			return redirect("releases", project=project.key)
+	else:
+		form = VersionDeleteFormCls(project=project)
+	return render(request, "tracking/version_delete.html", {
+		"title": f"Delete version — {project.key}",
+		"form": form,
+		"project": project,
+		"version": version,
+	})

@@ -1,7 +1,7 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketRelation
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, Version
 
 
 class ProjectForm(forms.ModelForm):
@@ -274,3 +274,49 @@ class AttachmentForm(forms.ModelForm):
 		model = Attachment
 		fields = ["file", "name"]
 		widgets = {"file": forms.ClearableFileInput(attrs={"class": "form-control"})}
+
+
+class VersionForm(forms.ModelForm):
+	"""Create / edit a version."""
+
+	class Meta:
+		model = Version
+		fields = [
+			"name",
+			"sprint",
+			"target_date",
+			"release_date",
+			"description",
+			"archived",
+		]
+		widgets = {
+			"description": forms.Textarea(attrs={"rows": 3}),
+			"target_date": forms.DateInput(attrs={"type": "date"}),
+			"release_date": forms.DateInput(attrs={"type": "date"}),
+			"sprint": forms.Select(attrs={"class": "form-select"}),
+		}
+
+	def __init__(self, *args, project=None, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.project = project
+		if project is not None:
+			self.fields["name"].widget.attrs["placeholder"] = f"e.g. v1.0"
+			self.fields["sprint"].queryset = project.sprints.all().order_by("order")
+
+	def clean_name(self):
+		name = self.cleaned_data["name"]
+		if self.instance.pk is None and self.project is not None:
+			if Version.objects.filter(project=self.project, name=name).exists():
+				raise forms.ValidationError(f"A version named '{name}' already exists.")
+		return name
+
+
+class VersionDeleteForm(forms.Form):
+	"""Delete a version."""
+
+	version = forms.ModelChoiceField(queryset=Version.objects.none(), label="Version")
+
+	def __init__(self, *args, project=None, **kwargs):
+		super().__init__(*args, **kwargs)
+		if project is not None:
+			self.fields["version"].queryset = project.versions.all()
