@@ -937,3 +937,22 @@ class TicketDeleteViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(Ticket.objects.filter(pk=ticket.pk).exists())
+
+
+# ── Health check ──────────────────────────────────────────────────────────────
+
+
+class HealthCheckTests(TestCase):
+    """The health check endpoint is public and returns a JSON status."""
+
+    def test_health_check_returns_200(self):
+        response = self.client.get(reverse("health_check"))
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "ok")
+
+    def test_health_check_accessible_without_login(self):
+        """Anonymous access must not be rejected."""
+        response = self.client.get(reverse("health_check"))
+        self.assertNotEqual(response.status_code, 302)
+        self.assertContains(response, '"status"')

@@ -12,6 +12,8 @@ urlpatterns = [
     # Authentication (Django's built-in login/logout views).
     path('login/', auth_views.LoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    # Health check (public, no authentication required).
+    path('health/', views.health_check, name='health_check'),
 	path('projects/', views.project_list, name='project_list'),
 	path('projects/<int:pk>/', views.project_detail, name='project_detail'),
 	path('projects/<int:pk>/edit/', views.project_edit, name='project_edit'),

@@ -150,7 +150,7 @@ No profile/role model.
 ### 8. Observability
 - [ ] Structured **logging** config and request logging.
 - [ ] Error monitoring (Sentry) wired via env.
-- [ ] Health-check endpoint.
+- [x] Health-check endpoint (`GET /health/` → returns `{"status": "ok"}` at 200, or 503 on DB failure; public access).
 
 ### 9. Data integrity & migrations
 - [ ] Add model-level `constraints` (e.g. `CheckConstraint` for one active sprint,

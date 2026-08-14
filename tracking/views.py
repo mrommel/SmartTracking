@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.db import models
 from django.db.models import Count, Q
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -1547,3 +1547,21 @@ def ticket_bulk_action(request: HttpRequest) -> HttpResponseBase:
 			"{}" .format(f" {err_count} failed." if err_count else ""))
 
 	return redirect("ticket_list")
+
+
+# ── Health check ──────────────────────────────────────────────────────────────
+
+
+def health_check(request: HttpRequest) -> HttpResponse:
+	"""Minimal health-check endpoint.
+
+	A Pok health probe should GET this path:  the application returns 200 with
+	``{"status": "ok"}`` when the DB is reachable; otherwise 503.
+
+	Unlike the rest of the views, this call is *not* login-required.
+	"""
+	try:
+		Project.objects.aggregate(_ok_count=Count("id"))["_ok_count"]
+	except Exception:
+		return JsonResponse({"status": "error"}, status=503)
+	return JsonResponse({"status": "ok"})
