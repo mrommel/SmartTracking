@@ -10,14 +10,19 @@ The state machine is *not* re-implemented here: state changes go through
 
 Routes are wired in ``tracking/urls.py`` under ``/tracking/api/``.
 """
+from __future__ import annotations
 
 import hmac
 import json
+from collections.abc import Callable
 from functools import wraps
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.db.models import Q
-from django.http import JsonResponse
+from django.db.models.query import QuerySet
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http.response import HttpResponseBase
 from django.shortcuts import get_object_or_404
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
@@ -25,10 +30,15 @@ from django.views.decorators.http import require_http_methods
 
 from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation
 
+if TYPE_CHECKING:
+  from typing import ParamSpec
+
+  _P = ParamSpec("_P")
+
 
 # --- Authentication --------------------------------------------------------
 
-def _token_ok(request):
+def _token_ok(request: HttpRequest) -> bool:
 	"""True if the request carries the configured API bearer token."""
 	expected = settings.TRACKING_API_TOKEN
 	if not expected:
@@ -43,7 +53,7 @@ def _token_ok(request):
 	return bool(provided) and hmac.compare_digest(provided, expected)
 
 
-def require_api_auth(view):
+def require_api_auth(view: Callable[..., HttpResponseBase]) -> Callable[..., HttpResponseBase]:
 	"""Allow either a logged-in session or a valid API token.
 
 	MCP clients authenticate with ``Authorization: Bearer <TRACKING_API_TOKEN>``
@@ -51,7 +61,7 @@ def require_api_auth(view):
 	"""
 
 	@wraps(view)
-	def wrapper(request, *args, **kwargs):
+	def wrapper(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponseBase:
 		if request.user.is_authenticated or _token_ok(request):
 			return view(request, *args, **kwargs)
 		response = JsonResponse({"error": "Authentication required."}, status=401)
@@ -63,7 +73,7 @@ def require_api_auth(view):
 
 # --- Serialization helpers -------------------------------------------------
 
-def serialize_project(project):
+def serialize_project(project: Project) -> dict[str, Any]:
 	return {
 		"key": project.key,
 		"name": project.name,
@@ -72,7 +82,7 @@ def serialize_project(project):
 	}
 
 
-def serialize_ticket(ticket):
+def serialize_ticket(ticket: Ticket) -> dict[str, Any]:
 	return {
 		"id": ticket.pk,
 		"project": ticket.project.key,
@@ -112,7 +122,7 @@ def serialize_ticket(ticket):
 	}
 
 
-def serialize_relation(relation):
+def serialize_relation(relation: TicketRelation) -> dict[str, Any]:
 	return {
 		"id": relation.pk,
 		"subject": relation.subject.pk,
@@ -123,7 +133,7 @@ def serialize_relation(relation):
 	}
 
 
-def serialize_comment(comment):
+def serialize_comment(comment: Comment) -> dict[str, Any]:
 	return {
 		"id": comment.pk,
 		"ticket": comment.ticket.pk,
@@ -134,7 +144,7 @@ def serialize_comment(comment):
 	}
 
 
-def serialize_component(component):
+def serialize_component(component: Component) -> dict[str, Any]:
 	return {
 		"id": component.pk,
 		"project": component.project.key,
@@ -144,7 +154,7 @@ def serialize_component(component):
 	}
 
 
-def serialize_label(label):
+def serialize_label(label: Label) -> dict[str, Any]:
 	return {
 		"id": label.pk,
 		"project": label.project.key,
@@ -155,7 +165,7 @@ def serialize_label(label):
 	}
 
 
-def serialize_attachment(attachment):
+def serialize_attachment(attachment: Attachment) -> dict[str, Any]:
 	from django.conf import settings
 	return {
 		"id": attachment.pk,
@@ -167,14 +177,14 @@ def serialize_attachment(attachment):
 	}
 
 
-def _parse_json(request):
+def _parse_json(request: HttpRequest) -> dict[str, Any]:
 	"""Return the parsed JSON body, or raise ``ValueError`` on bad input."""
 	if not request.body:
 		return {}
 	return json.loads(request.body)
 
 
-def _error(message, status=400, **extra):
+def _error(message: str, status: int = 400, **extra: Any) -> JsonResponse:
 	return JsonResponse({"error": message, **extra}, status=status)
 
 
@@ -182,7 +192,7 @@ def _error(message, status=400, **extra):
 
 @require_api_auth
 @require_http_methods(["GET"])
-def meta(request):
+def meta(request: HttpRequest) -> JsonResponse:
 	"""Expose enums and the state machine so a client can self-describe.
 
 	Handy for MCP: an agent can read this once to learn valid values and the
@@ -210,7 +220,7 @@ def meta(request):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "POST"])
-def project_collection(request):
+def project_collection(request: HttpRequest) -> HttpResponseBase:
 	if request.method == "GET":
 		projects = Project.objects.all().order_by("key")
 		return JsonResponse(
@@ -238,7 +248,7 @@ def project_collection(request):
 
 @require_api_auth
 @require_http_methods(["GET"])
-def project_detail(request, key):
+def project_detail(request: HttpRequest, key: str) -> JsonResponse:
 	project = get_object_or_404(Project, key=key.upper())
 	return JsonResponse(serialize_project(project))
 
@@ -248,7 +258,7 @@ def project_detail(request, key):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "POST"])
-def ticket_collection(request):
+def ticket_collection(request: HttpRequest) -> HttpResponseBase:
 	if request.method == "GET":
 		tickets = Ticket.objects.select_related("project", "assignee", "reporter")
 		project_key = request.GET.get("project")
@@ -339,7 +349,7 @@ def ticket_collection(request):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "PATCH"])
-def ticket_detail(request, pk):
+def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 	ticket = get_object_or_404(
 		Ticket.objects.select_related("project", "assignee", "reporter"), pk=pk
 	)
@@ -381,7 +391,7 @@ def ticket_detail(request, pk):
 				return _error(f"Parent epic ticket not found.", status=404)
 		else:
 			data["parent_epic"] = None
-	changed = []
+	changed: list[str] = []
 	for field in updatable & set(data):
 		value = data[field]
 		if field == "type" and value not in Ticket.Type.values:
@@ -440,7 +450,7 @@ def ticket_detail(request, pk):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["POST"])
-def ticket_transition(request, pk):
+def ticket_transition(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Move a ticket to a new state, honouring ``Ticket.TRANSITIONS``."""
 	ticket = get_object_or_404(Ticket, pk=pk)
 	try:
@@ -475,7 +485,7 @@ def ticket_transition(request, pk):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "POST"])
-def comment_collection(request):
+def comment_collection(request: HttpRequest) -> HttpResponseBase:
 	"""List or create comments on a ticket."""
 	ticket_pk = request.GET.get("ticket")
 	if not ticket_pk:
@@ -514,7 +524,7 @@ def comment_collection(request):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "POST"])
-def component_collection(request):
+def component_collection(request: HttpRequest) -> HttpResponseBase:
 	"""List or create components for a project."""
 	project_key = request.GET.get("project")
 	if not project_key:
@@ -550,7 +560,7 @@ def component_collection(request):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "PATCH", "DELETE"])
-def component_detail(request, pk):
+def component_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Retrieve, update, or delete a single component."""
 	component = get_object_or_404(Component, pk=pk)
 
@@ -563,7 +573,7 @@ def component_detail(request, pk):
 		except (ValueError, json.JSONDecodeError):
 			return _error("Request body must be valid JSON.")
 
-		changed = []
+		changed: list[str] = []
 		for field in ("name", "description"):
 			if field in data:
 				setattr(component, field, data[field])
@@ -583,7 +593,7 @@ def component_detail(request, pk):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "POST"])
-def label_collection(request):
+def label_collection(request: HttpRequest) -> HttpResponseBase:
 	"""List or create labels for a project."""
 	project_key = request.GET.get("project")
 	if not project_key:
@@ -622,7 +632,7 @@ def label_collection(request):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "POST"])
-def attachment_collection(request):
+def attachment_collection(request: HttpRequest) -> HttpResponseBase:
 	"""List or upload attachments on a ticket."""
 	ticket_pk = request.GET.get("ticket")
 	if not ticket_pk:
@@ -667,7 +677,7 @@ def attachment_collection(request):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "DELETE"])
-def attachment_detail(request, pk):
+def attachment_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 	attachment = get_object_or_404(Attachment, pk=pk)
 	if request.method == "GET":
 		return JsonResponse(serialize_attachment(attachment))
@@ -683,7 +693,7 @@ def attachment_detail(request, pk):
 
 # --- Sprints --------------------------------------------------------------
 
-def serialize_sprint(sprint):
+def serialize_sprint(sprint: Sprint) -> dict[str, Any]:
 	"""Return a dict for a sprint."""
 	return {
 		"id": sprint.pk,
@@ -701,7 +711,7 @@ def serialize_sprint(sprint):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET"])
-def sprint_collection(request, project_key):
+def sprint_collection(request: HttpRequest, project_key: str) -> JsonResponse:
 	"""Return all sprints for a project."""
 	project = get_object_or_404(Project, key=project_key.upper())
 	return JsonResponse({
@@ -715,7 +725,7 @@ def sprint_collection(request, project_key):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET"])
-def active_sprint_tickets(request, project_key):
+def active_sprint_tickets(request: HttpRequest, project_key: str) -> JsonResponse:
 	"""Return the tickets of the project's active sprint.
 
 	A project has at most one active sprint. When no sprint is active, this
@@ -723,7 +733,7 @@ def active_sprint_tickets(request, project_key):
 	"""
 	project = get_object_or_404(Project, key=project_key.upper())
 	sprint = project.sprints.filter(is_active=True).first()
-	tickets = []
+	tickets: list[dict[str, Any]] = []
 	if sprint is not None:
 		ticket_qs = Ticket.objects.filter(sprint=sprint).select_related(
 			"project", "assignee", "reporter"
@@ -738,7 +748,7 @@ def active_sprint_tickets(request, project_key):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["POST"])
-def sprint_create(request, project_key):
+def sprint_create(request: HttpRequest, project_key: str) -> HttpResponseBase:
 	"""Create a sprint in a project."""
 	project = get_object_or_404(Project, key=project_key.upper())
 	try:
@@ -766,7 +776,7 @@ def sprint_create(request, project_key):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["GET", "PATCH", "DELETE"])
-def sprint_detail(request, pk):
+def sprint_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Retrive, update, or delete a single sprint."""
 	sprint = get_object_or_404(Sprint, pk=pk)
 	if request.method == "GET":
@@ -793,7 +803,7 @@ def sprint_detail(request, pk):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["POST"])
-def sprint_close(request, project_key, sprint_pk):
+def sprint_close(request: HttpRequest, project_key: str, sprint_pk: int) -> JsonResponse:
 	"""Close the active sprint (deactivate and set end_date to today).
 
 	Accepts optional JSON body with:
@@ -811,7 +821,7 @@ def sprint_close(request, project_key, sprint_pk):
 	action = body.get("action", "backlog")
 	if action not in ("backlog", "sprint", "keep"):
 		return _error(f"Invalid action '{action}'. Must be backtrack, sprint, or keep.", status=400)
-	target_sprint_id = None
+	target_sprint_id: int | None = None
 	if action == "sprint":
 		target_sprint_id = body.get("target_sprint")
 		if not target_sprint_id:
@@ -831,7 +841,7 @@ def sprint_close(request, project_key, sprint_pk):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["POST"])
-def ticket_relation_create(request, ticket_id):
+def ticket_relation_create(request: HttpRequest, ticket_id: int) -> HttpResponseBase:
 	"""Create a relation from one ticket to another."""
 	ticket = get_object_or_404(Ticket, pk=ticket_id)
 	try:
@@ -871,7 +881,7 @@ def ticket_relation_create(request, ticket_id):
 @csrf_exempt
 @require_api_auth
 @require_http_methods(["DELETE"])
-def ticket_relation_delete_api(request, pk):
+def ticket_relation_delete_api(request: HttpRequest, pk: int) -> JsonResponse:
 	"""Delete a ticket relation by its ID."""
 	relation = get_object_or_404(TicketRelation, pk=pk)
 	ticket = relation.subject
@@ -895,7 +905,7 @@ def ticket_relation_delete_api(request, pk):
 
 # --- URL patterns (included from tracking/urls.py) -------------------------
 
-urlpatterns = [
+urlpatterns: list[path] = [
 	path("meta/", meta, name="api_meta"),
 	path("projects/", project_collection, name="api_project_collection"),
 	path("projects/<str:key>/", project_detail, name="api_project_detail"),

@@ -1,17 +1,21 @@
+from __future__ import annotations
+
 from datetime import timedelta
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
-from django.http import HttpResponse
-from django.shortcuts import render
-from django.utils import timezone
-
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.db import models
 from django.db.models import Count, Q
-from django.shortcuts import get_object_or_404, redirect
+from django.db.models.query import QuerySet
+from django.http import HttpRequest, HttpResponse
+from django.http.response import HttpResponseBase
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .forms import (
@@ -22,7 +26,7 @@ from .forms import (
 from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation
 
 
-def _dashboard_tab_context(project, tickets, request, tab):
+def _dashboard_tab_context(project: Project, tickets: models.QuerySet[Ticket], request: HttpRequest, tab: str) -> dict[str, Any]:
 	"""Shared context for dashboard tabs filtered by project."""
 	today = timezone.localdate()
 	seven_days_ago = today - timedelta(days=7)
@@ -187,7 +191,7 @@ def _dashboard_tab_context(project, tickets, request, tab):
 
 
 @login_required
-def dashboard(request):
+def dashboard(request: HttpRequest) -> HttpResponseBase:
 	"""Landing page: lists projects, then tab navigation per selected project."""
 	projects = Project.objects.annotate(ticket_count=Count("tickets")).order_by("key")
 	project_key = request.GET.get("project_key")
@@ -220,7 +224,7 @@ def dashboard(request):
 
 
 @login_required
-def reports(request):
+def reports(request: HttpRequest) -> HttpResponseBase:
 	"""Reports page (coming soon)."""
 	return render(request, "tracking/reports.html", {
 		"title": "Reports",
@@ -229,7 +233,7 @@ def reports(request):
 
 
 @login_required
-def releases(request):
+def releases(request: HttpRequest) -> HttpResponseBase:
 	"""Releases page (coming soon)."""
 	return render(request, "tracking/releases.html", {
 		"title": "Releases",
@@ -238,7 +242,7 @@ def releases(request):
 
 
 @login_required
-def project_list(request):
+def project_list(request: HttpRequest) -> HttpResponseBase:
 	"""Show all projects with their ticket counts."""
 	projects = Project.objects.annotate(ticket_count=Count("tickets")).order_by("key")
 	return render(request, "tracking/project_list.html", {
@@ -248,7 +252,7 @@ def project_list(request):
 
 
 @login_required
-def project_detail(request, pk):
+def project_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Show a project with its tabbed views (Overview, Backlog, Active Sprint, Reports, Components, Releases)."""
 	tab = request.GET.get("tab", "overview")
 	valid_tabs = ["overview", "backlog", "active_sprint", "reports", "components", "releases"]
@@ -293,7 +297,7 @@ def project_detail(request, pk):
 
 
 @login_required
-def project_create(request):
+def project_create(request: HttpRequest) -> HttpResponseBase:
 	"""Create a new project."""
 	if request.method == "POST":
 		form = ProjectForm(request.POST)
@@ -311,7 +315,7 @@ def project_create(request):
 
 
 @login_required
-def project_edit(request, pk):
+def project_edit(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Edit an existing project (name, description only)."""
 	project = get_object_or_404(Project, pk=pk)
 	if request.method == "POST":
@@ -331,7 +335,7 @@ def project_edit(request, pk):
 
 
 @login_required
-def ticket_list(request):
+def ticket_list(request: HttpRequest) -> HttpResponseBase:
 	"""List tickets, optionally filtered by project, state, component, and label."""
 	tickets = Ticket.objects.select_related("project", "assignee")
 
@@ -385,7 +389,7 @@ def ticket_list(request):
 
 
 @login_required
-def ticket_detail(request, pk):
+def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Show a single ticket with its allowed state transitions, comments, and attachments."""
 	ticket = get_object_or_404(
 		Ticket.objects.select_related("project", "assignee", "reporter", "parent_epic"), pk=pk
@@ -417,7 +421,7 @@ def ticket_detail(request, pk):
 
 
 @login_required
-def ticket_edit(request, pk):
+def ticket_edit(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Edit an existing ticket."""
 	ticket = get_object_or_404(Ticket, pk=pk)
 	if request.method == "POST":
@@ -461,7 +465,7 @@ def ticket_edit(request, pk):
 
 
 @login_required
-def ticket_create(request):
+def ticket_create(request: HttpRequest) -> HttpResponseBase:
 	"""Create a new ticket."""
 	if request.method == "POST":
 		form = TicketForm(request.POST)
@@ -493,7 +497,7 @@ def ticket_create(request):
 
 
 @login_required
-def ticket_transition(request, pk):
+def ticket_transition(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Apply a state transition to a ticket if it is allowed."""
 	ticket = get_object_or_404(Ticket, pk=pk)
 	if request.method == "POST":
@@ -512,7 +516,7 @@ def ticket_transition(request, pk):
 
 
 @login_required
-def ticket_sprint_assign(request, pk):
+def ticket_sprint_assign(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Assign a ticket to a sprint (only within the same project)."""
 	ticket = get_object_or_404(Ticket, pk=pk)
 	old_sprint = ticket.sprint_id
@@ -534,7 +538,7 @@ def ticket_sprint_assign(request, pk):
 
 
 @login_required
-def sprint_create(request, pk):
+def sprint_create(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Create a new sprint for a project."""
 	project = get_object_or_404(Project, pk=pk)
 	if request.method == "POST":
@@ -555,7 +559,7 @@ def sprint_create(request, pk):
 
 
 @login_required
-def sprint_edit(request, project_pk, sprint_pk):
+def sprint_edit(request: HttpRequest, project_pk: int, sprint_pk: int) -> HttpResponseBase:
 	"""Edit an existing sprint for a project."""
 	sprint = get_object_or_404(Sprint, pk=sprint_pk)
 	project = sprint.project
@@ -576,7 +580,7 @@ def sprint_edit(request, project_pk, sprint_pk):
 
 
 @login_required
-def sprint_close(request, project_pk, sprint_pk):
+def sprint_close(request: HttpRequest, project_pk: int, sprint_pk: int) -> HttpResponseBase:
 	"""Show close sprint confirmation form, or close the sprint with ticket handling options."""
 	sprint = get_object_or_404(Sprint, pk=sprint_pk)
 	project = sprint.project
@@ -601,7 +605,7 @@ def sprint_close(request, project_pk, sprint_pk):
 
 
 @login_required
-def ticket_comment_create(request, pk):
+def ticket_comment_create(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Add a comment to a ticket."""
 	ticket = get_object_or_404(Ticket, pk=pk)
 	if request.method == "POST":
@@ -619,7 +623,7 @@ def ticket_comment_create(request, pk):
 
 
 @login_required
-def ticket_relation_add(request, pk):
+def ticket_relation_add(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Add a relation from the current ticket to another ticket."""
 	ticket = get_object_or_404(Ticket, pk=pk)
 	if request.method == "POST":
@@ -662,7 +666,7 @@ def ticket_relation_add(request, pk):
 
 
 @login_required
-def ticket_relation_delete(request, pk):
+def ticket_relation_delete(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Delete a relation."""
 	relation = get_object_or_404(TicketRelation, pk=pk)
 	# Ensure the relation's tickets are in the same project
@@ -691,7 +695,7 @@ def ticket_relation_delete(request, pk):
 
 
 @login_required
-def label_list(request, pk=None):
+def label_list(request: HttpRequest, pk: int | None = None) -> HttpResponseBase:
 	"""List and manage labels for a project."""
 	if pk is not None:
 		project = get_object_or_404(Project, pk=pk)
@@ -715,7 +719,7 @@ def label_list(request, pk=None):
 
 
 @login_required
-def label_create(request, pk):
+def label_create(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Create a new label for a project."""
 	project = get_object_or_404(Project, pk=pk)
 	if request.method == "POST":
@@ -737,7 +741,7 @@ def label_create(request, pk):
 
 
 @login_required
-def label_update(request, pk):
+def label_update(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Edit an existing label."""
 	label = get_object_or_404(Label, pk=pk)
 	if request.method == "POST":
@@ -758,7 +762,7 @@ def label_update(request, pk):
 
 
 @login_required
-def label_delete(request, pk):
+def label_delete(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Delete a label."""
 	label = get_object_or_404(Label, pk=pk)
 	project = label.project
@@ -782,7 +786,7 @@ def label_delete(request, pk):
 
 
 @login_required
-def component_list(request, pk=None):
+def component_list(request: HttpRequest, pk: int | None = None) -> HttpResponseBase:
 	"""List and manage components for a project."""
 	if pk is not None:
 		project = get_object_or_404(Project, pk=pk)
@@ -805,7 +809,7 @@ def component_list(request, pk=None):
 
 
 @login_required
-def component_create(request, pk):
+def component_create(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Create a new component for a project."""
 	project = get_object_or_404(Project, pk=pk)
 	if request.method == "POST":
@@ -827,7 +831,7 @@ def component_create(request, pk):
 
 
 @login_required
-def component_update(request, pk):
+def component_update(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Edit an existing component."""
 	component = get_object_or_404(Component, pk=pk)
 	if request.method == "POST":
@@ -848,7 +852,7 @@ def component_update(request, pk):
 
 
 @login_required
-def component_delete(request, pk):
+def component_delete(request: HttpRequest, pk: int) -> HttpResponseBase:
 	"""Delete a component."""
 	component = get_object_or_404(Component, pk=pk)
 	project = component.project
@@ -872,7 +876,7 @@ def component_delete(request, pk):
 
 
 @login_required
-def ticket_delete(request, project_pk, pk):
+def ticket_delete(request: HttpRequest, project_pk: int, pk: int) -> HttpResponseBase:
 	"""Delete a ticket."""
 	ticket = get_object_or_404(Ticket.objects.select_related("project"), pk=pk)
 	if ticket.project.pk != project_pk:
@@ -891,7 +895,7 @@ def ticket_delete(request, project_pk, pk):
 
 
 @login_required
-def ticket_attachment_upload(request, pk):
+def ticket_attachment_upload(request: HttpRequest, pk: int) -> HttpResponseBase:
 	ticket = get_object_or_404(Ticket, pk=pk)
 	if request.method == "POST":
 		form = AttachmentForm(request.POST, request.FILES)
@@ -913,7 +917,7 @@ def ticket_attachment_upload(request, pk):
 
 @login_required
 @require_POST
-def ticket_attachment_delete(request, pk):
+def ticket_attachment_delete(request: HttpRequest, pk: int) -> HttpResponseBase:
 	attachment = get_object_or_404(Attachment, pk=pk)
 	ticket = attachment.ticket
 	TicketActivity.objects.create(ticket=ticket, actor=request.user,
@@ -926,7 +930,7 @@ def ticket_attachment_delete(request, pk):
 
 
 @login_required
-def ticket_attachment_serve(request, pk, attachment_pk):
+def ticket_attachment_serve(request: HttpRequest, pk: int, attachment_pk: int) -> HttpResponseBase:
 	attachment = get_object_or_404(Attachment, pk=attachment_pk)
 	try:
 		with open(attachment.file.path, "rb") as f:

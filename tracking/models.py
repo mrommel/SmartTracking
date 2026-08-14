@@ -1,7 +1,16 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
+
+if TYPE_CHECKING:
+  from typing import Any
+
+from django.core.exceptions import ValidationError
 
 
 class Project(models.Model):
@@ -18,7 +27,7 @@ class Project(models.Model):
 		verbose_name_plural = _("projects")
 		ordering = ["key"]
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"{self.key} - {self.name}"
 
 
@@ -49,15 +58,15 @@ class Sprint(models.Model):
 		ordering = ["order", "pk"]
 		unique_together = ["project", "name"]
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"{self.project.key} / {self.name}"
 
 	@property
-	def is_backlog(self):
+	def is_backlog(self) -> bool:
 		"""Return True if this is the Backlog pseudo-sprint."""
 		return self.pk == 1 and self.name == "Backlog"
 
-	def save(self, *args, **kwargs):
+	def save(self, *args: Any, **kwargs: Any) -> None:
 		super().save(*args, **kwargs)
 
 		# At most one active sprint per project at a time.
@@ -67,20 +76,20 @@ class Sprint(models.Model):
 				is_active=True,
 			).exclude(pk=self.pk).update(is_active=False)
 
-	def is_active_sprint(self):
+	def is_active_sprint(self) -> bool:
 		"""Return True if this sprint is actively active in its project."""
 		return self.is_active and Sprint.objects.filter(
 			project=self.project, is_active=True, pk=self.pk
 		).exists()
 
-	def close(self):
+	def close(self) -> None:
 		"""Close this sprint: deactivate it and set end_date to today."""
 		from django.utils import timezone
 		self.is_active = False
 		self.end_date = timezone.localdate()
 		self.save(update_fields=["is_active", "end_date"])
 
-	def close_with_action(self, action="backlog", target_sprint_id=None):
+	def close_with_action(self, action: str = "backlog", target_sprint_id: int | None = None) -> None:
 		"""Close this sprint with an action for its tickets.
 
 		`action` can be:
@@ -120,7 +129,7 @@ class Component(models.Model):
 		ordering = ["name"]
 		unique_together = ["project", "name"]
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"{self.project.key} / {self.name}"
 
 
@@ -144,7 +153,7 @@ class Label(models.Model):
 		ordering = ["name"]
 		unique_together = ["project", "name"]
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"{self.project.key} / {self.name}"
 
 
@@ -275,36 +284,36 @@ class Ticket(models.Model):
 		verbose_name_plural = _("tickets")
 		ordering = ["-created_at"]
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"[{self.project.key}] {self.title}"
 
-	def allowed_transitions(self):
+	def allowed_transitions(self) -> list[Ticket.State]:
 		"""Return the list of states this ticket can move to next."""
 		return self.TRANSITIONS.get(self.State(self.state), [])
 
-	def can_transition_to(self, new_state):
+	def can_transition_to(self, new_state: str) -> bool:
 		"""Return True if moving to ``new_state`` is a permitted transition."""
 		return self.State(new_state) in self.allowed_transitions()
 
 	@property
-	def epic_display(self):
+	def epic_display(self) -> str:
 		"""Return the display string for the epic this ticket belongs to."""
 		if self.parent_epic:
 			return f"{self.parent_epic.project.key} - {self.parent_epic.title}"
 		return ""
 
 	@staticmethod
-	def _get_reverse_label(value):
+	def _get_reverse_label(value: str) -> str:
 		"""Return the symmetric label for a relation type."""
 		return _(Ticket._REVERSE_LABELS.get(value, value))
 
 	@property
-	def relations(self):
+	def relations(self) -> models.QuerySet[TicketRelation]:
 		return TicketRelation.objects.filter(
 			Q(subject=self) | Q(target=self)
 		).select_related('subject', 'target')
 
-	def available_rels_for(self, scope):
+	def available_rels_for(self, scope: str) -> models.QuerySet[Ticket]:
 		related = TicketRelation.objects.filter(
 			Q(subject=self) | Q(target=self)
 		)
@@ -318,12 +327,12 @@ class Ticket(models.Model):
 			qs = qs.filter(project=self.project)
 		return qs
 
-	def get_relation_label(self, relation):
+	def get_relation_label(self, relation: TicketRelation) -> str:
 		if relation.subject_id == self.pk:
 			return str(relation.get_relation_type_display())
 		return self._get_reverse_label(relation.relation_type)
 
-	def get_other_ticket(self, relation):
+	def get_other_ticket(self, relation: TicketRelation) -> Ticket:
 		return relation.target if relation.subject_id == self.pk else relation.subject
 
 
@@ -354,7 +363,7 @@ class Comment(models.Model):
 		verbose_name_plural = _("comments")
 		ordering = ["created_at"]
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"Comment on {self.ticket} by {self.author}"
 
 
@@ -372,7 +381,7 @@ _ALLOWED_MIMES = set(_ALLOWED_EXTENSIONS.values())
 _MAX_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
-def attachment_path(instance, filename):
+def attachment_path(instance: Attachment, filename: str) -> str:
 	ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 	return f"attachments/{instance.ticket.project.key}/{instance.ticket.pk}/{ext}/{filename}"
 
@@ -399,19 +408,19 @@ class Attachment(models.Model):
 		verbose_name_plural = _("attachments")
 		ordering = ["-created_at"]
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"{self.ticket} - {self.name}"
 
 	@property
-	def file_extension(self):
+	def file_extension(self) -> str:
 		name, ext = self.name.rsplit(".", 1) if "." in self.name else (self.name, "")
 		return ext.lower()
 
 	@property
-	def is_image(self):
+	def is_image(self) -> bool:
 		return self.mime_type.startswith("image/")
 
-	def clean(self):
+	def clean(self) -> None:
 		# Extract file extension for validation
 		if self.name:
 			base, ext = self.name.rsplit(".", 1) if "." in self.name else (self.name, "")
@@ -484,7 +493,7 @@ class TicketActivity(models.Model):
 		verbose_name_plural = _("activity log entries")
 		ordering = ["created_at"]
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return f"[{self.ticket}] {self.get_action_display()} by {self.actor}"
 
 
@@ -519,11 +528,11 @@ class TicketRelation(models.Model):
 		ordering = ["created_at"]
 		unique_together = ["subject", "target", "relation_type"]
 
-	def __str__(self):
+	def __str__(self) -> str:
 		return (f"[{self.subject}] {self.get_relation_type_display()} "
 				f"{self.target}")
 
-	def save(self, *args, **kwargs):
+	def save(self, *args: Any, **kwargs: Any) -> None:
 		"""Create the symmetric counterpart on save."""
 		super().save(*args, **kwargs)
 		if self.relation_type in Ticket._REVERSE_LABELS:

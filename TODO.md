@@ -99,7 +99,7 @@ No profile/role model.
 
 ### 1. Testing & Quality
 - [x] Add **coverage measurement** (`coverage.py`) and enforce a threshold.
-- [ ] **Type hints** across `models.py`/`views.py`/`api.py` + `mypy`/`pyright` config.
+- [x] **Type hints** across `models.py`/`views.py`/`api.py` + `mypy`/`pyright` config.
 - [ ] **Linting/formatting**: `ruff` + `black` (note: tabs convention — configure accordingly)
       and **pre-commit hooks**.
 

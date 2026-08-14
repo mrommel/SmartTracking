@@ -1,0 +1,23 @@
+{
+  "include": [
+    "tracking"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    ".venv",
+    "media"
+  ],
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.12",
+  "venvPath": ".",
+  "venv": ".venv",
+  "reportMissingTypeStubs": false,
+  "reportOptionalMemberAccess": false,
+  "reportOptionalSubscript": false,
+  "reportGeneralTypeIssues": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownLambdaType": false,
+  "reportUnknownVariableType": false,
+  "reportUntypedFunctionDecorator": false,
+  "strictParameterNoneValue": false,
+}
