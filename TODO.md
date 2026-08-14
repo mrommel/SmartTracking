@@ -126,7 +126,7 @@ No profile/role model.
 - [x] **Pagination + consistent envelope** for list endpoints (query params `page`/`page_size`, returns `{ "count", "pagination": {"next", "previous"}, "results" }`).
 - [ ] **Rate limiting** and **API versioning** (`/api/v1/`).
 - [ ] **CORS** config if external clients are expected.
-- [ ] Consolidate hand-rolled JSON handling (repeated validation) into small serializer helpers.
+- [x] Consolidate hand-rolled JSON handling (repeated validation) into small serializer helpers (`_parse_json`, `_valid_required`, `_valid_optional`).
 
 ### 5. Performance
 - [ ] Audit `select_related`/`prefetch_related` on list/detail views to prevent N+1

@@ -271,14 +271,61 @@ def _parse_json(request: HttpRequest) -> dict[str, Any]:
 	"""Return the parsed JSON body, or raise ``ValueError`` on bad input."""
 	if not request.body:
 		return {}
-	return json.loads(request.body)
+	try:
+		return json.loads(request.body)
+	except (ValueError, json.JSONDecodeError) as exc:  # noqa: B904
+		raise ValueError("Request body must be valid JSON.") from exc
 
 
 def _error(message: str, status: int = 400, **extra: Any) -> JsonResponse:
 	return JsonResponse({"error": message, **extra}, status=status)
 
 
+def _valid(data: dict[str, Any], fields: list[str]) -> bool | JsonResponse:
+	"""Check that *all* required fields are present, truthy, and non-blank after stripping.
+
+	Returns ``True`` on success or an error ``JsonResponse`` on failure.
+	"""
+	for name in fields:
+		raw = data.get(name)
+		if raw is None:
+			return _error(f"Field '{name}' is required.")
+		if isinstance(raw, str) and raw.strip():
+			data[name] = raw.strip()
+		elif raw is not None and raw != "":
+			# Not a string but truthy — keep as-is.
+			data[name] = raw
+		else:
+			return _error(f"Field '{name}' is required.")
+	return True
+
+
+def _valid_required(data: dict[str, Any], fields: list[str]) -> dict[str, Any]:
+	"""Like ``_valid`` but normalise every value through ``.strip()`` vs ``None``."""
+	for name in fields:
+		raw = data.get(name)
+		if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+			raise ValueError(f"Field '{name}' is required.")
+		if isinstance(raw, str):
+			data[name] = raw.strip()
+	return data
+
+
+def _valid_optional(data: dict[str, Any], fields: list[str]) -> dict[str, Any]:
+	"""Like ``_valid_required`` but treat blank strings as ``None``.	"""
+	for name in fields:
+		raw = data.get(name)
+		if raw is None:
+			data[name] = None
+		elif isinstance(raw, str):
+			data[name] = raw.strip() or None
+		else:
+			data[name] = raw
+	return data
+
+
 # --- Meta / discovery ------------------------------------------------------
+
 
 @require_api_auth
 @require_http_methods(["GET"])
@@ -321,13 +368,13 @@ def project_collection(request: HttpRequest) -> HttpResponseBase:
 	# POST -> create
 	try:
 		data = _parse_json(request)
-	except (ValueError, json.JSONDecodeError):
-		return _error("Request body must be valid JSON.")
+		_valid_required(data, ["key", "name"])
+	except ValueError as exc:
+		return _error(str(exc))
 
-	key = (data.get("key") or "").strip().upper()
-	name = (data.get("name") or "").strip()
-	if not key or not name:
-		return _error("Both 'key' and 'name' are required.")
+	data["key"] = data["key"].upper()
+	key = data["key"]
+	name = data["name"]
 	if Project.objects.filter(key=key).exists():
 		return _error(f"Project with key '{key}' already exists.", status=409)
 
@@ -380,11 +427,12 @@ def ticket_collection(request: HttpRequest) -> HttpResponseBase:
 	# POST -> create
 	try:
 		data = _parse_json(request)
-	except (ValueError, json.JSONDecodeError):
-		return _error("Request body must be valid JSON.")
+		_valid_required(data, ["project", "title"])
+	except ValueError as exc:
+		return _error(str(exc))
 
-	project_key = (data.get("project") or "").strip().upper()
-	title = (data.get("title") or "").strip()
+	project_key = data["project"].upper()
+	title = data["title"]
 	if not project_key or not title:
 		return _error("Both 'project' and 'title' are required.")
 
@@ -597,12 +645,11 @@ def comment_collection(request: HttpRequest) -> HttpResponseBase:
 	# POST -> create
 	try:
 		data = _parse_json(request)
-	except (ValueError, json.JSONDecodeError):
-		return _error("Request body must be valid JSON.")
+		_valid_required(data, ["body"])
+	except ValueError as exc:
+		return _error(str(exc))
 
-	body = (data.get("body") or "").strip()
-	if not body:
-		return _error("Field 'body' is required.")
+	body = data["body"]
 
 	comment = Comment.objects.create(
 		ticket=ticket,
@@ -623,10 +670,11 @@ def comment_update(request: HttpRequest, pk: int) -> HttpResponseBase:
 	comment = get_object_or_404(Comment, pk=pk)
 	try:
 		data = _parse_json(request)
-	except (ValueError, json.JSONDecodeError):
-		return _error("Request body must be valid JSON.")
+		_valid_required(data, ["body"])
+	except ValueError as exc:
+		return _error(str(exc))
 
-	body = (data.get("body") or "").strip()
+	body = data["body"]
 	if not body:
 		return _error("Field 'body' is required.")
 
@@ -697,12 +745,11 @@ def component_collection(request: HttpRequest) -> HttpResponseBase:
 	# POST -> create
 	try:
 		data = _parse_json(request)
-	except (ValueError, json.JSONDecodeError):
-		return _error("Request body must be valid JSON.")
+		_valid_required(data, ["name"])
+	except ValueError as exc:
+		return _error(str(exc))
 
-	name = (data.get("name") or "").strip()
-	if not name:
-		return _error("Field 'name' is required.")
+	name = data["name"]
 	if Component.objects.filter(project=project, name=name).exists():
 		return _error(f"Component '{name}' already exists in project '{project.key}'.", status=409)
 
@@ -768,12 +815,11 @@ def label_collection(request: HttpRequest) -> HttpResponseBase:
 	# POST -> create
 	try:
 		data = _parse_json(request)
-	except (ValueError, json.JSONDecodeError):
-		return _error("Request body must be valid JSON.")
+		_valid_required(data, ["name"])
+	except ValueError as exc:
+		return _error(str(exc))
 
-	name = (data.get("name") or "").strip()
-	if not name:
-		return _error("Field 'name' is required.")
+	name = data["name"]
 	if Label.objects.filter(project=project, name=name).exists():
 		return _error(f"Label '{name}' already exists in project '{project.key}'.", status=409)
 
@@ -923,10 +969,11 @@ def sprint_create(request: HttpRequest, project_key: str) -> HttpResponseBase:
 	"""Create a sprint in a project."""
 	project = get_object_or_404(Project, key=project_key.upper())
 	try:
-		body = json.loads(request.body)
-	except (ValueError, KeyError):
-		return _error("Request body must be valid JSON and must include 'name'.")
-	name = body.get("name", "").strip()
+		body = _parse_json(request)
+		_valid_required(body, ["name"])
+	except ValueError as exc:  # noqa: B904
+		return _error(str(exc))
+	name = body["name"]
 	if not name:
 		return _error("'name' is required.")
 	if Sprint.objects.filter(project=project, name=name).exists():
@@ -954,7 +1001,7 @@ def sprint_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 		return JsonResponse(serialize_sprint(sprint))
 	if request.method == "PATCH":
 		try:
-			body = json.loads(request.body)
+			body = _parse_json(request)
 		except ValueError:
 			return _error("Request body must be valid JSON.")
 		for field in ("name", "description", "start_date", "end_date", "order", "is_active"):
@@ -986,7 +1033,7 @@ def sprint_close(request: HttpRequest, project_key: str, sprint_pk: int) -> Json
 	if sprint.is_backlog:
 		return _error("Cannot close the backlog pseudo-sprint.", status=403)
 	try:
-		body = json.loads(request.body) if request.body else {}
+		body = _parse_json(request)
 	except ValueError:
 		return _error("Request body must be valid JSON.")
 	action = body.get("action", "backlog")
@@ -1016,9 +1063,10 @@ def ticket_relation_create(request: HttpRequest, ticket_id: int) -> HttpResponse
 	"""Create a relation from one ticket to another."""
 	ticket = get_object_or_404(Ticket, pk=ticket_id)
 	try:
-		body = json.loads(request.body)
-	except (ValueError, KeyError):
-		return _error("Request body must be valid JSON and must include 'target_id' and 'relation_type'.")
+		body = _parse_json(request)
+		_valid_required(body, ["target_id", "relation_type"])
+	except ValueError as exc:  # noqa: B904
+		return _error(str(exc))
 	target_id = body.get("target_id")
 	relation_type = body.get("relation_type", "").strip()
 	if not target_id or not relation_type:
