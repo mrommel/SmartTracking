@@ -102,6 +102,16 @@ TRACKING_API_TOKEN = os.environ.get("TRACKING_API_TOKEN", "")
 WSGI_APPLICATION = 'setup.wsgi.application'
 
 
+# Cache
+# https://docs.djangoproject.com/en/6.1/ref/settings/#caches
+# LocMemCache for development — uses Django's in-memory cache.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "TIMEOUT": 60,
+    }
+}
+
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 

@@ -79,6 +79,12 @@ No profile/role model — any logged-in user can do anything.
       resolution reason on `RESOLVED`).
 
 ### ✅ Already implemented (product)
+- **Sprint Velocity Analytics** — `SprintMetrics` model (`total_points`, `completed_points`,
+  `total_tickets`, `completed_tickets`, `duration_days`), `Sprint.calculate_metrics()` that
+  auto-computes and stores sprint performance, standalone velocity page with KPI cards and
+  Chart.js (Completion Trend + Points Burn-Down), velocity tab in `project_detail` with inline
+  Chart.js rendering, velocity insights sidebar on sprint create/edit, REST API
+  `sprint_velocity_collection` endpoint at `/tracking/api/`, migration `0019_sprintmetrics.py`.
 - **Notifications & Watchers** — `Notification` model (`ticket`, `recipient`, `actor`, `verb`, `body`,
   `read`), `Watcher` model (`ticket` FK + `user` FK), signal-driven delivery on create/state-change/sprint-change/title-change/assign/comment/@mention, in-app notification feed with mark-read/delete, REST API (collection/list/mark-read/mark-all-delete / watchers/workspace watchers), plus 37 tests.
 - **Reporting & Analytics** — burndown/burnup, velocity, cumulative flow, dashboard widgets

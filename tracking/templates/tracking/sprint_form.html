@@ -1,29 +1,54 @@
-{% extends "tracking/base.html" %}
+{% extends "tracking/base.html" %}{% load humanize %}
 
 {% block content %}
-	<nav aria-label="breadcrumb">
-		<ol class="breadcrumb">
-			<li class="breadcrumb-item"><a href="{% url 'project_list' %}">Projects</a></li>
-			<li class="breadcrumb-item"><a href="{% url 'project_detail' project.pk %}">{{ project.key }}</a></li>
-			{% if sprint %}
-			<li class="breadcrumb-item active">Edit</li>
-			{% else %}
-			<li class="breadcrumb-item active">New sprint</li>
-			{% endif %}
-		</ol>
-	</nav>
+	<div class="row">
+		<div class="col-lg-8">
+			<nav aria-label="breadcrumb">
+				<ol class="breadcrumb">
+					<li class="breadcrumb-item"><a href="{% url 'project_list' %}">Projects</a></li>
+					<li class="breadcrumb-item"><a href="{% url 'project_detail' project.pk %}">{{ project.key }}</a></li>
+					{% if sprint %}
+					<li class="breadcrumb-item active">Edit</li>
+					{% else %}
+					<li class="breadcrumb-item active">New sprint</li>
+					{% endif %}
+				</ol>
+			</nav>
 
-	<div class="card" style="max-width: 500px">
-		<div class="card-body">
-			<h1 class="h4 mb-3">{% if sprint %}Edit sprint{% else %}New sprint{% endif %} for {{ project.key }}</h1>
-			<form method="post">
-				{% csrf_token %}
-				{{ form.as_p }}
-				<div class="d-flex gap-2">
-					<button type="submit" class="btn btn-primary">{% if sprint %}Update sprint{% else %}Create sprint{% endif %}</button>
-					<a href="{% url 'project_detail' project.pk %}?tab=active_sprint" class="btn btn-secondary">Cancel</a>
+			<div class="card" style="max-width: 500px">
+				<div class="card-body">
+					<h1 class="h4 mb-3">{% if sprint %}Edit sprint{% else %}New sprint{% endif %} for {{ project.key }}</h1>
+					<form method="post">
+						{% csrf_token %}
+						{{ form.as_p }}
+						<div class="d-flex gap-2">
+							<button type="submit" class="btn btn-primary">{% if sprint %}Update sprint{% else %}Create sprint{% endif %}</button>
+							<a href="{% url 'project_detail' project.pk %}?tab=active_sprint" class="btn btn-secondary">Cancel</a>
+						</div>
+					</form>
 				</div>
-			</form>
+			</div>
+		</div>
+
+		<div class="col-lg-4">
+			<div class="card border-primary">
+				<div class="card-header bg-primary bg-opacity-10">
+					{% #badge variant="primary" %}Velocity Insights{% /badge %}
+				</div>
+				<div class="card-body bg-light small">
+					<ul class="mb-0">
+						<li>Complete sprints to build velocity history.</li>
+						<li>Target consistent cycle lengths (1–3 weeks).</li>
+						<li>{{ project.key }} currently has <strong>{{ project.sprints.all|length }}</strong> sprints.</li>
+						{% if project.sprints.all.0 %}
+							<li>First sprint {{ project.sprints.all.0.name }} started {{ project.sprints.all.0.created_at|naturaltime }}.</li>
+						{% endif %}
+					</ul>
+					<a class="btn btn-sm btn-outline-primary mt-2" href="{% url 'sprint_velocity' project.pk %}">
+						View Velocity Report
+					</a>
+				</div>
+			</div>
 		</div>
 	</div>
 {% endblock %}

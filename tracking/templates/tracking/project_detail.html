@@ -23,6 +23,7 @@
 		<a class="nav-link {% if tab == 'reports' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=reports">Reports</a>
 		<a class="nav-link {% if tab == 'components' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=components">Components</a>
 		<a class="nav-link {% if tab == 'releases' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=releases">Releases</a>
+		<a class="nav-link {% if tab == 'velocity' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=velocity">Velocity</a>
 	</nav>
 
 	{% if tab == 'overview' %}
@@ -388,6 +389,76 @@
 			</div>
 		{% endif %}
 
+	{% elif tab == 'velocity' %}
+		<div class="d-flex justify-content-between align-items-center mb-4">
+			<h4 class="mb-0">Sprint Velocity</h4>
+			<a class="btn btn-outline-primary btn-sm" href="{% url 'sprint_velocity' project.pk %}">View full report</a>
+		</div>
+		{% if sprints %}
+			<div class="row g-3 mb-4">
+				<div class="col-md-3">
+					<div class="card border-primary h-100">
+						<div class="card-body bg-light">
+							<div class="text-muted small">Avg Completed Pts</div>
+							<div class="fs-3 fw-bold text-primary">{{ avg_completed_points }}</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-3">
+					<div class="card border-success h-100">
+						<div class="card-body bg-light">
+							<div class="text-muted small">Daily Delivery</div>
+							<div class="fs-3 fw-bold text-success">{{ avg_daily_velocity }}</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-3">
+					<div class="card border-warning h-100">
+						<div class="card-body bg-light">
+							<div class="text-muted small">Done Sprints</div>
+							<div class="fs-3 fw-bold text-warning">{{ sprints|length }}</div>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-3">
+					<div class="card border-info h-100">
+						<div class="card-body bg-light">
+							<div class="text-muted small">Avg Tickets/Sprint</div>
+							<div class="fs-3 fw-bold text-info">{{ avg_total }}</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="row g-3">
+				<div class="col-md-6">
+					<div class="card border-primary">
+						{% #badge variant="primary" %}Completion Trend{% /badge %}
+						<div class="card-body">
+							<canvas id="velocityChart" height="200"></canvas>
+						</div>
+					</div>
+				</div>
+				<div class="col-md-6">
+					<div class="card border-success">
+						{% #badge variant="success" %}Points Burn-Down{% /badge %}
+						<div class="card-body">
+							<canvas id="pointsChart" height="200"></canvas>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="mt-3">
+				<p class="text-muted">
+					{% if has_velocity_data %}Strong enough dataset for trend analysis.
+					{% else %}Complete at least 4 sprints for actionable velocity insights.{% endif %}
+				</p>
+			</div>
+		{% else %}
+			<div class="alert alert-info">
+				Close a few sprints to see velocity analytics here.
+			</div>
+		{% endif %}
+
 {% endif %}
 
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -676,6 +747,50 @@
  		}
  	})();
  	</script>
- 	{% endif %}
- 	</script>
+  	{% elif tab == 'velocity' and sprint_names %}
+	new Chart(document.getElementById("velocityChart"), {
+		type: "line",
+		data: {
+			labels: {{ sprint_names|safe }},
+			datasets: [{
+				label: "Completed",
+				data: {{ completed_counts|safe }},
+				borderColor: "rgb(13, 110, 53)",
+				backgroundColor: "rgba(13, 110, 53, 0.56)",
+				tension: 0.18,
+				fill: true,
+			}]
+		},
+		options: {
+			responsive: true,
+			scales: { y: { beginAtZero: true } },
+			plugins: { legend: { display: false } },
+		},
+	});
+
+	new Chart(document.getElementById("pointsChart"), {
+		type: "bar",
+		data: {
+			labels: {{ sprint_names|safe }},
+			datasets: [
+				{
+					label: "Estimated",
+					data: {{ estimated_points|safe }},
+					backgroundColor: "rgba(13, 110, 53, 0.42)",
+				},
+				{
+					label: "Closed",
+					data: {{ closed_estimation|safe }},
+					backgroundColor: "rgb(13, 110, 53)",
+				}
+			]
+		},
+		options: {
+			responsive: true,
+			scales: { y: { beginAtZero: true } },
+			plugins: { legend: { display: false } },
+		},
+	});
+  	{% endif %}
+  	</script>
 {% endblock %}

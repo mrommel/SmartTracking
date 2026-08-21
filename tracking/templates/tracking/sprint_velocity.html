@@ -1,0 +1,148 @@
+{% extends "tracking/base.html" %}
+
+{% block title %}{{ project.name }} — Velocity{% endblock %}
+
+{% block page_title %}
+	Sprint Velocity — {{ project.name }}
+{% endblock %}
+
+{% block extra_head %}
+	{% load markdown_filters %}
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+	<div class="row g-4">
+		{# KPI Cards #}
+		<div class="col-md-3 col-sm-6">
+			<div class="card border-primary h-100">
+				<div class="card-body bg-light">
+					<h6 class="mb-1 text-muted">Avg Completed Points</h6>
+					<div class="fs-3 fw-bold text-primary">{{ avg_completed_points }}</div>
+					<small class="text-muted">Across all completed sprints</small>
+				</div>
+			</div>
+		</div>
+		<div class="col-md-3 col-sm-6">
+			<div class="card border-success h-100">
+				<div class="card-body bg-light">
+					<h6 class="mb-1 text-muted">Daily Velocity</h6>
+					<div class="fs-3 fw-bold text-success">{{ avg_daily_velocity }}</div>
+					<small class="text-muted">Points/day (delivery rate)</small>
+				</div>
+			</div>
+		</div>
+		<div class="col-md-3 col-sm-6">
+			<div class="card border-warning h-100">
+				<div class="card-body bg-light">
+					<h6 class="mb-1 text-muted">Completed Sprints</h6>
+					<div class="fs-3 fw-bold text-warning">{{ sprints|length }}</div>
+					<small class="text-muted">Ready for velocity analysis</small>
+				</div>
+			</div>
+		</div>
+		<div class="col-md-3 col-sm-6">
+			<div class="card border-info h-100">
+				<div class="card-body bg-light">
+					<h6 class="mb-1 text-muted">Total Sprints</h6>
+					<div class="fs-3 fw-bold text-info">{{ project.sprints.count }}</div>
+					<small class="text-muted">Including backlog & active</small>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	{# Charts #}
+	<div class="row g-4 mt-2">
+		<div class="col-md-6">
+			<div class="card border-primary">
+				{% #badge variant="primary" %}Completion Trend{% /badge %}
+				<div class="card-body">
+					<canvas id="velocityChart" height="200"></canvas>
+				</div>
+			</div>
+		</div>
+		<div class="col-md-6">
+			<div class="card border-success">
+				{% #badge variant="success" %}Points Burn-Down{% /badge %}
+				<div class="card-body">
+					<canvas id="pointsChart" height="200"></canvas>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	{# Sprint Insights #}
+	{% if sprints %}
+		<div class="row g-4 mt-2">
+			{% for sprint in sprints|slice:":5" %}
+				<div class="col-md-4">
+					<div class="card border-primary h-100">
+						<div class="card-body bg-light">
+							{% #badge variant="primary" %}{{ sprint.name }}{% /badge %}
+							<ul class="list-unstyled mb-0 mt-2">
+								<li><strong>Tickets:</strong> {{ sprint.metrics.ticket_count|default:0 }}</li>
+								<li><strong>Completed:</strong> {{ sprint.metrics.completed_count|default:0 }}</li>
+								<li><strong>Points (est):</strong> {{ sprint.metrics.total_points|default:0 }}</li>
+								<li><strong>Points (done):</strong> {{ sprint.metrics.completed_points|default:0 }}</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			{% endfor %}
+		</div>
+	{% else %}
+		<div class="alert alert-info mt-4">
+			<strong>Tip:</strong> Complete at least 4 sprints to see meaningful velocity trends.
+		</div>
+	{% endif %}
+
+	{# Chart.js #}
+	<script>
+	{% if sprint_names %}
+	new Chart(document.getElementById("velocityChart"), {
+		type: "line",
+		data: {
+			labels: {{ sprint_names|safe }},
+			datasets: [{
+				label: "Completed",
+				data: {{ completed_counts|safe }},
+				borderColor: "rgb(13, 110, 53)",
+				backgroundColor: "rgba(13, 110, 53, 0.56)",
+				tension: 0.18,
+				fill: true,
+			}]
+		},
+		options: {
+			responsive: true,
+			scales: { y: { beginAtZero: true } },
+			plugins: { legend: { display: false } },
+		},
+	});
+
+	new Chart(document.getElementById("pointsChart"), {
+		type: "bar",
+		data: {
+			labels: {{ sprint_names|safe }},
+			datasets: [
+				{
+					label: "Estimated",
+					data: {{ estimated_points|safe }},
+					backgroundColor: "rgba(13, 110, 53, 0.42)",
+				},
+				{
+					label: "Closed",
+					data: {{ closed_estimation|safe }},
+					backgroundColor: "rgb(13, 110, 53)",
+				}
+			]
+		},
+		options: {
+			responsive: true,
+			scales: { y: { beginAtZero: true } },
+			plugins: { legend: { display: false } },
+		},
+	});
+	{% endif %}
+	</script>
+{% endblock %}

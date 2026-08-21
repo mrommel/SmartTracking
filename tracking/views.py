@@ -24,7 +24,10 @@ from .forms import (
 	LabelDeleteForm, LabelForm, MarkNotificationsForm, ProjectForm, SprintCloseForm,
 	SprintForm, TicketForm, TicketTransitionForm, VersionForm, WatcherForm,
 )
-from .models import Attachment, Comment, Component, Label, Notification, Project, Sprint, Ticket, TicketActivity, TicketRelation, Version, Watcher
+from .models import (
+	Attachment, Comment, Component, Label, Notification, Project, Sprint, SprintMetrics,
+	Ticket, TicketActivity, TicketRelation, Version, Watcher,
+)
 
 
 def _dashboard_tab_context(project: Project, tickets: models.QuerySet[Ticket], request: HttpRequest, tab: str) -> dict[str, Any]:
@@ -417,9 +420,9 @@ def project_list(request: HttpRequest) -> HttpResponseBase:
 
 @login_required
 def project_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
-	"""Show a project with its tabbed views (Overview, Backlog, Active Sprint, Reports, Components, Releases)."""
+	"""Show a project with its tabbed views (Overview, Backlog, Active Sprint, Reports, Components, Releases, Velocity)."""
 	tab = request.GET.get("tab", "overview")
-	valid_tabs = ["overview", "backlog", "active_sprint", "reports", "components", "releases"]
+	valid_tabs = ["overview", "backlog", "active_sprint", "reports", "components", "releases", "velocity"]
 	if tab not in valid_tabs:
 		tab = "overview"
 
@@ -485,6 +488,53 @@ def project_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 			project.versions.annotate(ticket_count=Count("affected_tickets"))
 			.order_by("-release_date", "-target_date", "-created_at")
 		)
+
+	if tab == "velocity":
+		completed_sprints = Sprint.objects.filter(
+			project=project, is_active=False
+		).exclude(pk=1).order_by("-order")
+
+		# Recalculate metrics for every completed sprint
+		for sprint in completed_sprints:
+			sprint.calculate_metrics()
+
+		sprint_names = list(completed_sprints.values_list("name", flat=True))
+		total_sizes = list(completed_sprints.values_list("metrics__ticket_count", flat=True))
+		completed_counts = list(completed_sprints.values_list("metrics__completed_count", flat=True))
+		estimated_points = list(completed_sprints.values_list("metrics__total_points", flat=True))
+		closed_estimation = list(completed_sprints.values_list("metrics__completed_points", flat=True))
+
+		summary_qs = SprintMetrics.objects.filter(sprint__project=project)
+		if summary_qs.exists():
+			avg_completed_points = round(
+				summary_qs.aggregate(models.Avg("completed_points"))["completed_points__avg"] or 0, 1,
+			)
+			avg_total_points = round(
+				summary_qs.aggregate(models.Avg("total_points"))["total_points__avg"] or 0, 1,
+			)
+			avg_total = round(
+				summary_qs.aggregate(models.Avg("ticket_count"))["ticket_count__avg"] or 0, 1,
+			)
+			total_dur = summary_qs.aggregate(models.Sum("duration_days"))["duration_days__sum"] or 1
+			avg_daily_velocity = round(
+				(total_dur and (summary_qs.aggregate(models.Sum("completed_points"))["completed_points__sum"] or 0) / total_dur) or 0, 1,
+			)
+		else:
+			avg_completed_points = avg_total_points = avg_total = avg_daily_velocity = 0.0
+
+		context.update({
+			"sprints": completed_sprints,
+			"sprint_names": sprint_names,
+			"completed_counts": completed_counts,
+			"total_sizes": total_sizes,
+			"estimated_points": estimated_points,
+			"closed_estimation": closed_estimation,
+			"avg_completed_points": avg_completed_points,
+			"avg_total_points": avg_total_points,
+			"avg_total": avg_total,
+			"avg_daily_velocity": avg_daily_velocity,
+			"has_velocity_data": completed_sprints.count() >= 4,
+		})
 
 	return render(request, "tracking/project_detail.html", context)
 
@@ -1677,6 +1727,47 @@ def ticket_bulk_action(request: HttpRequest) -> HttpResponseBase:
 			"{}" .format(f" {err_count} failed." if err_count else ""))
 
 	return redirect("ticket_list")
+
+
+@login_required
+def sprint_velocity(request: HttpRequest, pk: int) -> HttpResponse:
+	"""Dedicated sprint-velocity page for a project."""
+	project = get_object_or_404(Project, pk=pk)
+
+	completed_sprints = Sprint.objects.filter(
+		project=project, is_active=False
+	).exclude(pk=1).order_by("-order")
+
+	for sprint in completed_sprints:
+		sprint.calculate_metrics()
+
+	sprint_names = list(completed_sprints.values_list("name", flat=True))
+	completed_counts = list(completed_sprints.values_list("metrics__completed_count", flat=True))
+	estimated_points = list(completed_sprints.values_list("metrics__total_points", flat=True))
+	closed_estimation = list(completed_sprints.values_list("metrics__completed_points", flat=True))
+
+	summary_qs = SprintMetrics.objects.filter(sprint__project=project)
+	if summary_qs.exists():
+		avg_completed_points = round(
+			summary_qs.aggregate(models.Avg("completed_points"))["completed_points__avg"] or 0, 1,
+		)
+		dur = summary_qs.aggregate(models.Sum("duration_days"))["duration_days__sum"] or 1
+		cpts = summary_qs.aggregate(models.Sum("completed_points"))["completed_points__sum"] or 0
+		avg_daily_velocity = round(cpts / dur if dur else 0, 1)
+	else:
+		avg_completed_points = avg_daily_velocity = 0.0
+
+	return render(request, "tracking/sprint_velocity.html", {
+		"project": project,
+		"sprints": completed_sprints,
+		"sprint_names": sprint_names,
+		"completed_counts": completed_counts,
+		"estimated_points": estimated_points,
+		"closed_estimation": closed_estimation,
+		"avg_completed_points": avg_completed_points,
+		"avg_daily_velocity": avg_daily_velocity,
+		"has_velocity_data": completed_sprints.count() >= 4,
+	})
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

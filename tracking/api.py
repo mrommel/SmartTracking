@@ -2184,6 +2184,38 @@ def schema(request: HttpRequest) -> JsonResponse:
 	return JsonResponse(_schema(), safe=False)
 
 
+# --- Sprint Velocity API -------------------------------------------------
+
+def serialize_velocity(sprint: Sprint) -> dict[str, Any]:
+    """Return velocity metrics for a sprint."""
+    sprint.calculate_metrics()
+    return {
+        "sprint_id": sprint.pk,
+        "sprint_name": sprint.name,
+        "project": sprint.project.key,
+        "ticket_count": sprint.metrics.ticket_count or 0,
+        "completed_count": sprint.metrics.completed_count or 0,
+        "total_points": sprint.metrics.total_points or 0,
+        "completed_points": sprint.metrics.completed_points or 0,
+        "duration_days": sprint.metrics.duration_days or 0,
+    }
+
+@csrf_exempt
+@require_api_auth
+@require_http_methods(["GET"])
+def sprint_velocity_collection(request: HttpRequest, project_key: str) -> JsonResponse:
+    """Return velocity metrics for all completed sprints in a project."""
+    project = get_object_or_404(Project, key=project_key.upper())
+    completed_sprints = Sprint.objects.filter(
+        project=project, is_active=False
+    ).exclude(pk=1).order_by("-order")
+
+    results = [serialize_velocity(s) for s in completed_sprints]
+    path = request.get_full_path().split("?")[0]
+    
+    return JsonResponse(paginate(results, request, path, len(results)))
+
+
 # --- URL patterns (included from tracking/urls.py) -------------------------
 
 urlpatterns: list[path] = [
@@ -2207,6 +2239,7 @@ urlpatterns: list[path] = [
 	path("sprints/<str:project_key>/create/", sprint_create, name="api_sprint_create"),
 	path("sprints/<str:project_key>/<int:sprint_pk>/close/", sprint_close, name="api_sprint_close"),
 	path("sprints/<int:pk>/", sprint_detail, name="api_sprint_detail"),
+	path("sprints/<str:project_key>/velocity/", sprint_velocity_collection, name="api_sprint_velocity"),
 	path("tickets/relations/<int:pk>/delete/", ticket_relation_delete_api, name="api_ticket_relation_delete"),
 	# Notifications.
 	path("notifications/", notification_collection, name="api_notification_collection"),

@@ -109,6 +109,136 @@ class Sprint(models.Model):
 		self.end_date = timezone.localdate()
 		self.save(update_fields=["is_active", "end_date"])
 
+	@property
+	def duration_days(self) -> int | None:
+		"""Return the number of calendar days in the sprint (``None`` if dates are missing)."""
+		if not self.start_date or not self.end_date:
+			return None
+		return (self.end_date - self.start_date).days
+
+	@property
+	def completed_count(self) -> int:
+		"""Count of tickets assigned to this sprint whose state is ``CLOSED``."""
+		return self.tickets.filter(state=Ticket.State.CLOSED).count()
+
+	@property
+	def total_estimation(self) -> int:
+		"""Sum of ``estimation`` fields on all sprint tickets (excluding null/zero)."""
+		return (
+			self.tickets.filter(estimation__isnull=False, estimation__gt=0)
+			.aggregate(models.Sum("estimation"))["estimation__sum"]
+			or 0
+		)
+
+	@property
+	def completed_estimation(self) -> int:
+		"""Sum of ``estimation`` on closed tickets in the sprint."""
+		return (
+			self.tickets.filter(
+				state=Ticket.State.CLOSED,
+				estimation__isnull=False,
+				estimation__gt=0,
+			)
+			.aggregate(models.Sum("estimation"))["estimation__sum"]
+			or 0
+		)
+
+	@property
+	def waste_ratio(self) -> float:
+		"""High-value (HIGH / CRITICAL) open tickets as %% of total tickets in sprint."""
+		ticket_count = self.tickets.count()
+		if ticket_count == 0:
+			return 0.0
+		waste = self.tickets.filter(
+			state__in=[Ticket.State.OPEN, Ticket.State.IN_PROGRESS],
+			priority__in=[Ticket.Priority.HIGH, Ticket.Priority.CRITICAL],
+		).count()
+		return round(waste / ticket_count * 100, 1)
+
+	@property
+	def average_ticket_points(self) -> float:
+		"""Average ``estimation`` per ticket in this sprint."""
+		if self.total_estimation == 0:
+			return 0.0
+		return round(self.total_estimation / self.tickets.count(), 1)
+
+	def calculate_metrics(self) -> SprintMetrics:
+		"""Fully recalculate and persist a :class:`SprintMetrics` snapshot for this sprint."""
+		now = timezone.localdate()
+		ticket_count = self.tickets.exclude(state=Ticket.State.CLOSED).count()
+		# Update belongs here since this is a "physical" (non-backlog) sprint.
+		d = self.duration_days or 0
+		m, _ = SprintMetrics.objects.update_or_create(
+			sprint=self,
+			defaults={
+				"duration_days": d,
+				"ticket_count": ticket_count,
+				"completed_count": self.completed_count,
+				"total_points": self.total_estimation,
+				"completed_points": self.completed_estimation,
+				"waste_ratio": self.waste_ratio,
+				"velocity_window": 14,
+				"completed_date": now,
+			},
+		)
+		return m
+
+
+class SprintMetrics(models.Model):
+	"""Hard snapshot of point- and ticket-based metrics for a single sprint.
+
+	Avg completed, total estimation points, waste ratio — everything a velocity
+	chart needs without re-aggregating from tickets.
+	"""
+
+	sprint = models.OneToOneField(
+		Sprint,
+		on_delete=models.CASCADE,
+		related_name="metrics",
+		verbose_name=_("sprint"),
+	)
+	duration_days = models.PositiveIntegerField(
+		_("duration (days)"), default=0,
+		help_text=_("Calendar days between start_date and end_date."),
+	)
+	ticket_count = models.PositiveIntegerField(
+		_("ticket count"), default=0,
+		help_text=_("Excluding tickets in CLOSED state."),
+	)
+	completed_count = models.PositiveIntegerField(
+		_("completed count"), default=0,
+		help_text=_("Tickets in CLOSED state."),
+	)
+	total_points = models.PositiveIntegerField(
+		_("total points"), default=0,
+		help_text=_("SUM(estimation) for all sprint tickets with estimation > 0."),
+	)
+	completed_points = models.PositiveIntegerField(
+		_("completed points"), default=0,
+		help_text=_("SUM(estimation) for CLOSED tickets with estimation > 0."),
+	)
+	waste_ratio = models.FloatField(
+		_("waste ratio"), default=0.0,
+		help_text=_(
+			"Percentage of high-priority (HIGH / CRITICAL) open tickets in the sprint."
+	 ),
+	)
+	velocity_window = models.IntegerField(
+		_("velocity window"), default=14,
+		help_text=_("Days look-back window used for velocity calculations."),
+	)
+	completed_date = models.DateField(
+		_("completed date"), null=True, blank=True,
+		help_text=_("Date when this snapshot was taken."),
+	)
+
+	class Meta:
+		verbose_name = _("sprint metrics")
+		verbose_name_plural = _("sprint metrics")
+
+	def __str__(self) -> str:
+		return f"{self.sprint} — {self.completed_points} / {self.total_points} pts"
+
 
 class Component(models.Model):
 	"""A component within a project, used to group tickets."""
@@ -301,6 +431,22 @@ class Ticket(models.Model):
 		verbose_name = _("ticket")
 		verbose_name_plural = _("tickets")
 		ordering = ["-created_at"]
+		indexes = [
+			# Composite: gateway query pivots for filters + state
+			models.Index(fields=["state", "project"], name="ticket_state_project_idx"),
+			models.Index(fields=["assignee", "state"], name="ticket_assignee_state_idx"),
+			models.Index(fields=["type", "state"], name="ticket_type_state_idx"),
+			# Lookup & filter columns
+			models.Index(fields=["priority"], name="ticket_priority_idx"),
+			models.Index(fields=["sprint"], name="ticket_sprint_idx"),
+			models.Index(fields=["fix_version"], name="ticket_fix_version_idx"),
+			models.Index(fields=["reporter"], name="ticket_reporter_idx"),
+			# Sorting / date-filter
+			models.Index(fields=["created_at"], name="ticket_created_at_idx"),
+			models.Index(fields=["updated_at"], name="ticket_updated_at_idx"),
+			# Composite lookups
+			models.Index(fields=["state", "priority"], name="ticket_state_priority_idx"),
+		]
 
 	def __str__(self) -> str:
 		return f"[{self.project.key}] {self.title}"
