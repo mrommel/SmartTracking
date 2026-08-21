@@ -15,7 +15,7 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 | - | ---- | ------- | ----- |
 | **P0** | Notifications & Watchers | Highest-requested gap; unblocks @mentions + assignment flow | Product §1 |
 | **P0** | DB indexes + caching | Cheap, broad perf win on every filtered list/board | Tech §4 |
-| **P0** | Model-level constraints | Harden `save()`-based invariants (one active sprint, unique relations) | Tech §8 |
+| **P0** | Model-level constraints ✅ | Added model-level `constraints` to `Sprint`, `Component`, `Label`, `TicketRelation`, and `Watcher`: `UniqueConstraint` replaces all `unique_together`. Sprint has a partial `UniqueConstraint` on `(project)` where `is_active=True`. `TicketRelation` has `clean()` preventing duplicate relations between the same ticket pair. `Sprint` has `clean()` validating one active sprint per project. Migration 0020. | Tech §8 |
 | **P1** | Search & Filtering upgrades | `ticket_list` still `icontains`-only; add key search, sort, multi-value | Product §2 |
 | **P1** | Refactor oversized modules | `api.py` (~2k lines) & `views.py` (~1.6k lines) are hard to maintain | Refactor §1 |
 | **P1** | Production settings split | Env-driven config unblocks any real deployment | Tech §2 |

@@ -56,7 +56,17 @@ class Sprint(models.Model):
 		verbose_name = _("sprint")
 		verbose_name_plural = _("sprints")
 		ordering = ["order", "pk"]
-		unique_together = ["project", "name"]
+		constraints = [
+			models.UniqueConstraint(
+				fields=["project", "name"],
+				name="unique_sprint_project_name",
+			),
+			models.UniqueConstraint(
+				fields=["project"],
+				condition=models.Q(is_active=True),
+				name="one_active_sprint_per_project",
+			),
+		]
 
 	def __str__(self) -> str:
 		return f"{self.project.key} / {self.name}"
@@ -66,15 +76,27 @@ class Sprint(models.Model):
 		"""Return True if this is the Backlog pseudo-sprint."""
 		return self.pk == 1 and self.name == "Backlog"
 
-	def save(self, *args: Any, **kwargs: Any) -> None:
-		super().save(*args, **kwargs)
+	def clean(self) -> None:
+		super().clean()
+		# Prevent more than one active sprint per project.
+		if self.is_active and not self.is_backlog:
+			existing = Sprint.objects.filter(
+				project=self.project,
+				is_active=True,
+			).exclude(pk=getattr(self, 'pk', None))
+			if existing.exists():
+				raise ValidationError({
+					"is_active": _("At most one active sprint per project."),
+				})
 
+	def save(self, *args: Any, **kwargs: Any) -> None:
 		# At most one active sprint per project at a time.
 		if self.is_active and not self.is_backlog:
 			Sprint.objects.filter(
 				project=self.project,
 				is_active=True,
 			).exclude(pk=self.pk).update(is_active=False)
+		super().save(*args, **kwargs)
 
 	def is_active_sprint(self) -> bool:
 		"""Return True if this sprint is actively active in its project."""
@@ -257,7 +279,12 @@ class Component(models.Model):
 		verbose_name = _("component")
 		verbose_name_plural = _("components")
 		ordering = ["name"]
-		unique_together = ["project", "name"]
+		constraints = [
+			models.UniqueConstraint(
+				fields=["project", "name"],
+				name="unique_component_project_name",
+			),
+		]
 
 	def __str__(self) -> str:
 		return f"{self.project.key} / {self.name}"
@@ -281,7 +308,12 @@ class Label(models.Model):
 		verbose_name = _("label")
 		verbose_name_plural = _("labels")
 		ordering = ["name"]
-		unique_together = ["project", "name"]
+		constraints = [
+			models.UniqueConstraint(
+				fields=["project", "name"],
+				name="unique_label_project_name",
+			),
+		]
 
 	def __str__(self) -> str:
 		return f"{self.project.key} / {self.name}"
@@ -895,7 +927,12 @@ class Watcher(models.Model):
 		verbose_name = _("watcher")
 		verbose_name_plural = _("watchers")
 		ordering = ["user__username"]
-		unique_together = ["ticket", "user"]
+		constraints = [
+			models.UniqueConstraint(
+				fields=["ticket", "user"],
+				name="unique_watcher_ticket_user",
+			),
+		]
 
 	def __str__(self) -> str:
 		return f"{self.user} watches {self.ticket}"
@@ -930,11 +967,29 @@ class TicketRelation(models.Model):
 
 	class Meta:
 		ordering = ["created_at"]
-		unique_together = ["subject", "target", "relation_type"]
+		constraints = [
+			models.UniqueConstraint(
+				fields=["subject", "target", "relation_type"],
+				name="unique_relation_direction",
+			),
+		]
 
 	def __str__(self) -> str:
 		return (f"[{self.subject}] {self.get_relation_type_display()} "
 				f"{self.target}")
+
+	def clean(self) -> None:
+		super().clean()
+		# Prevent different relations between the same ticket pair.
+		# symmetrical relations already auto-create reverse, so only one relationship
+		# between any pair of tickets is allowed.
+		if TicketRelation.objects.filter(
+			(models.Q(subject=self.subject, target=self.target) |
+				models.Q(subject=self.target, target=self.subject)),
+		).exclude(pk=getattr(self, 'pk', None)).exists():
+			raise ValidationError(_(
+				'A relation already exists between these two tickets.'
+			))
 
 	def save(self, *args: Any, **kwargs: Any) -> None:
 		"""Create the symmetric counterpart on save."""

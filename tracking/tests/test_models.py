@@ -780,3 +780,98 @@ class NotificationSignalTests(TestCase):
 		result.delete()
 		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.watcher).count(), 0)
 
+
+class SprintCleanTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+
+	def test_clean_prevents_two_active_sprints(self):
+		sprint1 = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+		sprint2 = Sprint(project=self.project, name="Sprint 2", is_active=True)
+		with self.assertRaises(ValidationError) as ctx:
+			sprint2.full_clean()
+		err_str = str(ctx.exception)
+		self.assertTrue(
+			"is_active" in err_str or "one_active_sprint" in err_str,
+			err_str,
+		)
+
+	def test_clean_allows_inactive_sprint(self):
+		sprint1 = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+		sprint2 = Sprint(project=self.project, name="Sprint 2", is_active=False)
+		sprint2.full_clean()  # should not raise
+
+	def test_clean_allows_backlog_backlog_is_special(self):
+		backlog = Sprint.objects.create(project=self.project, name="Backlog")
+		active = Sprint.objects.create(project=self.project, name="Sprint 2", is_active=True)
+		backlog.is_active = True
+		with self.assertRaises(ValidationError):
+			backlog.full_clean()
+		backlog.is_active = False
+
+
+class TicketRelationCleanTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket_a = Ticket.objects.create(project=cls.project, title="Ticket A")
+		cls.ticket_b = Ticket.objects.create(project=cls.project, title="Ticket B")
+		cls.ticket_c = Ticket.objects.create(project=cls.project, title="Ticket C")
+
+	def test_clean_prevents_different_relation_same_pair(self):
+		# Create BLOCKED_BY: A is blocked by B
+		r1 = TicketRelation.objects.create(
+			subject=self.ticket_a,
+			target=self.ticket_b,
+			relation_type=Ticket.RelationType.BLOCKED_BY,
+		)
+		# Try to create RELATED_TO: A related to B
+		r2 = TicketRelation(
+			subject=self.ticket_a,
+			target=self.ticket_b,
+			relation_type=Ticket.RelationType.RELATED_TO,
+		)
+		with self.assertRaises(ValidationError) as ctx:
+			r2.full_clean()
+		self.assertIn("A relation already exists", str(ctx.exception))
+
+	def test_clean_allows_same_relation_type(self):
+		r = TicketRelation(
+			subject=self.ticket_a,
+			target=self.ticket_b,
+			relation_type=Ticket.RelationType.RELATED_TO,
+		)
+		r.full_clean()  # should not raise
+
+	def test_clean_allows_unrelated_tickets(self):
+		r = TicketRelation(
+			subject=self.ticket_b,
+			target=self.ticket_c,
+			relation_type=Ticket.RelationType.RELATED_TO,
+		)
+		r.full_clean()  # should not raise
+
+	def test_clean_allows_reverse_direction_after_first(self):
+		# First relation: A blocked_by B (creates symmetric B blocks A)
+		r1 = TicketRelation.objects.create(
+			subject=self.ticket_a,
+			target=self.ticket_b,
+			relation_type=Ticket.RelationType.BLOCKED_BY,
+		)
+		# Try to create related_to in the same direction: A -> B
+		r2 = TicketRelation(
+			subject=self.ticket_a,
+			target=self.ticket_b,
+			relation_type=Ticket.RelationType.RELATED_TO,
+		)
+		with self.assertRaises(ValidationError):
+			r2.full_clean()
+
+	def test_clean_allows_relation_with_unrelated_ticket(self):
+		r = TicketRelation(
+			subject=self.ticket_a,
+			target=self.ticket_c,
+			relation_type=Ticket.RelationType.RELATED_TO,
+		)
+		r.full_clean()  # should not raise
