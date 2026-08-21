@@ -25,7 +25,7 @@ from .forms import (
 	SprintForm, TicketForm, TicketTransitionForm, VersionForm, WatcherForm,
 )
 from .models import (
-	Attachment, Comment, Component, Label, Notification, Project, Sprint, SprintMetrics,
+	Attachment, Comment, Component, Label, Notification, Project, SavedFilter, Sprint, SprintMetrics,
 	Ticket, TicketActivity, TicketRelation, Version, Watcher,
 )
 
@@ -578,46 +578,52 @@ def project_edit(request: HttpRequest, pk: int) -> HttpResponseBase:
 
 
 @login_required
-def ticket_list(request: HttpRequest) -> HttpResponseBase:
-	"""List tickets, optionally filtered by project, state, component, and label."""
-	tickets = _build_tickets_queryset(request)
+def ticket_list(request: HttpRequest, project_key: str | None = None) -> HttpResponseBase:
+	"""List tickets with filtering, sorting, and pagination."""
+	used_project_key = project_key
+	if not used_project_key:
+		project_key_q = request.GET.get("project")
+		if project_key_q:
+			used_project_key = project_key_q.upper()
+	tickets = _build_tickets_queryset(request, used_project_key)
 
-	query = request.GET.get("q")
-	if query:
-		tickets = tickets.filter(
-			Q(title__icontains=query) | Q(description__icontains=query)
-		)
+ 	# Preserve active filters for the query bar
+	active_query = request.GET.get("query", "")
+	sort_by = request.GET.get("sort", "created_at")
+	sort_dir = request.GET.get("order", "desc")
 
-	project_key = request.GET.get("project")
+	# Multi-value active filters as badge lists
+	active_states = request.GET.getlist("state")
+	active_labels = list(Label.objects.filter(name__in=request.GET.getlist("label")).order_by("name"))
+	active_components = list(Component.objects.filter(name__in=request.GET.getlist("component")).order_by("name"))
+	active_assignees = []
+	for username in request.GET.getlist("assignee"):
+		if username not in ("me", "unassigned"):
+			try:
+				active_assignees.append(get_user_model().objects.get(username=username))
+			except get_user_model().DoesNotExist:
+				pass
+
+	# Saved filters (only for the current project if specified)
+	saved_filters = []
+	saved_filter_pk = request.GET.get("saved_filter")
 	if project_key:
-		tickets = tickets.filter(project__key=project_key)
+		saved_filters = SavedFilter.objects.filter(
+			project__key=project_key,
+			user=request.user,
+			is_active=True,
+		).order_by("title")
 
-	state = request.GET.get("state")
-	if state:
-		tickets = tickets.filter(state=state)
-
-	component = request.GET.get("component")
-	if component:
-		tickets = tickets.filter(components__name=component)
-
-	label = request.GET.get("label")
-	if label:
-		tickets = tickets.filter(labels__name=label)
-
-	assignee = request.GET.get("assignee")
-	if assignee == "me":
-		tickets = tickets.filter(assignee=request.user)
-	elif assignee == "unassigned":
-		tickets = tickets.filter(assignee__isnull=True)
-	elif assignee:
-		tickets = tickets.filter(assignee__pk=assignee)
-
-	tickets = tickets.order_by("-updated_at")
 	page = request.GET.get("page", 1)
-	paginator = Paginator(tickets, 25)
+	page_size = int(request.GET.get("page_size", 25))
+	paginator = Paginator(tickets, page_size)
 	ticket_page = paginator.get_page(page)
 
-	# Build JSON lists for bulk action dropdowns
+	get_copy = request.GET.copy()
+	get_copy.pop("page", None)
+	params_str = get_copy.urlencode()
+	pagination_params = f"&{params_str}" if params_str else ""
+
 	users_json = json.dumps([["u" + str(u.pk), str(u)] for u in get_user_model().objects.filter(
 		id__in=Ticket.objects.values_list("assignee", flat=True).distinct()
 	).order_by("username")])
@@ -625,17 +631,17 @@ def ticket_list(request: HttpRequest) -> HttpResponseBase:
 	components_json = json.dumps([["c" + str(c.pk), c.name + " (" + c.project.key + ")"] for c in Component.objects.all().order_by("name")])
 	sprints_json = json.dumps([["s" + str(s.pk), s.name + " (" + s.project.key + ")"] for s in Sprint.objects.all().order_by("order")])
 
+	# Store current GET params in session so saved_filter_create can pick them up
+	session = request.session
+	get_copy = request.GET.copy()
+	get_copy.pop("page", None)
+	session["last_filter_get"] = dict(get_copy)
+
 	return render(request, "tracking/ticket_list.html", {
 		"title": "Tickets",
 		"tickets": ticket_page,
 		"projects": Project.objects.all(),
 		"states": Ticket.State.choices,
-		"current_project": project_key or "",
-		"current_state": state or "",
-		"current_component": component or "",
-		"current_label": label or "",
-		"current_assignee": assignee or "",
-		"current_query": query or "",
 		"components": Component.objects.all().order_by("name"),
 		"labels": Label.objects.all().order_by("name"),
 		"users": get_user_model().objects.filter(
@@ -645,14 +651,86 @@ def ticket_list(request: HttpRequest) -> HttpResponseBase:
 		"labels_json": labels_json,
 		"components_json": components_json,
 		"sprints_json": sprints_json,
+		"active_query": active_query,
+		"sort_by": sort_by,
+		"sort_dir": sort_dir,
+		"pagination_params": pagination_params,
+		"current_project": project_key,
+		"active_states": active_states,
+		"active_labels": active_labels,
+		"active_components": active_components,
+		"saved_filters": saved_filters,
+		"saved_filter_pk": saved_filter_pk,
 	})
 
 
 @login_required
+def saved_filter_create(request: HttpRequest) -> HttpResponseBase:
+	"""Create / update a named saved filter."""
+	project_key = request.POST.get("project", "").upper()
+	if not project_key:
+		messages.error(request, "Project must be specified.")
+		return redirect("ticket_list")
+
+	project = get_object_or_404(Project, key=project_key)
+	title = request.POST.get("title", "").strip()
+	if not title:
+		messages.error(request, "Filter name is required.")
+		return redirect("ticket_list")
+
+	filters_dict = request.session.pop("last_filter_get", dict(request.GET))
+	saved, _ = SavedFilter.objects.get_or_create(
+		project=project,
+		user=request.user,
+		title=title,
+		defaults={"filters_json": filters_dict},
+	)
+	if not saved.pk:
+		saved.filters_json = filters_dict
+		saved.save(update_fields=["filters_json"])
+
+	messages.success(request, f"Filter '{title}' saved.")
+	return redirect("ticket_list_project", project_key=project_key)
+
+
+@login_required
+def saved_filter_delete(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Delete a saved filter."""
+	filt = get_object_or_404(SavedFilter, pk=pk)
+	if filt.user != request.user:
+		messages.error(request, "You can only delete your own filters.")
+		return redirect("ticket_list")
+	project_key = filt.project.key
+	filt.delete()
+	messages.success(request, f"Filter '{filt.title}' deleted.")
+	return redirect("ticket_list_project", project_key=project_key)
+
+
+@login_required
+def saved_filter_apply(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Apply a saved filter by redirecting with its query params."""
+	filt = get_object_or_404(SavedFilter, pk=pk)
+	if filt.user != request.user:
+		messages.error(request, "You can only use your own filters.")
+		return redirect("ticket_list")
+	_params = []
+	for key, value in filt.filters_json.items():
+		if isinstance(value, list):
+			for v in value:
+				_params.append(f"{key}={v}")
+		else:
+			_params.append(f"{key}={value}")
+	query_string = "&".join(_params)
+	return redirect(f"/tracking/tickets/{filt.project.key}/?{query_string}")
+
+
+@login_required
 def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
-	"""Show a single ticket with its allowed state transitions, comments, and attachments."""
+	"""Show a single ticket with components, state transitions, comments, and attachments."""
 	ticket = get_object_or_404(
-		Ticket.objects.select_related("project", "assignee", "reporter", "parent_epic"), pk=pk
+		Ticket.objects.select_related(
+			"project", "assignee", "reporter", "parent_epic", "sprint",
+		).prefetch_related("components", "labels"), pk=pk
 	)
 	comments = ticket.comments.select_related("author").all()
 	attachments = ticket.attachments.all()
@@ -664,7 +742,7 @@ def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 			rel.label = str(rel.get_relation_type_display())
 		else:
 			rel.label = ticket._get_reverse_label(rel.relation_type)
-	activities = ticket.activities.select_related("actor").all()
+	activities = TicketActivity.objects.filter(ticket=ticket).select_related("actor").all()
 	watchers = ticket.watchers.all()
 	page = request.GET.get("comments_page", 1)
 	comment_paginator = Paginator(comments, 20)
@@ -675,10 +753,10 @@ def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 		"transition_form": TicketTransitionForm(ticket=ticket),
 		"comment_form": CommentForm(),
 		"comments": comment_page,
- 		"attachments": attachments,
- 		"image_attachments": image_attachments,
+  		"attachments": attachments,
+  		"image_attachments": image_attachments,
 		"relations": relations,
-		"available_tickets": ticket.available_rels_for("current_project"),
+		"available_tickets": Ticket.objects.filter(project=ticket.project).exclude(pk=ticket.pk),
 		"relation_types": Ticket.RelationType.choices,
 		"child_tickets": child_tickets,
 		"sprints": Sprint.objects.filter(project=ticket.project).order_by("order"),
@@ -1535,46 +1613,102 @@ def watcher_remove(request: HttpRequest, ticket_pk: int, user_pk: int) -> HttpRe
 	return redirect("ticket_detail", pk=ticket.pk)
 
 
-def _build_tickets_queryset(request: HttpRequest) -> models.QuerySet[Ticket]:
-	"""Re-build the filtered ticket queryset from the current GET params."""
-	tickets = Ticket.objects.select_related("project", "assignee").prefetch_related("components", "labels")
+def _build_tickets_queryset(
+	request: HttpRequest,
+	project_key: str | None = None,
+) -> models.QuerySet[Ticket]:
+	"""Centralised queryset builder – supports single AND multi-value filters,
+	sorting and ticket-key search.
 
-	query = request.GET.get("q")
-	if query:
-		tickets = tickets.filter(
-			Q(title__icontains=query) | Q(description__icontains=query)
-		)
+	Accepts ``request.GET`` keys (grouped name═value pairs are supported via
+	``.getlist``):
 
-	project_key = request.GET.get("project")
+	  * ``query`` – free-text / key search (``SMT-123`` or ``login error``)
+	  State / component / label / assignee may be repeated for *multi-filter*
+	  semantics (logical AND across values):
+
+	  * ``state``     – Ticket.State member names
+	  * ``component`` – component names
+	  * ``label``     – label names
+	  * ``assignee``  – usernames (special:: ``me``, ``unassigned``)
+
+	Ordering is driven by ``sort`` + ``order`` query params::
+
+	  ``sort`` values: title, type, priority, state, due_date, created_at
+	  ``order`` values: ``asc`` (default) | ``desc``
+	"""
+	qs = Ticket.objects.select_related(
+		"project", "assignee", "reporter", "sprint",
+	).prefetch_related("components", "labels")
+
+	# ── project scope ──────────────────────────────────────────────
 	if project_key:
-		tickets = tickets.filter(project__key=project_key)
+		qs = qs.filter(project__key=project_key)
 
-	state = request.GET.get("state")
-	if state:
-		tickets = tickets.filter(state=state)
+	# ── query (key-search, title, description) ─────────────────────
+	text_query = (request.GET.get("query") or request.GET.get("q") or "").strip()
+	if text_query:
+		q = Q(title__icontains=text_query) | Q(description__icontains=text_query)
+		try:
+			q |= Q(pk=int(text_query))
+		except ValueError:
+			pass
+		qs = qs.filter(q)
 
-	component = request.GET.get("component")
-	if component:
-		tickets = tickets.filter(components__name=component)
+	# ── multi-value filters ────────────────────────────────────────
+	states = request.GET.getlist("state")
+	if states:
+		qs = qs.filter(state__in=states)
 
-	label = request.GET.get("label")
-	if label:
-		tickets = tickets.filter(labels__name=label)
+	label_names = request.GET.getlist("label")
+	if label_names:
+		for name in label_names:
+			qs = qs.filter(labels__name=name)
+		qs = qs.distinct()
 
-	fix_version = request.GET.get("fix_version")
-	if fix_version:
-		tickets = tickets.filter(fix_version__pk=fix_version)
+	component_names = request.GET.getlist("component")
+	if component_names:
+		for name in component_names:
+			qs = qs.filter(components__name=name)
+		qs = qs.distinct()
 
-	assignee = request.GET.get("assignee")
-	if assignee == "me":
-		tickets = tickets.filter(assignee=request.user)
-	elif assignee == "unassigned":
-		tickets = tickets.filter(assignee__isnull=True)
-	elif assignee:
-		tickets = tickets.filter(assignee__pk=assignee)
+	assignee_vals = request.GET.getlist("assignee")
+	if assignee_vals:
+		filters_q = Q()
+		if "me" in assignee_vals:
+			filters_q |= Q(assignee=request.user)
+		if "unassigned" in assignee_vals:
+			filters_q |= Q(assignee__isnull=True)
+		other_vals = [a for a in assignee_vals if a not in ("me", "unassigned")]
+		if other_vals:
+			user_ids = [a for a in other_vals if a.isdigit()]
+			usernames = [a for a in other_vals if not a.isdigit()]
+			assignee_q = Q()
+			if user_ids:
+				assignee_q |= Q(assignee_id__in=[int(x) for x in user_ids])
+			if usernames:
+				assignee_q |= Q(assignee__username__in=usernames)
+			filters_q |= assignee_q
+		if filters_q:
+			qs = qs.filter(filters_q)
 
-	tickets = tickets.order_by("-updated_at")
-	return tickets
+	# ── sorting ────────────────────────────────────────────────────
+	sort_field = request.GET.get("sort", "created_at")
+	sort_order = request.GET.get("order", "desc")
+	sort_map: dict[str, str] = {
+		"title": "title",
+		"type": "type",
+		"priority": "priority",
+		"state": "state",
+		"due_date": "due_date",
+		"created_at": "created_at",
+		"updated_at": "updated_at",
+	}
+	field = sort_map.get(sort_field, "created_at")
+	prefix = "-" if sort_order == "desc" else ""
+	qs = qs.order_by(f"{prefix}{field}")
+
+	return qs
 
 
 @login_required

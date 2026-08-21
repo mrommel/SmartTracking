@@ -13,56 +13,123 @@
 	</div>
 
 	<!-- Filters -->
-	<form id="filter-form" method="get" class="row g-2 mb-3">
-		<div class="col">
-			<input type="text" name="q" class="form-control" placeholder="Search title or description..." value="{{ current_query }}">
-		</div>
-		<div class="col-auto">
-			<select name="project" class="form-select" onchange="this.form.submit()">
-				<option value="">All projects</option>
-				{% for project in projects %}
-					<option value="{{ project.key }}" {% if project.key == current_project %}selected{% endif %}>
-						{{ project.key }} — {{ project.name }}
-					</option>
-				{% endfor %}
+	<form method="get" class="row g-2 mb-3" id="filter-form">
+
+		<!-- Query bar -->
+		<div class="col-12 d-flex gap-2 align-items-center">
+			<div class="input-group">
+				<span class="input-group-text"><i class="bi bi-search"></i></span>
+				<input type="text" name="query" id="query-bar" class="form-control" placeholder="Filter by ticket key (e.g. SMT-42), title, or description…" value="{{ active_query }}">
+				<button type="submit" class="btn btn-outline-primary">Apply</button>
+				<a href="{% if current_project %}{% url 'ticket_list_project' project_key=current_project %}{% else %}{% url 'ticket_list' %}{% endif %}" class="btn btn-outline-secondary" title="Clear query">Clear</a>
+			</div>
+			<select name="sort" id="sort-select" class="form-select form-select-sm" style="width: auto;">
+				<option value="created_at" {% if sort_by == "created_at" %}selected{% endif %}>Created</option>
+				<option value="updated_at" {% if sort_by == "updated_at" %}selected{% endif %}>Updated</option>
+				<option value="due_date" {% if sort_by == "due_date" %}selected{% endif %}>Due Date</option>
+				<option value="priority" {% if sort_by == "priority" %}selected{% endif %}>Priority</option>
+				<option value="state" {% if sort_by == "state" %}selected{% endif %}>State</option>
+				<option value="type" {% if sort_by == "type" %}selected{% endif %}>Type</option>
+				<option value="title" {% if sort_by == "title" %}selected{% endif %}>Title</option>
 			</select>
+			<select name="order" id="order-select" class="form-select form-select-sm" style="width: auto;">
+				<option value="desc" {% if sort_dir == "desc" %}selected{% endif %}>↓ Desc</option>
+				<option value="asc" {% if sort_dir == "asc" %}selected{% endif %}>↑ Asc</option>
+			</select>
+			<div class="ms-auto d-flex gap-2 align-items-center">
+				{% if saved_filters%}
+					{% for sf in saved_filters %}
+					<div class="form-check form-check-inline m-0">
+						<input class="form-check-input" type="checkbox" name="saved_filter" value="{{ sf.pk }}" id="sf_{{ sf.pk }}"
+							{% if saved_filter_pk == sf.pk %}checked{% endif %}>
+						<label class="form-check-label small" for="sf_{{ sf.pk }}">{{ sf.title }}</label>
+					</div>
+					{% endfor %}
+					<a href="{% url 'saved_filter_create' %}?project={{ current_project|default:'' }}" class="btn btn-sm btn-outline-primary" id="save-filter-btn">
+						Save current
+					</a>
+				{% endif %}
+			</div>
 		</div>
-		<div class="col-auto">
-			<select name="state" class="form-select" onchange="this.form.submit()">
-				<option value="">All states</option>
+
+		<!-- Multi-value filter pills -->
+		<div class="col-12 d-flex flex-wrap gap-1 align-items-center mt-2" id="filter-pills">
+			<div class="d-flex gap-1 flex-wrap" id="state-pills">
 				{% for value, label in states %}
-					<option value="{{ value }}" {% if value == current_state %}selected{% endif %}>{{ label }}</option>
+				{% if value in active_states %}
+					<span class="badge rounded-pill bg-info text-dark">
+						State: {{ label }}
+						<a href="#" class="badge bg-white text-dark text-decoration-none ms-1"
+							onclick="removeParam('state','{{ value }}'); return false;">×</a>
+					</span>
+				{% endif %}
 				{% endfor %}
-			</select>
-		</div>
-		<div class="col-auto">
-			<select name="component" class="form-select" onchange="this.form.submit()">
-				<option value="">All components</option>
-				{% for component in components %}
-					<option value="{{ component.name }}" {% if component.name == current_component %}selected{% endif %}>
-						{{ component.name }}
-					</option>
+			</div>
+			<div class="d-flex gap-1 flex-wrap" id="label-pills">
+				{% for label in active_labels %}
+					<span class="badge rounded-pill bg-secondary">
+						{{ label.name }} ({{ label.project.key }})
+						<a href="#" class="badge bg-white text-dark text-decoration-none ms-1"
+							onclick="removeParam('label','{{ label.name }}'); return false;">×</a>
+					</span>
+				{% empty %}
 				{% endfor %}
-			</select>
-		</div>
-		<div class="col-auto">
-			<select name="label" class="form-select" onchange="this.form.submit()">
-				<option value="">All labels</option>
-				{% for label in labels %}
-					<option value="{{ label.name }}" {% if label.name == current_label %}selected{% endif %}>
-						{{ label.name }}
-					</option>
+			</div>
+			<div class="d-flex gap-1 flex-wrap" id="component-pills">
+				{% for comp in active_components %}
+					<span class="badge rounded-pill bg-warning text-dark">
+						{{ comp.name }} ({{ comp.project.key }})
+						<a href="#" class="badge bg-white text-dark text-decoration-none ms-1"
+							onclick="removeParam('component','{{ comp.name }}'); return false;">×</a>
+					</span>
+				{% empty %}
 				{% endfor %}
-			</select>
-		</div>
-		<div class="col-auto">
-			<select name="assignee" class="form-select" onchange="this.form.submit()">
-				<option value="">All assignees</option>
-				<option value="me" {% if current_assignee == "me" %}selected{% endif %}>Assigned to me</option>
-				<option value="unassigned" {% if current_assignee == "unassigned" %}selected{% endif %}>Unassigned</option>
-				{% for user in users %}
-					<option value="{{ user.pk }}" {% if user.pk|stringformat:"d" == current_assignee %}selected{% endif %}>
+			</div>
+			<div class="d-flex gap-1 flex-wrap" id="assignee-pills">
+				{% for user in active_assignees %}
+					<span class="badge rounded-pill bg-primary">
 						{{ user }}
+						<a href="#" class="badge bg-white text-dark text-decoration-none ms-1"
+							onclick="removeParam('assignee','{{ user.username }}'); return false;">×</a>
+					</span>
+				{% empty %}
+				{% endfor %}
+			</div>
+		</div>
+
+		<!-- Filter quick-links -->
+		<div class="col-12 d-flex flex-wrap gap-2 mt-2" id="filter-controls">
+			<select name="state" id="state-filter" class="form-select form-select-sm" style="width:auto;" onchange="addFilterParam('state',this.value)">
+				<option value="">+ State…</option>
+				{% for value, label in states %}
+					<option value="{{ value }}">{{ label }}</option>
+				{% endfor %}
+			</select>
+			<select name="component" id="component-filter" class="form-select form-select-sm" style="width:auto;" onchange="addFilterParam('component',this.value)">
+				<option value="">+ Component…</option>
+				{% for component in components %}
+					<option value="{{ component.name }}">{{ component.name }} ({{ component.project.key }})</option>
+				{% endfor %}
+			</select>
+			<select name="label" id="label-filter" class="form-select form-select-sm" style="width:auto;" onchange="addFilterParam('label',this.value)">
+				<option value="">+ Label…</option>
+				{% for label in labels %}
+					<option value="{{ label.name }}">{{ label.name }} ({{ label.project.key }})</option>
+				{% endfor %}
+			</select>
+			<select name="assignee" id="assignee-filter" class="form-select form-select-sm" style="width:auto;" onchange="addFilterParam('assignee',this.value)">
+				<option value="">+ Assignee…</option>
+				<option value="me">me (self)</option>
+				<option value="unassigned">unassigned</option>
+				{% for user in users %}
+					<option value="{{ user.username }}">{{ user }}</option>
+				{% endfor %}
+			</select>
+			<select name="project" id="project-filter" class="form-select form-select-sm" style="width:auto;" onchange="addFilterParam('project',this.value)">
+				<option value="">+ Project…</option>
+				{% for project in projects %}
+					<option value="{{ project.key }}" {% if current_project == project.key %}selected{% endif %}>
+						{{ project.key }} — {{ project.name }}
 					</option>
 				{% endfor %}
 			</select>
@@ -114,7 +181,7 @@
 			<table class="table table-hover mb-0 align-middle">
 				<div class="filter-summary small text-muted mb-2">
 					{{ tickets.paginator.count }} ticket{{ tickets.paginator.count|pluralize }}
-					{% if current_query or current_project or current_state or current_component or current_label or current_assignee %} · <a href="{% url 'ticket_list' %}">Clear all filters</a>{% endif %}
+					<span id="clear-filters"><a href="#" onclick="clearAllFilters(); return false;">Clear all filters</a></span>
 				</div>
 
 				<thead>
@@ -173,7 +240,7 @@
 				<ul class="pagination justify-content-center mt-3 mb-0">
 					{% if tickets.has_previous %}
 						<li class="page-item">
-							<a class="page-link" href="?page={{ tickets.previous_page_number }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">Previous</a>
+							<a class="page-link" href="?page={{ tickets.previous_page_number }}{{ pagination_params }}">{{ tickets.previous_page_number }}</a>
 						</li>
 					{% else %}
 						<li class="page-item disabled">
@@ -185,7 +252,7 @@
 						{% if tickets.number == num %}
 							<li class="page-item active"><span class="page-link">{{ num }}</span></li>
 						{% elif num == 1 or num == tickets.paginator.num_pages or num|add:"-1" == tickets.number or num|add:"1" == tickets.number %}
-							<li class="page-item"><a class="page-link" href="?page={{ num }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">{{ num }}</a></li>
+							<li class="page-item"><a class="page-link" href="?page={{ num }}{{ pagination_params }}">{{ num }}</a></li>
 						{% elif num|add:"-1" == tickets.number or num|add:"1" == tickets.number %}
 							<li class="page-item disabled"><span class="page-link">…</span></li>
 						{% endif %}
@@ -193,7 +260,7 @@
 
 					{% if tickets.has_next %}
 						<li class="page-item">
-							<a class="page-link" href="?page={{ tickets.next_page_number }}{% if current_query %}&q={{ current_query }}{% endif %}{% if current_project %}&project={{ current_project }}{% endif %}{% if current_state %}&state={{ current_state }}{% endif %}{% if current_component %}&component={{ current_component }}{% endif %}{% if current_label %}&label={{ current_label }}{% endif %}{% if current_assignee %}&assignee={{ current_assignee }}{% endif %}">Next</a>
+							<a class="page-link" href="?page={{ tickets.next_page_number }}{{ pagination_params }}">{{ tickets.next_page_number }}</a>
 						</li>
 					{% else %}
 						<li class="page-item disabled">
@@ -380,6 +447,32 @@
 			if (bulkLabelChoices) { popOptions(fieldLabels, bulkLabelChoices); }
 			if (bulkComponentChoices) { popOptions(fieldComponents, bulkComponentChoices); }
 			if (bulkSprintChoices) { popOptions(fieldSprint, bulkSprintChoices); }
+		}
+
+		// Multi-value filter helpers
+		function getSearchParams() {
+			return new URLSearchParams(window.location.search);
+		}
+
+		function removeParam(name, value) {
+			const params = getSearchParams();
+			const current = params.getAll(name);
+			const filtered = current.filter(v => v !== value);
+			params.delete(name);
+			filtered.forEach(v => params.append(name, v));
+			window.location.search = params.toString();
+		}
+
+		function addParam(name, value) {
+			const params = getSearchParams();
+			params.append(name, value);
+			window.location.search = params.toString();
+		}
+
+		function clearAllFilters() {
+			const params = getSearchParams();
+			params.forEach((_, key) => params.delete(key));
+			window.location.search = params.toString();
 		}
 	})();
 	</script>

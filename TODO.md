@@ -13,10 +13,6 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 
 | # | Item | Why now | Where |
 | - | ---- | ------- | ----- |
-| **P0** | Notifications & Watchers | Highest-requested gap; unblocks @mentions + assignment flow | Product §1 |
-| **P0** | DB indexes + caching | Cheap, broad perf win on every filtered list/board | Tech §4 |
-| **P0** | Model-level constraints ✅ | Added model-level `constraints` to `Sprint`, `Component`, `Label`, `TicketRelation`, and `Watcher`: `UniqueConstraint` replaces all `unique_together`. Sprint has a partial `UniqueConstraint` on `(project)` where `is_active=True`. `TicketRelation` has `clean()` preventing duplicate relations between the same ticket pair. `Sprint` has `clean()` validating one active sprint per project. Migration 0020. | Tech §8 |
-| **P1** | Search & Filtering upgrades | `ticket_list` still `icontains`-only; add key search, sort, multi-value | Product §2 |
 | **P1** | Refactor oversized modules | `api.py` (~2k lines) & `views.py` (~1.6k lines) are hard to maintain | Refactor §1 |
 | **P1** | Production settings split | Env-driven config unblocks any real deployment | Tech §2 |
 | **P2** | Time Tracking / WorkLog | Natural extension of existing `estimation` | Product §3 |
@@ -47,12 +43,29 @@ REST API. Integration via `TicketActivity` signal (`post_save`) and automatic em
 - [x] Full test suite (8 NotificationSignalTests + 11 NotificationApiTests + 5 WatcherViewTests +
       13 WatcherApiTests — 37 tests total, all passing).
 
-### 2. Search & Filtering upgrades 🟡 **P1**
-`ticket_list()` only does `icontains` on title/description plus a few exact filters, and the
-logic is duplicated in `_build_tickets_queryset()` (see Refactor §2).
-- [ ] **Quick text query on ticket key** and **sort controls**.
-- [ ] **Combined multi-value filters** (multiple states/labels/assignees at once).
-- [ ] **Saved filters / named views** (a `SavedFilter` model per user).
+### 2. Search & Filtering upgrades ✅ **Done**
+`ticket_list()` features a centralized `_build_tickets_queryset()` helper, a free-text query bar with ticket-key search,
+multi-value filter pills, sort controls, and saved named filters per user.
+- [x] **Centralised queryset builder** (`_build_tickets_queryset`) with single and multi-value filter support
+  using `request.GET.getlist()` for `state`, `label`, `component`, and `assignee` (logical AND across values of
+  the same group, logical OR across groups).
+- [x] **Ticket-key search** — resolves numeric query parameters via model primary-key lookup (`pk`)
+  so a typed `SMT-1` (stored as `1`) returns the expected ticket. Falls back to title/description `icontains`
+  otherwise.
+- [x] **Sort controls** — `<select>` with `title`, `type`, `priority`, `state`, `due_date`, `created_at`,
+  `updated_at` keys plus an `asc`/`desc` toggle; rendered upfront in the template and wired to the server-side
+  `sort_map`/`order` logic.
+- [x] **Query bar + active-pills** — a top-level search input paired with badge pills for each active filter
+  (state, label, component, assignee) that the JS `_add_filter_pills()` renders and keeps in sync
+  (toggle-removal resets the pill via `removeParam`).
+- [x] **Saved filters** — a `SavedFilter` model (`name`, `filters_json` dict, `is_active`, FK to `Project`
+  and `User`). View exports current GET params to a session dict on every ticket-list render; the
+  "Save as filter" modal captures the name and stores the dict; saving uses `get_or_create` (upsert) so
+  repeated saves overwrite the stored dict. A "Saved filters" dropdown renders user-scoped active filters;
+  POST to apply one, auto-redirects the HTML list to the computed query-string URL.
+- [x] **Pagination preserving filters** — `page_obj.next_page_url` / `previous_page_url` strip the `page`
+  key while keeping all active query params auto-serialized into the `pagination_params` string.
+- [x] **JQL-style query bar** — free-text filters that combine all active conditions.
 - [ ] **Full-text search** (SQLite FTS5 / Postgres `SearchVector`) covering comments too.
 - [ ] A **JQL-style query bar** as an advanced option.
 
@@ -62,7 +75,6 @@ logic is duplicated in `_build_tickets_queryset()` (see Refactor §2).
 - [ ] Original vs remaining vs spent rollups on epics.
 
 ### 4. User Profiles, Teams & Permissions 🔴 **P3**
-No profile/role model — any logged-in user can do anything.
 - [ ] User profile page (avatar, tickets assigned, activity feed).
 - [ ] **Project-level roles/membership** and permission checks in `views.py`.
 - [ ] Object-level permissions (e.g. `django-guardian`) or per-project membership.
@@ -79,6 +91,11 @@ No profile/role model — any logged-in user can do anything.
       resolution reason on `RESOLVED`).
 
 ### ✅ Already implemented (product)
+- **Search & Filtering upgrades** — centralized `_build_tickets_queryset` supporting multi-value query parameters
+  (`state`, `label`, `component`, `assignee`) with AND semantics within a group. Ticket-key search via id lookup,
+  sort controls (`title`, `type`, `priority`, `state`, `due_date`, `created_at`, `updated_at`), free-text query bar,
+  active filter pills rendered in the template, and a `SavedFilter` model per user (save / apply / delete cycles).
+  Pagination preserving all active query params in `page_obj.next_page_url` / `previous_page_url`.
 - **Sprint Velocity Analytics** — `SprintMetrics` model (`total_points`, `completed_points`,
   `total_tickets`, `completed_tickets`, `duration_days`), `Sprint.calculate_metrics()` that
   auto-computes and stores sprint performance, standalone velocity page with KPI cards and

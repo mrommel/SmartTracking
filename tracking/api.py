@@ -400,7 +400,9 @@ def project_detail(request: HttpRequest, key: str) -> JsonResponse:
 @require_http_methods(["GET", "POST"])
 def ticket_collection(request: HttpRequest) -> HttpResponseBase:
 	if request.method == "GET":
-		tickets = Ticket.objects.select_related("project", "assignee", "reporter")
+		tickets = Ticket.objects.select_related(
+			"project", "assignee", "reporter"
+		).prefetch_related("components", "labels")
 		project_key = request.GET.get("project")
 		if project_key:
 			tickets = tickets.filter(project__key=project_key.upper())
@@ -420,6 +422,13 @@ def ticket_collection(request: HttpRequest) -> HttpResponseBase:
 		label = request.GET.get("label")
 		if label:
 			tickets = tickets.filter(labels__name=label)
+		# Multi-value support via getlist
+		states = request.GET.getlist("state")
+		if states:
+			tickets = tickets.filter(state__in=states)
+		assignees = request.GET.getlist("assignee")
+		if assignees and "me" not in assignees and "unassigned" not in assignees:
+			tickets = tickets.filter(assignee__pk__in=assignees)
 		path = request.get_full_path().split("?")[0]
 		total = tickets.count()
 		return JsonResponse(

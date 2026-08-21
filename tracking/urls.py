@@ -26,7 +26,8 @@ urlpatterns = [
     path('tickets/<int:pk>/transition/', views.ticket_transition, name='ticket_transition'),
  	path('tickets/<int:pk>/sprint/', views.ticket_sprint_assign, name='ticket_sprint_assign'),
  	path('tickets/order/', views.update_backlog_order, name='update_backlog_order'),
-    path('projects/<int:project_pk>/tickets/<int:pk>/delete/', views.ticket_delete, name='ticket_delete'),
+    path('tickets/<str:project_key>/', views.ticket_list, name='ticket_list_project'),
+    path('tickets/<int:project_pk>/tickets/<int:pk>/delete/', views.ticket_delete, name='ticket_delete'),
     path('tickets/<int:pk>/relations/add/', views.ticket_relation_add, name='ticket_relation_add'),
     path('tickets/relations/<int:pk>/delete/', views.ticket_relation_delete, name='ticket_relation_delete'),
 	path('tickets/<int:pk>/comment/', views.ticket_comment_create, name='ticket_comment_create'),
@@ -35,6 +36,10 @@ urlpatterns = [
     path('tickets/<int:pk>/attach/', views.ticket_attachment_upload, name='ticket_attachment_upload'),
     path('tickets/<int:pk>/media/<int:attachment_pk>/', views.ticket_attachment_serve, name='ticket_attachment_serve'),
     path('tickets/attachments/<int:pk>/delete/', views.ticket_attachment_delete, name='ticket_attachment_delete'),
+    # Saved filters.
+    path('saved-filters/create/', views.saved_filter_create, name='saved_filter_create'),
+    path('saved-filters/<int:pk>/delete/', views.saved_filter_delete, name='saved_filter_delete'),
+    path('saved-filters/<int:pk>/apply/', views.saved_filter_apply, name='saved_filter_apply'),
     # Notifications.
     path('notifications/', views.notification_feed, name='notification_feed'),
     path('notifications/mark-read/', views.notification_mark_read, name='notification_mark_read'),

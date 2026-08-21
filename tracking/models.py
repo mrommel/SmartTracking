@@ -1000,3 +1000,27 @@ class TicketRelation(models.Model):
 				target=self.subject,
 				relation_type=Ticket._REVERSE_LABELS[self.relation_type],
 			)
+
+
+class SavedFilter(models.Model):
+	"""Named saved filters that can be applied to ticket lists."""
+
+	title = models.CharField(max_length=200)
+	project = models.ForeignKey(
+		Project, models.CASCADE, related_name="saved_filters",
+	)
+	user = models.ForeignKey(
+		'auth.User', models.CASCADE, related_name="saved_filters",
+	)
+	filters_json = models.JSONField(
+		default=dict,
+		help_text="Filter parameters as JSON (state, label, assignee, sort, query).",
+	)
+	is_active = models.BooleanField(default=True)
+
+	class Meta:
+		verbose_name = _("Saved filter")
+		verbose_name_plural = _("Saved filters")
+
+	def __str__(self):
+		return f"{self.title} ({self.user})"

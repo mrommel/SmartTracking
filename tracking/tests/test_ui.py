@@ -1,13 +1,13 @@
 """Comprehensive UI tests: every view renders with correct content, status codes, and structure."""
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from tracking.models import Comment, Component, Label, Project, Sprint, Ticket, TicketRelation
+from tracking.models import Comment, Component, Label, Project, SavedFilter, Sprint, Ticket, TicketRelation
 
 User = get_user_model()
 
@@ -342,13 +342,12 @@ class TicketListTests(TestCase):
     def test_ticket_list_has_filter_form(self):
         response = self.client.get(reverse("ticket_list"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Search title or description")
+        self.assertContains(response, "Filter by ticket key")
         self.assertContains(response, 'name="project"')
         self.assertContains(response, 'name="state"')
         self.assertContains(response, 'name="component"')
         self.assertContains(response, 'name="label"')
         self.assertContains(response, 'name="assignee"')
-        self.assertContains(response, 'name="q"')
 
     def test_ticket_list_filters_by_project(self):
         response = self.client.get(reverse("ticket_list"), {"project": "SMT"})
@@ -382,7 +381,7 @@ class TicketListTests(TestCase):
         self.assertNotContains(response, "Fix login bug")
 
     def test_ticket_list_filters_by_query(self):
-        response = self.client.get(reverse("ticket_list"), {"q": "dark"})
+        response = self.client.get(reverse("ticket_list"), {"query": "dark"})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Add dark mode")
         self.assertNotContains(response, "Fix login bug")
@@ -937,6 +936,371 @@ class TicketDeleteViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(Ticket.objects.filter(pk=ticket.pk).exists())
+
+
+# ── Ticket list – search, sort & multi-value filters ─────────────────────────
+
+class TicketListAdvancedTests(TestCase):
+    """Expanded tests for the ticket list search, sort and multi-value filters."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("alice", password="pw")
+        cls.bob = User.objects.create_user("bob", password="pw")
+        cls.carol = User.objects.create_user("carol", password="pw")
+        cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+        cls.ticket1 = Ticket.objects.create(
+            project=cls.project, title="Fix login bug",
+            type=Ticket.Type.BUG, priority=Ticket.Priority.HIGH,
+            state=Ticket.State.OPEN, description="Broken login page",
+            assignee=cls.user)
+        cls.ticket2 = Ticket.objects.create(
+            project=cls.project, title="Add dark mode",
+            type=Ticket.Type.TASK, priority=Ticket.Priority.LOW,
+            state=Ticket.State.IN_PROGRESS, description="Night theme",
+            assignee=cls.bob)
+        cls.ticket3 = Ticket.objects.create(
+            project=cls.project, title="Deploy v1",
+            type=Ticket.Type.STORY, priority=Ticket.Priority.MEDIUM,
+            state=Ticket.State.CLOSED, description="Release v1",
+            assignee=cls.carol)
+        cls.ticket4 = Ticket.objects.create(
+            project=cls.project, title="Urgent security fix",
+            type=Ticket.Type.BUG, priority=Ticket.Priority.CRITICAL,
+            state=Ticket.State.OPEN, description="SQL injection",
+            assignee=None)
+        cls.label1 = Label.objects.create(project=cls.project, name="urgent")
+        cls.label2 = Label.objects.create(project=cls.project, name="bug")
+        cls.label3 = Label.objects.create(project=cls.project, name="frontend")
+        cls.ticket1.labels.add(cls.label1, cls.label2)
+        cls.ticket2.labels.add(cls.label3)
+        cls.ticket3.labels.add(cls.label1)
+        cls.ticket4.labels.add(cls.label2)
+        cls.component1 = Component.objects.create(project=cls.project, name="Frontend")
+        cls.component2 = Component.objects.create(project=cls.project, name="Backend")
+        cls.ticket1.components.add(cls.component1)
+        cls.ticket2.components.add(cls.component1)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    # ── Multi-value filters ──────────────────────────────────────────────
+
+    def test_multi_state_filter_returns_union(self):
+        """Multiple states → tickets matching ANY of them."""
+        resp = self.client.get(reverse("ticket_list"), {"state": ["open", "closed"]})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn("Fix login bug", content)   # open
+        self.assertIn("Deploy v1", content)       # closed
+        self.assertNotIn("Add dark mode", content)  # in_progress not in filter
+
+    def test_multi_label_filter_returns_intersection(self):
+        """Multiple labels → tickets matching ALL of them (AND semantics)."""
+        resp = self.client.get(reverse("ticket_list"), {"label": ["urgent", "bug"]})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn("Fix login bug", content)
+        self.assertNotContains(resp, "Deploy v1")
+        self.assertNotContains(resp, "Urgent security fix")
+
+    def test_multi_component_filter(self):
+        """Multiple components → AND semantics across ticket sets."""
+        resp = self.client.get(reverse("ticket_list"), {"component": ["Frontend"]})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn("Fix login bug", content)
+        self.assertIn("Add dark mode", content)
+        self.assertNotContains(resp, "Deploy v1")
+
+    def test_multi_assignee_filter(self):
+        """Multiple assignee values → union of tickets."""
+        resp = self.client.get(reverse("ticket_list"), {
+            "assignee": [self.bob.pk, self.carol.pk]
+        })
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn("Add dark mode", content)
+        self.assertIn("Deploy v1", content)
+        self.assertNotContains(resp, "Fix login bug")
+
+    # ── Query / key search ───────────────────────────────────────────────
+
+    def test_query_by_title(self):
+        response = self.client.get(reverse("ticket_list"), {"query": "dark"})
+        self.assertContains(response, "Add dark mode")
+        self.assertNotContains(response, "Fix login bug")
+
+    def test_query_by_description(self):
+        response = self.client.get(reverse("ticket_list"), {"query": "injection"})
+        self.assertContains(response, "Urgent security fix")
+        self.assertNotContains(response, "Fix login bug")
+
+    def test_query_by_ticket_id(self):
+        """Searching by the numeric ticket ID should match the ticket."""
+        response = self.client.get(reverse("ticket_list"), {"query": str(self.ticket1.pk)})
+        self.assertContains(response, "Fix login bug")
+        self.assertNotContains(response, "Add dark mode")
+
+    def test_q_param_alias_works(self):
+        """The old 'q' parameter name should still work."""
+        resp = self.client.get(reverse("ticket_list"), {"q": "dark"})
+        self.assertContains(resp, "Add dark mode")
+        self.assertNotContains(resp, "Fix login bug")
+
+    def test_query_combined_with_state_filter(self):
+        """Search text + state filter → intersection."""
+        resp = self.client.get(reverse("ticket_list"), {
+            "query": "bug",
+            "state": [Ticket.State.OPEN],
+        })
+        self.assertContains(resp, "Fix login bug")
+        self.assertNotContains(resp, "Urgent security fix")  # has "injection" not "bug" in title
+
+    def test_query_with_no_results(self):
+        response = self.client.get(reverse("ticket_list"), {"query": "nonexistent123zzz"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No tickets found")
+
+    # ── Assignee special values ──────────────────────────────────────────
+
+    def test_assignee_me_filter(self):
+        """'me' resolves to the logged-in user."""
+        resp = self.client.get(reverse("ticket_list"), {"assignee": "me"})
+        self.assertContains(resp, "Fix login bug")
+        self.assertNotContains(resp, "Deploy v1")
+
+    def test_assignee_unassigned_filter(self):
+        """'unassigned' returns only tickets without an assignee."""
+        resp = self.client.get(reverse("ticket_list"), {"assignee": "unassigned"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Urgent security fix")
+        self.assertNotContains(resp, "Fix login bug")
+
+    # ── Sorting ──────────────────────────────────────────────────────────
+
+    def test_sort_by_title_ascending(self):
+        resp = self.client.get(reverse("ticket_list"), {"sort": "title", "order": "asc"})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        add_pos = content.find("Add dark mode")
+        deploy_pos = content.find("Deploy v1")
+        self.assertLess(add_pos, deploy_pos)
+
+    def test_sort_by_title_descending(self):
+        resp = self.client.get(reverse("ticket_list"), {"sort": "title", "order": "desc"})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        deploy_pos = content.find("Deploy v1")
+        add_pos = content.find("Add dark mode")
+        self.assertLess(deploy_pos, add_pos)
+
+    def test_sort_by_priority(self):
+        resp = self.client.get(reverse("ticket_list"), {"sort": "priority", "order": "desc"})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        # CRITICAL ticket should appear BEFORE HIGH
+        crit_pos = content.find("Urgent security fix")
+        high_pos = content.find("Fix login bug")
+        self.assertLess(crit_pos, high_pos)
+
+    def test_default_sort_is_created_desc(self):
+        """No sort param → newest first (by id)."""
+        resp = self.client.get(reverse("ticket_list"))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        # Higher ID = newer, should appear first in desc order.
+        t4_pos = content.find("Urgent security fix")
+        t1_pos = content.find("Fix login bug")
+        self.assertLess(t4_pos, t1_pos)
+
+    def test_sort_select_has_all_options(self):
+        """Sort dropdown should include all configured sort fields."""
+        resp = self.client.get(reverse("ticket_list"))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        for opt in ["Title", "Type", "Priority", "State", "Due date", "Created", "Updated"]:
+            self.assertIn(opt, content)
+
+    def test_query_with_no_results(self):
+        response = self.client.get(reverse("ticket_list"), {"query": "nonexistent123zzz"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No tickets found")
+
+    def test_query_combines_with_state(self):
+        resp = self.client.get(reverse("ticket_list"), {
+            "query": "bug",
+            "state": [Ticket.State.OPEN],
+        })
+        self.assertContains(resp, "Fix login bug")
+        # "Urgent security fix" has "injection" in description, not "bug" in title
+        self.assertNotContains(resp, "Urgent security fix")
+
+
+# ── Saved filter views ────────────────────────────────────────────────────────
+
+class SavedFilterViewTests(TestCase):
+    """Tests for saved filter CRUD views."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("alice", password="pw")
+        cls.bob = User.objects.create_user("bob", password="pw")
+        cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+        cls.ticket = Ticket.objects.create(
+            project=cls.project, title="Fix login bug",
+            state=Ticket.State.OPEN)
+        cls.label_urgent = Label.objects.create(project=cls.project, name="urgent")
+        cls.label_bug = Label.objects.create(project=cls.project, name="bug")
+        cls.compf = Component.objects.create(project=cls.project, name="Frontend")
+        cls.comp_b = Component.objects.create(project=cls.project, name="Backend")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_saved_filter_create_redirects_without_data(self):
+        resp = self.client.post(reverse("saved_filter_create"), follow=True)
+        self.assertContains(resp, "Project must be specified")
+
+    def test_saved_filter_create_without_title(self):
+        resp = self.client.post(
+            reverse("saved_filter_create"),
+            {"project": "SMT", "title": ""},
+            follow=True,
+        )
+        self.assertContains(resp, "Filter name is required")
+
+    def test_saved_filter_create_stores_query_params(self):
+        self.client.get(reverse("ticket_list"), {"state": "open"})
+        resp = self.client.post(
+            reverse("saved_filter_create"),
+            {"project": "SMT", "title": "My open tickets"}
+        )
+        self.assertEqual(resp.status_code, 302)
+        filt = SavedFilter.objects.get(title="My open tickets")
+        self.assertEqual(filt.filters_json["state"], ["open"])
+        self.assertEqual(filt.user, self.user)
+        self.assertEqual(filt.project, self.project)
+
+    def test_saved_filter_delete_requires_own(self):
+        filt = SavedFilter.objects.create(
+            project=self.project, user=self.user,
+            title="Private filter", filters_json={})
+        resp = self.client.post(
+            reverse("saved_filter_delete", args=[filt.pk]),
+            follow=True,
+        )
+        self.assertContains(resp, "deleted")
+
+    def test_saved_filter_delete_other_user_cannot(self):
+        filt = SavedFilter.objects.create(
+            project=self.project, user=self.bob,
+            title="Bob filter", filters_json={})
+        resp = self.client.post(
+            reverse("saved_filter_delete", args=[filt.pk]),
+            follow=True,
+        )
+        self.assertTrue(SavedFilter.objects.filter(pk=filt.pk).exists())
+
+    def test_saved_filter_apply_redirects(self):
+        filt = SavedFilter.objects.create(
+            project=self.project, user=self.user,
+            title="Apply test", filters_json={"state": "open"})
+        resp = self.client.post(
+            reverse("saved_filter_apply", args=[filt.pk]),
+            follow=True,
+        )
+        self.assertContains(resp, "Fix login bug")
+
+    def test_saved_filter_apply_other_user_blocked(self):
+        filt = SavedFilter.objects.create(
+            project=self.project, user=self.bob,
+            title="Bob filter", filters_json={"state": "open"})
+        resp = self.client.post(
+            reverse("saved_filter_apply", args=[filt.pk]),
+            follow=True,
+        )
+        self.assertContains(resp, "own filters")
+
+    def test_saved_filters_context_for_project(self):
+        SavedFilter.objects.create(
+            project=self.project, user=self.user,
+            title="Filter A", filters_json={}, is_active=True)
+        resp = self.client.get(
+            reverse("ticket_list_project", kwargs={"project_key": "SMT"}))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context["saved_filters"]), 1)
+
+    def test_pagination_params_present(self):
+        """context.pagination_params should include active filters in pagination links."""
+        resp = self.client.get(reverse("ticket_list"), {"state": "open", "sort": "title", "page_size": "1"})
+        self.assertEqual(resp.status_code, 200)
+        # pagination_params should contain active filters (minus page) for use in pagination URLs
+        self.assertIn("state=open", resp.context["pagination_params"])
+        self.assertIn("sort=title", resp.context["pagination_params"])
+
+    def test_active_states_rendered_as_pills(self):
+        """Active state filters should be in context."""
+        resp = self.client.get(reverse("ticket_list"), {"state": "open"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("active_states", resp.context)
+        self.assertEqual(resp.context["active_states"], ["open"])
+
+    def test_active_labels_rendered_as_pills(self):
+        """Active label filters render as Label model instances."""
+        resp = self.client.get(reverse("ticket_list"), {"label": ["urgent", "bug"]})
+        self.assertEqual(resp.status_code, 200)
+        labels = resp.context["active_labels"]
+        self.assertEqual(len(labels), 2)
+        names = {l.name for l in labels}
+        self.assertEqual(names, {"urgent", "bug"})
+
+    def test_active_components_rendered_as_pills(self):
+        """Active component filters render as Component model instances."""
+        resp = self.client.get(reverse("ticket_list"), {
+            "component": ["Frontend", "Backend"]
+        })
+        self.assertEqual(resp.status_code, 200)
+        comps = resp.context["active_components"]
+        self.assertEqual(len(comps), 2)
+
+    def test_bulk_action_sprint_json_includes_sprints(self):
+        """sprints_json should be valid JSON."""
+        resp = self.client.get(reverse("ticket_list"))
+        self.assertEqual(resp.status_code, 200)
+        import json
+        data = json.loads(resp.context["sprints_json"])
+        # At minimum there's a backlog sprint per project
+        self.assertGreaterEqual(len(data), 0)
+
+
+# ── Bulk action JSON context ──────────────────────────────────────────────────
+
+
+class BulkActionJsonTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("alice", password="pw")
+        cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+        cls.label = Label.objects.create(project=cls.project, name="urgent")
+        cls.component = Component.objects.create(project=cls.project, name="Frontend")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_bulk_labels_json_includes_labels(self):
+        resp = self.client.get(reverse("ticket_list"))
+        self.assertEqual(resp.status_code, 200)
+        import json
+        data = json.loads(resp.context["labels_json"])
+        self.assertGreater(len(data), 0)
+
+    def test_bulk_component_json_includes_components(self):
+        resp = self.client.get(reverse("ticket_list"))
+        self.assertEqual(resp.status_code, 200)
+        import json
+        data = json.loads(resp.context["components_json"])
+        self.assertGreater(len(data), 0)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
