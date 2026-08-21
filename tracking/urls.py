@@ -35,6 +35,13 @@ urlpatterns = [
     path('tickets/<int:pk>/attach/', views.ticket_attachment_upload, name='ticket_attachment_upload'),
     path('tickets/<int:pk>/media/<int:attachment_pk>/', views.ticket_attachment_serve, name='ticket_attachment_serve'),
     path('tickets/attachments/<int:pk>/delete/', views.ticket_attachment_delete, name='ticket_attachment_delete'),
+    # Notifications.
+    path('notifications/', views.notification_feed, name='notification_feed'),
+    path('notifications/mark-read/', views.notification_mark_read, name='notification_mark_read'),
+    path('notifications/api/', views.notification_list_api, name='notification_list_api'),
+    # Watchers.
+    path('tickets/<int:pk>/watchers/', views.watcher_manage, name='ticket_watchers'),
+    path('tickets/<int:ticket_pk>/watchers/<int:user_pk>/remove/', views.watcher_remove, name='watcher_remove'),
     # Label management (per-project).
     path('projects/<int:pk>/labels/', views.label_list, name='label_list'),
     path('labels/', views.label_list, name='label_list_all'),

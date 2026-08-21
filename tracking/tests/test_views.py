@@ -615,3 +615,134 @@ class BulkActionTests(TestCase):
 		self.assertEqual(response.status_code, 200)
 		self.assertContains(response, "tickets")
 
+
+class NotificationViewTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.reviewer = User.objects.create_user("bob", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+
+	def setUp(self):
+		self.client.force_login(self.user)
+
+	def test_notification_feed_redirects_anonymous(self):
+		self.client.logout()
+		response = self.client.get(reverse("notification_feed"))
+		self.assertEqual(response.status_code, 302)
+		self.assertIn("/tracking/login", response.url)
+
+	def test_notification_feed_renders(self):
+		response = self.client.get(reverse("notification_feed"))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Notifications")
+
+	def test_notification_feed_empty(self):
+		response = self.client.get(reverse("notification_feed"))
+		self.assertContains(response, "No notifications yet")
+
+	def test_notification_feed_shows_notifications(self):
+		from tracking.models import Notification
+		ticket = Ticket.objects.create(project=self.project, title="Test ticket")
+		Notification.objects.create(
+			ticket=ticket,
+			recipient=self.user,
+			actor=self.reviewer,
+			verb=Notification.Verb.STATE_CHANGED,
+			body="Status changed",
+		)
+		response = self.client.get(reverse("notification_feed"))
+		self.assertContains(response, "Test ticket")
+		self.assertContains(response, "Status changed")
+
+	def test_notification_feed_pagination(self):
+		from tracking.models import Notification
+		for i in range(60):
+			ticket = Ticket.objects.create(project=self.project, title=f"Ticket {i}")
+			Notification.objects.create(
+				ticket=ticket, recipient=self.user, actor=self.reviewer,
+				verb=Notification.Verb.COMMENTED,
+			)
+		response = self.client.get(reverse("notification_feed"), {"page": 2})
+		self.assertEqual(response.status_code, 200)
+
+	def test_notification_mark_read_post(self):
+		from tracking.models import Notification
+		ticket = Ticket.objects.create(project=self.project, title="Test ticket")
+		notif = Notification.objects.create(
+			ticket=ticket, recipient=self.user, actor=self.reviewer,
+			verb=Notification.Verb.STATE_CHANGED,
+			read=False,
+		)
+		response = self.client.post(
+			reverse("notification_mark_read"),
+			{"notification_ids": str(notif.pk)},
+		)
+		self.assertEqual(response.status_code, 302)
+		notif.refresh_from_db()
+		self.assertTrue(notif.read)
+
+	def test_notification_api_endpoint(self):
+		response = self.client.get(reverse("notification_list_api"))
+		self.assertEqual(response.status_code, 200)
+		data = response.json()
+		self.assertIn("notifications", data)
+
+	def test_notification_api_requires_auth(self):
+		self.client.logout()
+		response = self.client.get(reverse("notification_list_api"))
+		self.assertEqual(response.status_code, 302)
+		self.assertIn("/tracking/login", response.url)
+
+
+class WatcherViewTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.another = User.objects.create_user("bob", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket = Ticket.objects.create(project=cls.project, title="Test ticket")
+
+	def setUp(self):
+		self.client.force_login(self.user)
+
+	def test_watcher_manage_redirects_anonymous(self):
+		self.client.logout()
+		response = self.client.get(reverse("ticket_watchers", args=[self.ticket.pk]))
+		self.assertEqual(response.status_code, 302)
+		self.assertIn("/tracking/login", response.url)
+
+	def test_watcher_manage_renders(self):
+		response = self.client.get(reverse("ticket_watchers", args=[self.ticket.pk]))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Watchers")
+
+	def test_watcher_add(self):
+		response = self.client.post(
+			reverse("ticket_watchers", args=[self.ticket.pk]),
+			{"user": self.another.pk, "ticket_pk": self.ticket.pk},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertRedirects(response, reverse("ticket_detail", args=[self.ticket.pk]))
+		from tracking.models import Watcher
+		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.another).count(), 1)
+
+	def test_watcher_remove(self):
+		from tracking.models import Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.another)
+		response = self.client.post(
+			reverse("watcher_remove", args=[self.ticket.pk, self.another.pk]),
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertRedirects(response, reverse("ticket_detail", args=[self.ticket.pk]))
+		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.another).count(), 0)
+
+	def test_watcher_already_exists(self):
+		from tracking.models import Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.another)
+		response = self.client.post(
+			reverse("ticket_watchers", args=[self.ticket.pk]),
+			{"user": self.another.pk, "ticket_pk": self.ticket.pk},
+		)
+		self.assertIn("Already watching", str(response.content))
+

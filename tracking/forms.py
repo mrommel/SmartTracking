@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, Version
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, Version, Notification, Watcher
 
 
 class ProjectForm(forms.ModelForm):
@@ -432,3 +432,37 @@ class BulkActionForm(forms.Form):
 							 "allowed": ", ".join(str(s.label) for s in ticket.allowed_transitions())}
 					)
 		return cleaned
+
+
+class WatcherForm(forms.Form):
+	"""Add or remove a watcher for a ticket."""
+
+	user = forms.ModelChoiceField(
+		queryset=get_user_model().objects.none(),
+		label=_("User to watch"),
+		widget=forms.Select(attrs={"class": "form-select"}),
+	)
+
+	ticket_pk = forms.IntegerField(widget=forms.HiddenInput())
+
+	def __init__(self, *args, ticket=None, exclude_user=None, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.ticket = ticket
+		self.fields["user"].queryset = get_user_model().objects.order_by("username")
+
+	def clean_user(self):
+		user = self.cleaned_data["user"]
+		ticket = self.ticket
+		if ticket and Watcher.objects.filter(ticket=ticket, user=user).exists():
+			raise forms.ValidationError(f"Already watching {ticket}.")
+		return user
+
+
+class MarkNotificationsForm(forms.Form):
+	"""Mark a notification as read."""
+
+	notification_ids = forms.CharField(widget=forms.HiddenInput())
+
+	def __init__(self, *args, user=None, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.user = user

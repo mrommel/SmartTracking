@@ -1,0 +1,91 @@
+{% extends "tracking/base.html" %}
+{% load humanize %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+	<div class="col">
+		<div class="d-flex justify-content-between align-items-center">
+			<h2>Notifications</h2>
+			{% if notifications %}
+			<form method="POST" action="{% url 'notification_mark_read' %}" id="markReadForm">
+				{% csrf_token %}
+				<input type="hidden" name="notification_ids" id="notif_ids" value="">
+				<button type="submit" class="btn btn-outline-secondary btn-sm">Mark all as read</button>
+			</form>
+			{% endif %}
+		</div>
+	</div>
+</div>
+
+{% if notifications %}
+<ul class="list-group">
+	{% for notif in notifications %}
+	<li class="list-group-item d-flex gap-3 align-items-start {% if not notif.read %}bg-light{% endif %}"
+		data-notif-id="{{ notif.pk }}">
+		<div class="avatar-flex shrink-0">
+			{% if notif.actor %}
+			<img src="/static/img/default-avatar.svg"
+				alt="{{ notif.actor }}" width="32" height="32" class="rounded-circle me-2 mt-1">
+			{% endif %}
+		</div>
+		<div class="flex-grow-1">
+			<a href="{% url 'ticket_detail' notif.ticket.pk %}">
+				<strong>{{ notif.ticket }}</strong>: {{ notif.ticket.title }}
+			</a>
+			{% #badge variant="secondary" %}{{ notif.get_verb_display }}{% /badge %}
+			<p class="mb-1 mt-1">{{ notif.body }}</p>
+			<small class="text-muted">{{ notif.created_at|naturaltime }}</small>
+		</div>
+	</li>
+	{% endfor %}
+</ul>
+
+{% if notifications.has_other_pages %}
+	<nav aria-label="Notification pagination">
+		<ul class="pagination justify-content-center mt-3 mb-3">
+			{% if notifications.has_previous %}
+				<li class="page-item">
+					<a class="page-link" href="?page={{ notifications.previous_page_number }}">Previous</a>
+				</li>
+			{% else %}
+				<li class="page-item disabled">
+					<span class="page-link">Previous</span>
+				</li>
+			{% endif %}
+
+			{% for num in notifications.paginator.page_range %}
+				{% if notifications.number == num %}
+					<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+				{% elif num == 1 or num == notifications.paginator.num_pages or num|add:"-1" == notifications.number or num|add:"1" == notifications.number %}
+					<li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+				{% elif num|add:"-1" == notifications.number or num|add:"1" == notifications.number %}
+					<li class="page-item disabled"><span class="page-link">…</span></li>
+				{% endif %}
+			{% endfor %}
+
+			{% if notifications.has_next %}
+				<li class="page-item">
+					<a class="page-link" href="?page={{ notifications.next_page_number }}">Next</a>
+				</li>
+			{% else %}
+				<li class="page-item disabled">
+					<span class="page-link">Next</span>
+				</li>
+			{% endif %}
+		</ul>
+	</nav>
+{% endif %}
+
+{% else %}
+<div class="alert alert-info">No notifications yet.</div>
+{% endif %}
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+	const checkboxes = document.querySelectorAll('input[type="checkbox"][name="selected_tickets"]');
+	const updateBulkBar = () => {/* no-op for notif page */};
+});
+</script>
+{% endblock %}

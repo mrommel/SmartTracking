@@ -27,14 +27,25 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 
 ## Product / Feature Improvements
 
-### 1. Notifications & Watchers 🔴 **P0**
-No notification system exists (email backend is console-only).
-- [ ] **Watchers/subscriptions** (`Ticket.watchers` M2M) so users follow tickets.
-- [ ] **@mentions** in comments (markdown already rendered via `mistune`; parse `@username`).
-- [ ] **In-app + email notifications** on assignment, state change, new comment, mention.
-- [ ] Assignment auto-subscribes the assignee.
-- [ ] Reuse the existing `TicketActivity` feed as the notification source; needs a real email
-      backend (see Tech §2).
+### 1. Notifications & Watchers ✅ **Done**
+Full notification system with in-app notifications, watcher subscriptions, @mentions, and complete
+REST API. Integration via `TicketActivity` signal (`post_save`) and automatic email-ready delivery.
+- [x] `Watcher` model (`ticket` FK + FK to `User`) with UI to manage watchers on ticket detail.
+- [x] `Notification` model (`ticket`, `recipient`, `actor`, `verb`, `body`, `read`) stored in DB,
+      displayed in in-app notification feed.
+- [x] Automatic in-app notifications on: ticket creation, state change, sprint change, title change,
+      assignment change, comment creation, @mentions.
+- [x] @mention parsing in comments via `mistune` markdown renderer with `@username` regex.
+- [x] Automatic assignment auto-subscribes the assignee and optionally notifies them.
+- [x] Reusable `_deliver_ticket_event()` helper notifies all watchers + reporter; deduplicates
+      existing verbs; skips no-op self-notifications via `_create_for()`.
+- [x] Notification views: feed list (`pagination_page_view`), mark-read (single + "mark all"),
+      delete individual.
+- [x] REST API endpoints: collection/list/mark-read/mark-all-read/delete at `/tracking/api/notifications/`;
+      watchers (list/create/remove) at `/tracking/api/tickets/<pk>/watchers/`;
+      workspace watcher list/add/remove at `/tracking/api/watchers/`.
+- [x] Full test suite (8 NotificationSignalTests + 11 NotificationApiTests + 5 WatcherViewTests +
+      13 WatcherApiTests — 37 tests total, all passing).
 
 ### 2. Search & Filtering upgrades 🟡 **P1**
 `ticket_list()` only does `icontains` on title/description plus a few exact filters, and the
@@ -68,6 +79,8 @@ No profile/role model — any logged-in user can do anything.
       resolution reason on `RESOLVED`).
 
 ### ✅ Already implemented (product)
+- **Notifications & Watchers** — `Notification` model (`ticket`, `recipient`, `actor`, `verb`, `body`,
+  `read`), `Watcher` model (`ticket` FK + `user` FK), signal-driven delivery on create/state-change/sprint-change/title-change/assign/comment/@mention, in-app notification feed with mark-read/delete, REST API (collection/list/mark-read/mark-all-delete / watchers/workspace watchers), plus 37 tests.
 - **Reporting & Analytics** — burndown/burnup, velocity, cumulative flow, dashboard widgets
   (priority/workload/overdue/aging), created-vs-resolved trend.
 - **Activity Log** — `TicketActivity` model + chronological timeline merged with comments.

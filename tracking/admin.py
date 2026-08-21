@@ -2,8 +2,8 @@ from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
 from .models import (
-    Attachment, Comment, Component, Label, Project, Sprint,
-    Ticket, TicketActivity, TicketRelation, Version,
+    Attachment, Comment, Component, Label, Notification, Project, Sprint,
+    Ticket, TicketActivity, TicketRelation, Version, Watcher,
 )
 
 
@@ -101,3 +101,21 @@ class VersionAdmin(admin.ModelAdmin):
 	search_fields = ("name",)
 	autocomplete_fields = ("project", "sprint")
 	readonly_fields = ("created_at",)
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+	list_display = ("ticket", "recipient", "verb", "read", "created_at")
+	list_filter = ("verb", "read", "created_at")
+	search_fields = ("ticket__title", "recipient__username", "verb")
+	readonly_fields = ("created_at",)
+	autocomplete_fields = ("ticket", "recipient", "actor")
+
+
+@admin.register(Watcher)
+class WatcherAdmin(admin.ModelAdmin):
+	list_display = ("ticket", "user", "created_at")
+	list_filter = ("created_at",)
+	search_fields = ("ticket__title", "user__username")
+	readonly_fields = ("created_at",)
+	autocomplete_fields = ("ticket", "user")

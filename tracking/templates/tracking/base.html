@@ -1,4 +1,4 @@
-{% load humanize %}{% load static %}
+{% load humanize %}{% load static %}{% load markdown_filters %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,6 +26,17 @@
 	<div class="ms-auto">
 		{% if user.is_authenticated %}
 			<span class="navbar-text me-2">{{ user.get_username }}</span>
+			<a href="{% url 'notification_feed' %}" class="nav-link position-relative text-decoration-none">
+				<span class="badge bg-danger position-absolute"
+					style="top:2px;right:-2px;font-size:10px;">
+					{% if request.resolver_match.url_name == 'notification_feed' %}
+						{{ unread_count|default:0 }}
+					{% else %}
+						{% spaceless %}{% if user|notifications_count > 0 %}{{ user|notifications_count }}{% endif %}{% endspaceless %}
+					{% endif %}
+				</span>
+				<span aria-hidden="true">🔔</span>
+			</a>
 			<form method="post" action="{% url 'logout' %}" class="d-inline">
 				{% csrf_token %}
 				<button type="submit" class="btn btn-sm btn-outline-light">Sign out</button>

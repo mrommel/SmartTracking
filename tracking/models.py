@@ -676,6 +676,85 @@ class Version(models.Model):
 		return items
 
 
+class Notification(models.Model):
+	"""A notification for a user about events on tickets they watch or are mentioned in."""
+
+	class Verb(models.TextChoices):
+		ISSUE_ASSIGNED = "issue_assigned", _("Issue assigned to you")
+		ISSUE_MENTIONED = "issue_mentioned", _("You were mentioned in an issue")
+		STATE_CHANGED = "state_changed", _("Issue state changed")
+		COMMENTED = "commented", _("New comment on issue you watch")
+		MENTIONED_IN_COMMENT = "mentioned_in_comment", _("You were mentioned in a comment")
+
+	ticket = models.ForeignKey(
+		Ticket,
+		on_delete=models.CASCADE,
+		related_name="notifications",
+		verbose_name=_("ticket"),
+	)
+	recipient = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name="notifications",
+		verbose_name=_("recipient"),
+	)
+	actor = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name="actions",
+		verbose_name=_("actor"),
+	)
+	verb = models.CharField(
+		_("verb"), max_length=30, choices=Verb.choices, db_index=True
+	)
+	body = models.TextField(_("body"), blank=True, default="")
+	read = models.BooleanField(_("read"), default=False, db_index=True)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True, editable=False)
+
+	class Meta:
+		verbose_name = _("notification")
+		verbose_name_plural = _("notifications")
+		ordering = ["-created_at"]
+		constraints = [
+			models.UniqueConstraint(
+				fields=["ticket", "recipient", "verb"],
+				name="unique_ticket_recipient_verb",
+			),
+		]
+
+	def __str__(self) -> str:
+		return f"Notification for {self.recipient} on {self.ticket}"
+
+
+class Watcher(models.Model):
+	"""A user who wants to be notified about changes to a ticket they don't own."""
+
+	ticket = models.ForeignKey(
+		Ticket,
+		on_delete=models.CASCADE,
+		related_name="watchers",
+		verbose_name=_("ticket"),
+	)
+	user = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name="watched_tickets",
+		verbose_name=_("user"),
+	)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+
+	class Meta:
+		verbose_name = _("watcher")
+		verbose_name_plural = _("watchers")
+		ordering = ["user__username"]
+		unique_together = ["ticket", "user"]
+
+	def __str__(self) -> str:
+		return f"{self.user} watches {self.ticket}"
+
+
 class TicketRelation(models.Model):
 	"""One direction of a symmetric relation between two tickets."""
 

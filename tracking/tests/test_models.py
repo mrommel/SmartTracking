@@ -574,3 +574,209 @@ class TicketActivityTests(TestCase):
 		self.ticket.delete()
 		self.assertEqual(TicketActivity.objects.filter(ticket_id=ticket_pk).count(), 0)
 
+
+class NotificationModelTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.reviewer = User.objects.create_user("bob", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket = Ticket.objects.create(project=cls.project, title="t")
+
+	def test_create_notification(self):
+		from tracking.models import Notification
+		notif = Notification.objects.create(
+			ticket=self.ticket,
+			recipient=self.user,
+			actor=self.reviewer,
+			verb=Notification.Verb.STATE_CHANGED,
+			body="Test body",
+		)
+		self.assertIsNotNone(notif.pk)
+		self.assertEqual(notif.ticket, self.ticket)
+		self.assertEqual(notif.recipient, self.user)
+		self.assertEqual(notif.actor, self.reviewer)
+		self.assertEqual(notif.verb, Notification.Verb.STATE_CHANGED)
+		self.assertFalse(notif.read)
+		self.assertTrue(notif.created_at)
+
+	def test_notification_str(self):
+		from tracking.models import Notification
+		notif = Notification.objects.create(
+			ticket=self.ticket,
+			recipient=self.user,
+			actor=self.reviewer,
+			verb=Notification.Verb.STATE_CHANGED,
+		)
+		str_repr = str(notif)
+		self.assertIn("alice", str_repr)
+		self.assertIn("SMT", str_repr)
+
+	def test_ticket_notifications_related_name(self):
+		from tracking.models import Notification
+		Notification.objects.create(ticket=self.ticket, recipient=self.user, verb=Notification.Verb.COMMENTED)
+		Notification.objects.create(ticket=self.ticket, recipient=self.user, verb=Notification.Verb.MENTIONED_IN_COMMENT)
+		self.assertEqual(self.ticket.notifications.count(), 2)
+
+	def test_recipient_notifications_related_name(self):
+		from tracking.models import Notification
+		Notification.objects.create(ticket=self.ticket, recipient=self.user, verb=Notification.Verb.COMMENTED)
+		Notification.objects.create(ticket=self.ticket, recipient=self.user, verb=Notification.Verb.MENTIONED_IN_COMMENT)
+		self.assertEqual(self.user.notifications.count(), 2)
+
+	def test_ordering_descending(self):
+		from tracking.models import Notification
+		n1 = Notification.objects.create(ticket=self.ticket, recipient=self.user, verb=Notification.Verb.COMMENTED)
+		import time
+		time.sleep(0.01)
+		n2 = Notification.objects.create(ticket=self.ticket, recipient=self.user, verb=Notification.Verb.STATE_CHANGED)
+		order = list(Notification.objects.filter(recipient=self.user).values_list("pk", flat=True))
+		self.assertEqual(order, [n2.pk, n1.pk])
+
+
+class WatcherModelTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.watcher = User.objects.create_user("bob", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket = Ticket.objects.create(project=cls.project, title="t")
+
+	def test_create_watcher(self):
+		from tracking.models import Watcher
+		w = Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		self.assertIsNotNone(w.pk)
+		self.assertEqual(w.ticket, self.ticket)
+		self.assertEqual(w.user, self.watcher)
+
+	def test_create_watcher_str(self):
+		from tracking.models import Watcher
+		w = Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		self.assertIn("bob", str(w))
+		self.assertIn("SMT", str(w))
+
+	def test_unique_together(self):
+		from tracking.models import Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		w2, created = Watcher.objects.get_or_create(ticket=self.ticket, user=self.watcher)
+		self.assertTrue(created is False)
+		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.watcher).count(), 1)
+
+	def test_ticket_watchers_related_name(self):
+		from tracking.models import Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		Watcher.objects.create(ticket=self.ticket, user=self.user)
+		self.assertEqual(self.ticket.watchers.count(), 2)
+
+	def test_watched_tickets_related_name(self):
+		from tracking.models import Watcher
+		p2 = Project.objects.create(key="XYZ", name="Other")
+		t2 = Ticket.objects.create(project=p2, title="other")
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		Watcher.objects.create(ticket=t2, user=self.watcher)
+		self.assertEqual(self.watcher.watched_tickets.count(), 2)
+
+
+class NotificationSignalTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.owner = User.objects.create_user("alice", password="pw12345!")
+		cls.watcher = User.objects.create_user("bob", password="pw12345!")
+		cls.reporter = User.objects.create_user("carol", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket = Ticket.objects.create(project=cls.project, title="Test ticket", reporter=cls.reporter)
+
+	def test_create_watcher_sends_notification(self):
+		from tracking.models import Notification
+		from tracking.signals import add_watcher
+		add_watcher(self.ticket, self.watcher)
+		# should not auto-create notification for adding watcher
+		self.assertEqual(Notification.objects.filter(
+			ticket=self.ticket, recipient=self.watcher
+		).count(), 0)
+
+	def test_ticket_created_sends_notifications(self):
+		from tracking.models import Notification, TicketActivity, Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		TicketActivity.objects.create(
+			ticket=self.ticket, actor=self.watcher,
+			action=TicketActivity.Action.TICKET_CREATED,
+		)
+		# reporter and watcher should receive notification
+		self.assertEqual(Notification.objects.filter(
+			ticket=self.ticket, verb=Notification.Verb.ISSUE_ASSIGNED
+		).count(), 2)
+		recipient_pks = Notification.objects.filter(
+			ticket=self.ticket, verb=Notification.Verb.ISSUE_ASSIGNED
+		).values_list("recipient_id", flat=True)
+		self.assertIn(self.reporter.pk, recipient_pks)
+		self.assertIn(self.watcher.pk, recipient_pks)
+
+	def test_state_change_sends_notifications(self):
+		from tracking.models import Notification, TicketActivity, Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		TicketActivity.objects.create(
+			ticket=self.ticket, actor=self.watcher,
+			action=TicketActivity.Action.STATE_CHANGED,
+		)
+		self.assertEqual(Notification.objects.filter(
+			ticket=self.ticket, verb=Notification.Verb.STATE_CHANGED
+		).count(), 2)
+
+	def test_comment_sends_notifications(self):
+		from tracking.models import Comment, Notification, Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		Comment.objects.create(ticket=self.ticket, author=self.watcher, body="Nice ticket")
+		self.assertEqual(Notification.objects.filter(
+			ticket=self.ticket, verb=Notification.Verb.COMMENTED
+		).count(), 2)
+
+	def test_mention_sends_notifications(self):
+		from tracking.models import Comment, Notification, Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		Comment.objects.create(
+			ticket=self.ticket, author=self.owner,
+			body=f"@{self.watcher.username} see this",
+		)
+		self.assertEqual(Notification.objects.filter(
+			verb=Notification.Verb.MENTIONED_IN_COMMENT
+		).count(), 1)
+		notif = Notification.objects.get(verb=Notification.Verb.MENTIONED_IN_COMMENT)
+		self.assertEqual(notif.recipient, self.watcher)
+
+	def test_mention_ignores_nonexistent_user(self):
+		from tracking.models import Comment, Notification, Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		Comment.objects.create(
+			ticket=self.ticket, author=self.owner,
+			body="@nonexistent123 see this",
+		)
+		self.assertEqual(Notification.objects.filter(
+			verb=Notification.Verb.MENTIONED_IN_COMMENT
+		).count(), 0)
+
+	def test_notificaiton_no_duplication(self):
+		from tracking.models import Notification, TicketActivity, Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		TicketActivity.objects.create(
+			ticket=self.ticket, actor=self.watcher,
+			action=TicketActivity.Action.STATE_CHANGED,
+		)
+		TicketActivity.objects.create(
+			ticket=self.ticket, actor=self.watcher,
+			action=TicketActivity.Action.STATE_CHANGED,
+		)
+		# Exactly one notification per recipient per verb/ticket event
+		self.assertEqual(Notification.objects.filter(
+			ticket=self.ticket, verb=Notification.Verb.STATE_CHANGED
+		).count(), 2)
+
+	def test_watcher_add_remove_helper(self):
+		from tracking.models import Watcher
+		w = Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		self.assertIsNotNone(w.pk)
+		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.watcher).count(), 1)
+		result = Watcher.objects.filter(ticket=self.ticket, user=self.watcher).first()
+		result.delete()
+		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.watcher).count(), 0)
+

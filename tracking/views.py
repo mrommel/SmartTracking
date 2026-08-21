@@ -21,10 +21,10 @@ from mistune import markdown as render_markdown
 
 from .forms import (
 	AttachmentForm, CommentForm, ComponentDeleteForm, ComponentForm,
-	LabelDeleteForm, LabelForm, ProjectForm, SprintCloseForm, SprintForm,
-	TicketForm, TicketTransitionForm,
+	LabelDeleteForm, LabelForm, MarkNotificationsForm, ProjectForm, SprintCloseForm,
+	SprintForm, TicketForm, TicketTransitionForm, VersionForm, WatcherForm,
 )
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation, Version
+from .models import Attachment, Comment, Component, Label, Notification, Project, Sprint, Ticket, TicketActivity, TicketRelation, Version, Watcher
 
 
 def _dashboard_tab_context(project: Project, tickets: models.QuerySet[Ticket], request: HttpRequest, tab: str) -> dict[str, Any]:
@@ -615,6 +615,7 @@ def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 		else:
 			rel.label = ticket._get_reverse_label(rel.relation_type)
 	activities = ticket.activities.select_related("actor").all()
+	watchers = ticket.watchers.all()
 	page = request.GET.get("comments_page", 1)
 	comment_paginator = Paginator(comments, 20)
 	comment_page = comment_paginator.get_page(page)
@@ -632,6 +633,7 @@ def ticket_detail(request: HttpRequest, pk: int) -> HttpResponseBase:
 		"child_tickets": child_tickets,
 		"sprints": Sprint.objects.filter(project=ticket.project).order_by("order"),
 		"activities": activities,
+		"watchers": watchers,
 	})
 
 
@@ -645,6 +647,7 @@ def ticket_edit(request: HttpRequest, pk: int) -> HttpResponseBase:
 			# Snapshot old values for activity logging
 			old_cmp = set(ticket.components.values_list("pk", flat=True))
 			old_lbl = set(ticket.labels.values_list("pk", flat=True))
+			old_assignee = ticket.assignee
 			ticket.title = form.cleaned_data["title"]
 			ticket.description = form.cleaned_data["description"]
 			ticket.type = form.cleaned_data["type"]
@@ -663,6 +666,16 @@ def ticket_edit(request: HttpRequest, pk: int) -> HttpResponseBase:
 				TicketActivity.objects.create(ticket=ticket, actor=request.user,
 					action=TicketActivity.Action.LABEL_ADDED,
 					field_name="label", new_value=lbl.name)
+			# Create assignee-change activity so signal triggers notifications.
+			assignee_new = form.cleaned_data["assignee"]
+			if ticket.reporter and ticket.reporter != assignee_new:
+				old_str = str(old_assignee) if old_assignee else "(unassigned)"
+				new_str = str(assignee_new) if assignee_new else "(unassigned)"
+				if old_str != new_str:
+					TicketActivity.objects.create(ticket=ticket, actor=request.user,
+						action=TicketActivity.Action.TITLE_CHANGED,
+						field_name="assignee",
+						old_value=old_str, new_value=new_str)
 			messages.success(request, "Ticket updated.")
 			return redirect("ticket_detail", pk=ticket.pk)
 	else:
@@ -685,10 +698,12 @@ def ticket_create(request: HttpRequest) -> HttpResponseBase:
 	if request.method == "POST":
 		form = TicketForm(request.POST)
 		if form.is_valid():
+			from .signals import add_watcher
 			ticket = form.save(commit=False)
 			if request.user.is_authenticated:
 				ticket.reporter = request.user
 			ticket.save()
+			add_watcher(ticket, request.user)
 			TicketActivity.objects.create(ticket=ticket, actor=request.user,
 				action=TicketActivity.Action.TICKET_CREATED)
 			messages.success(request, "Ticket created.")
@@ -1353,6 +1368,121 @@ def version_roadmap(request: HttpRequest, project_pk: int) -> HttpResponseBase:
 		"items": items,
 		"projects": projects,
 	})
+
+
+# ── Notifications ────────────────────────────────────────────────────────────
+
+
+@login_required
+def notification_feed(request: HttpRequest) -> HttpResponseBase:
+	"""Show the current user's notification feed."""
+	notifications = Notification.objects.select_related(
+		"ticket", "actor", "recipient",
+	).filter(recipient=request.user).prefetch_related("ticket__project")
+
+	# Mark all as read for the current page.
+	pk_list = list(notifications.values_list("pk", flat=True)[:100])
+	Notification.objects.filter(pk__in=pk_list).update(read=True)
+
+	page = request.GET.get("page", 1)
+	paginator = Paginator(notifications, 50)
+	notification_page = paginator.get_page(page)
+
+	return render(request, "tracking/notification_feed.html", {
+		"title": "Notifications",
+		"tab": "notifications",
+		"notifications": notification_page,
+		"unread_count": Notification.objects.filter(recipient=request.user, read=False).count(),
+	})
+
+
+@login_required
+@require_POST
+def notification_mark_read(request: HttpRequest) -> HttpResponseBase:
+	"""Mark one or more notifications as read."""
+	ids_str = request.POST.get("notification_ids", "")
+	if ids_str:
+		ids = [int(x) for x in ids_str.split(",") if x.strip()]
+		Notification.objects.filter(pk__in=ids, recipient=request.user).update(read=True)
+	messages.success(request, "Notifications marked as read.")
+	return redirect("notification_feed")
+
+
+@login_required
+def notification_list_api(request: HttpRequest) -> HttpResponseBase:
+	"""API endpoint for notifications — returns JSON array of unread + recent."""
+	notifications = Notification.objects.select_related(
+		"ticket", "actor",
+	).filter(recipient=request.user).order_by("-created_at")[:50]
+
+	results = []
+	for n in notifications:
+		results.append({
+			"id": n.pk,
+			"ticket_id": n.ticket.pk,
+			"ticket_key": n.ticket.project.key,
+			"ticket_title": n.ticket.title,
+			"verb": n.verb,
+			"verb_display": n.get_verb_display(),
+			"body": n.body,
+			"read": n.read,
+			"created_at": n.created_at.isoformat(),
+		})
+
+	return JsonResponse({"notifications": results})
+
+
+# ── Watchers ─────────────────────────────────────────────────────────────────
+
+
+@login_required
+def watcher_manage(request: HttpRequest, pk: int) -> HttpResponseBase:
+	"""Add or remove watchers for a ticket."""
+	ticket = get_object_or_404(Ticket, pk=pk)
+	watchers = ticket.watchers.all()
+	watcher_users = {w.user for w in watchers}
+
+	if request.method == "POST":
+		form = WatcherForm(request.POST, ticket=ticket, exclude_user=request.user)
+		if form.is_valid():
+			user = form.cleaned_data["user"]
+			Watcher.objects.get_or_create(ticket=ticket, user=user)
+			messages.success(request, f"{user} is now watching {ticket}.")
+			return redirect("ticket_detail", pk=ticket.pk)
+	else:
+		form = WatcherForm(ticket=ticket, exclude_user=request.user)
+
+	return render(request, "tracking/ticket_detail.html", {
+		"title": ticket.title,
+		"ticket": ticket,
+		"transition_form": TicketTransitionForm(ticket=ticket),
+		"comment_form": CommentForm(),
+		"comments": [],
+		"attachments": [],
+		"image_attachments": [],
+		"relations": [],
+		"available_tickets": Ticket.objects.none(),
+		"relation_types": Ticket.RelationType.choices,
+		"child_tickets": [],
+		"sprints": Sprint.objects.filter(project=ticket.project).order_by("order"),
+		"activities": [],
+		"watchers": watchers,
+		"watcher_form": form,
+	})
+
+
+@login_required
+@require_POST
+def watcher_remove(request: HttpRequest, ticket_pk: int, user_pk: int) -> HttpResponseBase:
+	"""Remove a watcher from a ticket."""
+	ticket = get_object_or_404(Ticket, pk=ticket_pk)
+	try:
+		w = Watcher.objects.get(ticket=ticket, user__pk=user_pk)
+		w.delete()
+		messages.success(request, f"{w.user} is no longer watching {ticket}.")
+	except Watcher.DoesNotExist:
+		messages.warning(request, "User was not watching this ticket.")
+	return redirect("ticket_detail", pk=ticket.pk)
 
 
 def _build_tickets_queryset(request: HttpRequest) -> models.QuerySet[Ticket]:

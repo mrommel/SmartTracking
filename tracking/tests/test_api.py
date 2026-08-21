@@ -7,7 +7,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from tracking.models import Attachment, Component, Label, Project, Sprint, Ticket, TicketRelation
+from tracking.models import Attachment, Component, Label, Notification, Project, Sprint, Ticket, TicketRelation, Watcher
 
 User = get_user_model()
 
@@ -886,5 +886,267 @@ class SprintCloseApiTests(TestCase):
 		resp = self.client.post(
 			reverse("api_sprint_close", args=["SMT", sprint.pk])
 		)
+		self.assertEqual(resp.status_code, 401)
+
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
+class NotificationApiTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.reviewer = User.objects.create_user("bob", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket = Ticket.objects.create(project=cls.project, title="Test ticket")
+
+	def _auth(self):
+		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
+
+	def test_list_notifications_empty(self):
+		self.client.force_login(self.user)
+		resp = self.client.get(reverse("api_ticket_collection"))
+		data = resp.json()
+		# This tests we can call API and get response with expected structure
+		self.assertIn("results", data)
+
+	def test_list_notifications_returns_data(self):
+		from tracking.models import Notification
+		self.client.force_login(self.user)
+		Notification.objects.create(
+			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
+			verb=Notification.Verb.STATE_CHANGED, body="Changed state",
+		)
+		resp = self.client.get(reverse("api_notification_collection"), **self._auth())
+		self.assertEqual(resp.status_code, 200)
+		data = resp.json()
+		self.assertIn("count", data)
+		self.assertIn("pagination", data)
+		self.assertIn("results", data)
+		self.assertEqual(data["count"], 1)
+
+	def test_list_notifications_unfiltered(self):
+		from tracking.models import Notification
+		Notification.objects.create(
+			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
+			verb=Notification.Verb.COMMENTED, read=True,
+		)
+		self.client.force_login(self.user)
+		resp = self.client.get(reverse("api_notification_collection"))
+		data = resp.json()
+		self.assertEqual(data["count"], 1)
+		self.assertEqual(len(data["results"]), 1)
+
+	def test_list_notifications_unread_filter(self):
+		from tracking.models import Notification
+		self.client.force_login(self.user)
+		Notification.objects.create(
+			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
+			verb=Notification.Verb.COMMENTED, read=False,
+		)
+		self.client.force_login(self.user)
+		resp = self.client.get(reverse("api_notification_collection"))
+		data = resp.json()
+		self.assertTrue(all(r["read"] is False for r in data["results"]))
+
+	def test_list_notifications_pagination(self):
+		from tracking.models import Notification
+		self.client.force_login(self.user)
+		for i in range(5):
+			t = Ticket.objects.create(project=self.project, title=f"Ticket {i}")
+			Notification.objects.create(ticket=t, recipient=self.user, actor=self.reviewer, verb=Notification.Verb.COMMENTED)
+		self.client.force_login(self.user)
+		resp = self.client.get(reverse("api_notification_collection"), {"page_size": "2"})
+		data = resp.json()
+		self.assertEqual(data["count"], 5)
+		self.assertEqual(len(data["results"]), 2)
+		self.assertIsNotNone(data["pagination"]["next"])
+
+	def test_mark_single_notification_read(self):
+		from tracking.models import Notification
+		self.client.force_login(self.user)
+		notif = Notification.objects.create(
+			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
+			verb=Notification.Verb.STATE_CHANGED, read=False,
+		)
+		resp = self.client.post(
+			reverse("api_notification_mark_read", args=[notif.pk]),
+		)
+		data = resp.json()
+		self.assertEqual(data["status"], "read")
+		notif.refresh_from_db()
+		self.assertTrue(notif.read)
+
+	def test_mark_notification_read_404(self):
+		self.client.force_login(self.user)
+		resp = self.client.post(
+			reverse("api_notification_mark_read", args=[999]),
+		)
+		self.assertEqual(resp.status_code, 404)
+
+	def test_mark_all_notifications_read(self):
+		from tracking.models import Notification
+		self.client.force_login(self.user)
+		t = Ticket.objects.create(project=self.project, title="Other")
+		Notification.objects.create(ticket=self.ticket, recipient=self.user, verb=Notification.Verb.COMMENTED, read=False)
+		Notification.objects.create(ticket=t, recipient=self.user, verb=Notification.Verb.STATE_CHANGED, read=False)
+		resp = self.client.post(reverse("api_notification_mark_all_read"))
+		self.assertEqual(resp.status_code, 200)
+		data = resp.json()
+		self.assertEqual(data["status"], "all_marked_read")
+		self.assertEqual(Notification.objects.filter(recipient=self.user, read=False).count(), 0)
+
+	def test_delete_notification(self):
+		from tracking.models import Notification
+		self.client.force_login(self.user)
+		notif = Notification.objects.create(
+			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
+			verb=Notification.Verb.COMMENTED,
+		)
+		resp = self.client.delete(
+			reverse("api_notification_delete", args=[notif.pk]),
+			**self._auth(),
+		)
+		self.assertEqual(resp.status_code, 200)
+		self.assertEqual(Notification.objects.count(), 0)
+
+	def test_delete_others_notification_404(self):
+		from tracking.models import Notification
+		self.client.force_login(self.user)
+		notif = Notification.objects.create(
+			ticket=self.ticket, recipient=self.reviewer, actor=self.reviewer,
+			verb=Notification.Verb.COMMENTED,
+		)
+		resp = self.client.delete(
+			reverse("api_notification_delete", args=[notif.pk]),
+		)
+		self.assertEqual(resp.status_code, 404)
+
+	def test_list_notifications_requires_auth(self):
+		resp = self.client.get(reverse("api_notification_collection"))
+		self.assertEqual(resp.status_code, 401)
+
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
+class WatcherApiTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.watcher = User.objects.create_user("bob", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.ticket = Ticket.objects.create(project=cls.project, title="Test ticket")
+
+	def _auth(self):
+		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
+
+	def test_list_watchers_empty(self):
+		resp = self.client.get(reverse("api_watcher_list", args=[self.ticket.pk]), **self._auth())
+		self.assertEqual(resp.status_code, 200)
+		data = resp.json()
+		self.assertEqual(data["count"], 0)
+
+	def test_list_watchers_with_data(self):
+		from tracking.models import Watcher
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		resp = self.client.get(reverse("api_watcher_list", args=[self.ticket.pk]), **self._auth())
+		data = resp.json()
+		self.assertEqual(data["count"], 1)
+		self.assertEqual(len(data["watchers"]), 1)
+		self.assertEqual(data["watchers"][0]["username"], "bob")
+
+	def test_add_watcher(self):
+		self.client.force_login(self.user)
+		resp = self.client.post(
+			reverse("api_watcher_list", args=[self.ticket.pk]),
+			{"user_id": self.watcher.pk},
+		)
+		self.assertEqual(resp.status_code, 200)
+		data = resp.json()
+		self.assertEqual(data["status"], "added")
+		from tracking.models import Watcher
+		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.watcher).count(), 1)
+
+	def test_add_watcher_already_exists(self):
+		from tracking.models import Watcher
+		self.client.force_login(self.user)
+		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		resp = self.client.post(
+			reverse("api_watcher_list", args=[self.ticket.pk]),
+			{"user_id": self.watcher.pk},
+		)
+		data = resp.json()
+		self.assertEqual(data["status"], "already_watching")
+
+	def test_add_watcher_invalid_user(self):
+		self.client.force_login(self.user)
+		resp = self.client.post(
+			reverse("api_watcher_list", args=[self.ticket.pk]),
+			{"user_id": 9999},
+		)
+		self.assertEqual(resp.status_code, 400)
+
+	def test_remove_watcher(self):
+		from tracking.models import Watcher
+		w = Watcher.objects.create(ticket=self.ticket, user=self.watcher)
+		resp = self.client.delete(
+			reverse("api_watcher_remove", args=[self.ticket.pk, self.watcher.pk]),
+			**self._auth(),
+		)
+		self.assertEqual(resp.status_code, 200)
+		self.assertEqual(Watcher.objects.count(), 0)
+
+	def test_remove_watcher_404(self):
+		resp = self.client.delete(
+			reverse("api_watcher_remove", args=[self.ticket.pk, self.watcher.pk]),
+			**self._auth(),
+		)
+		self.assertEqual(resp.status_code, 404)
+
+	def test_workspace_watchers_empty(self):
+		self.client.force_login(self.user)
+		resp = self.client.get(reverse("api_watcher_workspace_list"))
+		self.assertEqual(resp.status_code, 200)
+		data = resp.json()
+		self.assertEqual(data["count"], 0)
+
+	def test_workspace_watchers_with_data(self):
+		from tracking.models import Watcher
+		self.client.force_login(self.user)
+		Watcher.objects.create(ticket=self.ticket, user=self.user)
+		resp = self.client.get(reverse("api_watcher_workspace_list"))
+		data = resp.json()
+		self.assertEqual(data["count"], 1)
+		self.assertEqual(len(data["watchers"]), 1)
+
+	def test_add_workspace_watcher(self):
+		self.client.force_login(self.user)
+		resp = self.client.post(
+			reverse("api_watcher_workspace_add"),
+			{"ticket_id": self.ticket.pk},
+		)
+		self.assertEqual(resp.status_code, 200)
+		data = resp.json()
+		self.assertEqual(data["status"], "added")
+		from tracking.models import Watcher
+		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.user).count(), 1)
+
+	def test_add_workspace_watcher_invalid_ticket(self):
+		self.client.force_login(self.user)
+		resp = self.client.post(
+			reverse("api_watcher_workspace_add"),
+			{"ticket_id": 9999},
+		)
+		self.assertEqual(resp.status_code, 404)
+
+	def test_remove_workspace_watcher(self):
+		from tracking.models import Watcher
+		self.client.force_login(self.user)
+		w = Watcher.objects.create(ticket=self.ticket, user=self.user)
+		resp = self.client.delete(
+			reverse("api_watcher_workspace_remove", args=[w.pk]),
+		)
+		self.assertEqual(resp.status_code, 200)
+		self.assertEqual(Watcher.objects.count(), 0)
+
+	def test_workspace_watchers_requires_auth(self):
+		resp = self.client.get(reverse("api_watcher_workspace_list"))
 		self.assertEqual(resp.status_code, 401)
 

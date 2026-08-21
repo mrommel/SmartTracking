@@ -26,6 +26,7 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.db.models.query import QuerySet
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -35,7 +36,8 @@ from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, TicketActivity, TicketRelation
+from .models import Attachment, Comment, Component, Label, Notification, Project, Sprint, Ticket, TicketActivity, TicketRelation, Version, Watcher
+from django.contrib.auth import get_user_model
 
 if TYPE_CHECKING:
 	from typing import ParamSpec
@@ -1122,6 +1124,178 @@ def ticket_relation_delete_api(request: HttpRequest, pk: int) -> JsonResponse:
 	return JsonResponse({"status": "deleted"})
 
 
+# --- Notifications API -----------------------------------------------------
+
+@require_api_auth
+@require_http_methods(["GET"])
+def notification_collection(request: HttpRequest) -> JsonResponse:
+	"""List notifications for the current user."""
+	qs = Notification.objects.filter(recipient=request.user).order_by("-created_at")
+	# Filter by unread if requested.
+	unread = request.GET.get("unread", "")
+	if unread == "1":
+		qs = qs.filter(read=False)
+	qs = qs.select_related("ticket", "actor", "recipient")
+	count = qs.count()
+	page = int(request.GET.get("page", 1))
+	page_size = min(int(request.GET.get("page_size", 25)), 100)
+	paginator = Paginator(qs, page_size)
+	page_obj = paginator.get_page(page)
+	results = []
+	for n in page_obj:
+		results.append({
+			"id": n.pk,
+			"ticket_id": n.ticket.pk,
+			"ticket_key": n.ticket.project.key,
+			"ticket_title": n.ticket.title,
+			"verb": n.verb,
+			"verb_display": n.get_verb_display(),
+			"body": n.body,
+			"read": n.read,
+			"actor": n.actor.get_username() if n.actor else "",
+			"created_at": n.created_at.isoformat(),
+		})
+	count = paginator.count
+	next_url = request.build_absolute_uri() + f"?page={page + 1}" if page < paginator.num_pages else None
+	previous_url = request.build_absolute_uri() + f"?page={page - 1}" if page > 1 else None
+	return JsonResponse({
+		"count": count,
+		"pagination": {"next": next_url, "previous": previous_url},
+		"results": results,
+	})
+
+
+@require_api_auth
+@require_http_methods(["POST"])
+def notification_mark_read(request: HttpRequest, pk: int) -> JsonResponse:
+	"""Mark a single notification as read."""
+	if request.method != "POST":
+		return JsonResponse({"error": "POST only"}, status=405)
+	notif = get_object_or_404(Notification, pk=pk)
+	notif.read = True
+	notif.save()
+	return JsonResponse({"status": "read"})
+
+
+@require_api_auth
+@require_http_methods(["POST"])
+def notification_mark_all_read(request: HttpRequest) -> JsonResponse:
+	"""Mark all notifications for the current user as read."""
+	if request.method != "POST":
+		return JsonResponse({"error": "POST only"}, status=405)
+	Notification.objects.filter(recipient=request.user, read=False).update(read=True)
+	return JsonResponse({"status": "all_marked_read"})
+
+
+@require_api_auth
+@require_http_methods(["DELETE"])
+def notification_delete(request: HttpRequest, pk: int) -> JsonResponse:
+	"""Delete a notification (must belong to current user)."""
+	if request.method != "DELETE":
+		return JsonResponse({"error": "DELETE only"}, status=405)
+	try:
+		n = Notification.objects.get(pk=pk, recipient=request.user)
+		n.delete()
+		return JsonResponse({"status": "deleted"})
+	except Notification.DoesNotExist:
+		return JsonResponse({"error": "not found"}, status=404)
+
+
+# --- Watchers API ------------------------------------------------------------
+
+@require_api_auth
+@require_http_methods(["GET", "POST"])
+def watcher_manage_endpoint(request: HttpRequest, ticket_pk: int) -> JsonResponse:
+	"""List or add watchers for a ticket."""
+	if request.method == "POST":
+		ticket = get_object_or_404(Ticket, pk=ticket_pk)
+		user_id = request.POST.get("user_id") or request.data.get("user_id")  # type: ignore
+		User = get_user_model()
+		try:
+			user = User.objects.get(pk=user_id)
+		except (ValueError, User.DoesNotExist, TypeError):
+			return JsonResponse({"error": "user_id not found"}, status=400)
+		w, created = Watcher.objects.get_or_create(ticket=ticket, user=user)
+		if created:
+			return JsonResponse({"status": "added", "watcher_id": w.pk})
+		return JsonResponse({"status": "already_watching", "watcher_id": w.pk})
+	# GET
+	ticket = get_object_or_404(Ticket, pk=ticket_pk)
+	qs = ticket.watchers.all().select_related("user")
+	results = []
+	for w in qs:
+		results.append({
+			"id": w.pk,
+			"user_id": w.user.pk,
+			"username": w.user.get_username(),
+			"is_current_user": w.user.pk == request.user.pk,
+		})
+	return JsonResponse({"count": len(results), "watchers": results})
+
+
+@require_api_auth
+@require_http_methods(["DELETE"])
+def watcher_remove(request: HttpRequest, ticket_pk: int, user_pk: int) -> JsonResponse:
+	"""Remove a watcher from a ticket."""
+	if request.method != "DELETE":
+		return JsonResponse({"error": "DELETE only"}, status=405)
+	try:
+		w = Watcher.objects.get(ticket__pk=ticket_pk, user__pk=user_pk)
+		w.delete()
+		return JsonResponse({"status": "removed"})
+	except Watcher.DoesNotExist:
+		return JsonResponse({"error": "not found"}, status=404)
+
+
+# ---------- Workspace-level watcher endpoints (list + add/remove) -----------
+
+@require_api_auth
+@require_http_methods(["GET", "POST"])
+def watcher_workspace_endpoint(request: HttpRequest) -> JsonResponse:
+	"""List or add workspace-level watchers."""
+	if request.method == "POST":
+		ticket_pk = request.POST.get("ticket_id") or request.data.get("ticket_id")  # type: ignore
+		try:
+			ticket = Ticket.objects.get(pk=ticket_pk)
+		except (Ticket.DoesNotExist, ValueError, TypeError):
+			return JsonResponse({"error": "ticket not found"}, status=404)
+		watcher, created = Watcher.objects.get_or_create(ticket=ticket, user=request.user)
+		if created:
+			return JsonResponse({"status": "added", "watcher_id": watcher.pk})
+		return JsonResponse({"status": "already_watching", "watcher_id": watcher.pk})
+	# GET
+	watchers = Watcher.objects.select_related("ticket", "ticket__project").filter(
+		user=request.user
+	).order_by("-created_at")
+	results = []
+	for w in watchers:
+		ticket = w.ticket
+		results.append({
+			"id": w.pk,
+			"ticket_id": ticket.pk,
+			"ticket_key": f"{ticket.project.key}-{ticket.pk}",
+			"ticket_title": ticket.title,
+			"ticket_state": ticket.state,
+			"watcher_id": w.pk,
+			"created_at": w.created_at.isoformat(),
+		})
+	return JsonResponse({"count": len(results), "watchers": results})
+
+
+@require_api_auth
+@require_http_methods(["DELETE"])
+def watcher_workspace_remove(request: HttpRequest, watcher_pk: int) -> JsonResponse:
+	"""Remove a workspace-level watcher link."""
+	if request.method != "DELETE":
+		return JsonResponse({"error": "DELETE only"}, status=405)
+	try:
+		w = Watcher.objects.get(pk=watcher_pk, user=request.user)
+		w.delete()
+		return JsonResponse({"status": "removed"})
+	except Watcher.DoesNotExist:
+		return JsonResponse({"error": "not found"}, status=404)
+
+
 # --- OpenAPI Schema --------------------------------------------------------
 
 def _schema() -> dict[str, Any]:
@@ -2034,5 +2208,16 @@ urlpatterns: list[path] = [
 	path("sprints/<str:project_key>/<int:sprint_pk>/close/", sprint_close, name="api_sprint_close"),
 	path("sprints/<int:pk>/", sprint_detail, name="api_sprint_detail"),
 	path("tickets/relations/<int:pk>/delete/", ticket_relation_delete_api, name="api_ticket_relation_delete"),
+	# Notifications.
+	path("notifications/", notification_collection, name="api_notification_collection"),
+	path("notifications/<int:pk>/read/", notification_mark_read, name="api_notification_mark_read"),
+	path("notifications/read-all/", notification_mark_all_read, name="api_notification_mark_all_read"),
+	path("notifications/<int:pk>/delete/", notification_delete, name="api_notification_delete"),
+	# Watchers.
+	path("tickets/<int:ticket_pk>/watchers/", watcher_manage_endpoint, name="api_watcher_list"),
+	path("tickets/<int:ticket_pk>/watchers/<int:user_pk>/", watcher_remove, name="api_watcher_remove"),
+	path("watchers/", watcher_workspace_endpoint, name="api_watcher_workspace_list"),
+	path("watchers/", watcher_workspace_endpoint, name="api_watcher_workspace_add"),
+	path("watchers/<int:watcher_pk>/", watcher_workspace_remove, name="api_watcher_workspace_remove"),
 	path("schema/", schema, name="api_schema"),
 ]
