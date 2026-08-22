@@ -1,0 +1,243 @@
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect, get_object_or_404
+from tracking.models import Project, Ticket
+from tracking.forms import ProjectForm
+from django.db.models import Count, Q
+
+@login_required
+def dashboard(request):
+	project_key = request.GET.get('project_key')
+	tab = request.GET.get('tab', 'overview')
+
+	if project_key:
+		from django.db.models import Count
+		project = get_object_or_404(Project, key=project_key)
+		tickets = project.tickets.all().order_by('-created_at')
+		context = {
+			'project': project,
+			'tickets': tickets,
+			'tab': tab,
+			'ticket_counts': project.tickets.values('state').annotate(count=Count('pk')),
+		}
+		return render(request, 'tracking/project_detail.html', context)
+
+	from django.db.models import Count
+	projects = Project.objects.annotate(ticket_count=Count('tickets')).order_by('-id')
+	return render(request, 'tracking/dashboard.html', {'projects': projects})
+
+def health_check(request):
+	from django.http import JsonResponse
+	return JsonResponse({'status': 'ok'})
+
+@login_required
+def project_list(request):
+	queryset = Project.objects.annotate(Count('tickets')).order_by('-id')
+	return render(request, 'tracking/project_list.html', {'projects': queryset})
+
+@login_required
+def project_detail(request, pk):
+	project = get_object_or_404(Project, pk=pk)
+	tab = request.GET.get('tab', 'overview')
+
+	# Shared context: recent tickets
+	tickets = project.tickets.all().select_related('assignee').order_by('-created_at')
+
+	context = {'project': project, 'tickets': tickets, 'tab': tab}
+
+	if tab == 'overview':
+		from django.utils import timezone
+		from django.db.models import Count, Sum
+		from datetime import timedelta
+
+		now = timezone.now()
+		week_ago = now - timedelta(days=7)
+
+		# State breakdown for the sidebar
+		state_breakdown = []
+		for state in Ticket.State:
+			count = project.tickets.filter(state=state).count()
+			state_breakdown.append((state.value, state.label, count))
+
+		# Recent tickets for the sidebar
+		recent_tickets = project.tickets.all().select_related('assignee').order_by('-created_at')[:10]
+
+		# Chart data
+		state_chart_data = []
+		for state in Ticket.State:
+			count = project.tickets.filter(state=state).count()
+			state_chart_data.append((state.label, count))
+
+		priority_chart_data = []
+		for priority in Ticket.Priority:
+			count = project.tickets.filter(priority=priority).count()
+			priority_chart_data.append((priority.label, count))
+
+		type_chart_data = []
+		for ticket_type in Ticket.Type:
+			count = project.tickets.filter(type=ticket_type).count()
+			type_chart_data.append((ticket_type.label, count))
+
+		# Epic data
+		epics = project.tickets.filter(type=Ticket.Type.EPIC)
+		epic_data = []
+		for epic in epics:
+			child_count = epic.child_tickets.count()
+			completed = epic.child_tickets.filter(state=Ticket.State.DONE).count()
+			completion = round(100 * completed / child_count) if child_count else 0
+			epic_data.append({'title': epic.title, 'child_count': child_count, 'completion': completion})
+
+		# Time-based metrics
+		closed_last_7 = project.tickets.filter(state=Ticket.State.CLOSED, updated_at__gte=week_ago).count()
+		updated_last_7 = project.tickets.filter(updated_at__gte=week_ago).count()
+		created_last_7 = project.tickets.filter(created_at__gte=week_ago).count()
+		due_next_7 = project.tickets.filter(
+			due_date__gte=now.date(),
+			due_date__lte=now.date() + timedelta(days=7)
+		).exclude(state=Ticket.State.CLOSED).count()
+
+		context.update({
+			'state_breakdown': state_breakdown,
+			'recent_tickets': recent_tickets,
+			'state_chart_data': state_chart_data,
+			'priority_chart_data': priority_chart_data,
+			'type_chart_data': type_chart_data,
+			'epic_data': epic_data,
+			'closed_last_7': closed_last_7,
+			'updated_last_7': updated_last_7,
+			'created_last_7': created_last_7,
+			'due_next_7': due_next_7,
+		})
+
+	elif tab == 'backlog':
+		# Tickets without a sprint (backlog)
+		tickets_without_sprint = project.tickets.filter(sprint__isnull=True).select_related('assignee').order_by('backlog_order', '-created_at')
+
+		# Filter: show_closed toggle
+		show_closed = request.GET.get('show_closed') != '1'
+
+		# Sprint ticket lists (all non-backlog sprints with their tickets)
+		sprint_ticket_list = []
+		for sprint in project.sprints.exclude(pk=1).order_by('order'):
+			sprint_tickets = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
+			if sprint_tickets or True:  # always include even if empty
+				sprint_ticket_list.append((sprint, sprint_tickets))
+
+		context.update({
+			'tickets_without_sprint': tickets_without_sprint,
+			'show_closed': show_closed,
+			'sprint_ticket_list': sprint_ticket_list,
+		})
+
+	elif tab == 'active_sprint':
+		board_view = request.GET.get('board_view', 'kanban')
+		swimlane_mode = request.GET.get('swimlane', '')
+
+		# Find the active sprint for this project
+		active_sprint = project.sprints.filter(is_active=True).first()
+
+		# All sprints with their tickets (for the sidebar)
+		sprint_ticket_lists = []
+		sprint_state_counts = []
+		for sprint in project.sprints.order_by('-order'):
+			sprint_tickets = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
+			sprint_ticket_lists.append((sprint, sprint_tickets))
+
+			# State counts for this sprint
+			for state in Ticket.State:
+				count = sprint_tickets.filter(state=state).count()
+				if count:
+					sprint_state_counts.append((state.label, count))
+
+		context.update({
+			'active_sprint': active_sprint,
+			'sprint_ticket_lists': sprint_ticket_lists,
+			'sprint_state_counts': sprint_state_counts,
+			'board_view': board_view,
+			'swimlane_mode': swimlane_mode,
+		})
+
+	elif tab == 'reports':
+		# State counts
+		state_counts = {}
+		for state in Ticket.State:
+			state_counts[state.value] = project.tickets.filter(state=state).count()
+
+		# Overdue tickets
+		from datetime import date
+		today = date.today()
+		overdue_count = project.tickets.filter(due_date__lt=today).exclude(
+			state__in=[Ticket.State.DONE, Ticket.State.CLOSED]
+		).count()
+
+		# Assignee workload
+		assignee_counts = {}
+		for ticket in project.tickets.select_related('assignee'):
+			if ticket.assignee:
+				name = str(ticket.assignee)
+				assignee_counts[name] = assignee_counts.get(name, 0) + 1
+
+		# Versions
+		try:
+			from tracking.models import Version
+			versions = project.versions.all().annotate(ticket_count=Count('tickets')).order_by('-created_at')
+		except Exception:
+			versions = []
+
+		context.update({
+			'state_counts': state_counts,
+			'overdue_count': overdue_count,
+			'assignee_counts': assignee_counts,
+			'versions': versions,
+		})
+
+	elif tab == 'velocity':
+		# Get completed sprints
+		closed_sprints = project.sprints.exclude(is_active=True).order_by('-closed_at')
+		has_velocity_data = closed_sprints.exists()
+
+		context.update({
+			'sprints': closed_sprints,
+		})
+
+	elif tab == 'components':
+		context.update({
+			'components': project.components.all(),
+		})
+
+	elif tab == 'releases':
+		try:
+			from tracking.models import Version
+			versions = project.versions.all().annotate(ticket_count=Count('tickets')).order_by('-created_at')
+		except Exception:
+			versions = []
+		context.update({
+			'versions': versions,
+		})
+
+	return render(request, 'tracking/project_detail.html', context)
+
+@login_required
+def project_edit(request, pk):
+	project = get_object_or_404(Project, pk=pk)
+	if request.method == 'POST':
+		form = ProjectForm(request.POST, instance=project)
+		if form.is_valid():
+			form.save()
+			return redirect('project_detail', pk=pk)
+	else:
+		form = ProjectForm(instance=project)
+	return render(request, 'tracking/project_edit.html', {'form': form, 'project': project})
+
+@login_required
+@login_required
+def project_create(request):
+	if request.method == 'POST':
+		form = ProjectForm(request.POST)
+		if form.is_valid():
+			project = form.save()
+			messages.success(request, "Project created")
+			return redirect('project_detail', pk=project.pk)
+	else:
+		form = ProjectForm()
+	return render(request, 'tracking/project_form.html', {'form': form, 'title': 'Create project'})

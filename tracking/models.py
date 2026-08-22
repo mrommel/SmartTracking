@@ -30,6 +30,15 @@ class Project(models.Model):
 	def __str__(self) -> str:
 		return f"{self.key} - {self.name}"
 
+	def _data(self) -> dict:
+		return {
+			'id': self.pk,
+			'name': self.name,
+			'key': self.key,
+			'description': self.description,
+			'created_at': self.created_at.isoformat() if self.created_at else None,
+		}
+
 
 class Sprint(models.Model):
 	"""A sprint within a project, used as a time-boxed iteration tracker.
@@ -70,6 +79,19 @@ class Sprint(models.Model):
 
 	def __str__(self) -> str:
 		return f"{self.project.key} / {self.name}"
+
+	def _data(self) -> dict:
+		return {
+			"id": self.pk,
+			"project": self.project.key,
+			"name": self.name,
+			"description": self.description,
+			"start_date": self.start_date.isoformat() if self.start_date else None,
+			"end_date": self.end_date.isoformat() if self.end_date else None,
+			"is_active": self.is_active,
+			"order": self.order,
+			"created_at": self.created_at.isoformat() if self.created_at else None,
+		}
 
 	@property
 	def is_backlog(self) -> bool:
@@ -289,6 +311,15 @@ class Component(models.Model):
 	def __str__(self) -> str:
 		return f"{self.project.key} / {self.name}"
 
+	def _data(self) -> dict:
+		return {
+			"id": self.pk,
+			"project": self.project.key,
+			"name": self.name,
+			"description": self.description,
+			"created_at": self.created_at.isoformat() if self.created_at else None,
+		}
+
 
 class Label(models.Model):
 	"""A label within a project, used to group or highlight tickets."""
@@ -317,6 +348,16 @@ class Label(models.Model):
 
 	def __str__(self) -> str:
 		return f"{self.project.key} / {self.name}"
+
+	def _data(self) -> dict:
+		return {
+			"id": self.pk,
+			"project": self.project.key,
+			"name": self.name,
+			"color": self.color,
+			"description": self.description,
+			"created_at": self.created_at.isoformat() if self.created_at else None,
+		}
 
 
 class Ticket(models.Model):
@@ -498,6 +539,40 @@ class Ticket(models.Model):
 			return f"{self.parent_epic.project.key} - {self.parent_epic.title}"
 		return ""
 
+	def _data(self) -> dict:
+		"""Return a serializable dict for use by the REST API."""
+		labels_data = [
+			{"id": l.pk, "name": l.name, "color": l.color, "project": l.project.key}
+			for l in self.labels.all()
+		]
+		components_data = [
+			{"id": c.pk, "name": c.name, "description": c.description, "project": c.project.key}
+			for c in self.components.all()
+		]
+		return {
+			"id": self.pk,
+			"project": self.project.key,
+			"title": self.title,
+			"description": self.description,
+			"type": self.type,
+			"state": self.state,
+			"priority": self.priority,
+			"estimation": self.estimation,
+			"reporter_id": self.reporter_id,
+			"sprint_id": self.sprint_id,
+			"parent_epic": self.parent_epic_id,
+			"parent_epic_display": f"{self.parent_epic.project.key} - {self.parent_epic.title}" if self.parent_epic else "",
+			"assignee_id": self.assignee_id,
+			"components": components_data,
+			"labels": labels_data,
+			"due_date": self.due_date.isoformat() if self.due_date else None,
+			"fix_version_id": self.fix_version_id,
+			"affects_versions": list(self.affects_versions.values_list("id", flat=True)),
+			"created_at": self.created_at.isoformat() if self.created_at else None,
+			"updated_at": self.updated_at.isoformat() if self.updated_at else None,
+			"allowed_transitions": [s.value for s in self.allowed_transitions()],
+		}
+
 	@staticmethod
 	def _get_reverse_label(value: str) -> str:
 		"""Return the symmetric label for a relation type."""
@@ -595,6 +670,16 @@ class Comment(models.Model):
 	def __str__(self) -> str:
 		return f"Comment on {self.ticket} by {self.author}"
 
+	def _data(self) -> dict:
+		return {
+			"id": self.pk,
+			"ticket": self.ticket.pk,
+			"body": self.body,
+			"author_id": self.author_id,
+			"created_at": self.created_at.isoformat() if self.created_at else None,
+			"updated_at": self.updated_at.isoformat() if self.updated_at else None,
+		}
+
 
 class CommentEditHistory(models.Model):
 	"""Tracks edit history for comments."""
@@ -669,6 +754,22 @@ class Attachment(models.Model):
 
 	def __str__(self) -> str:
 		return f"{self.ticket} - {self.name}"
+
+	def save(self, *args, **kwargs):
+		if self.file and not self.mime_type:
+			import mimetypes
+			self.mime_type = mimetypes.guess_type(self.file.name)[0] or "application/octet-stream"
+		super().save(*args, **kwargs)
+
+	def _data(self) -> dict:
+		return {
+			"id": self.pk,
+			"ticket": self.ticket.pk,
+			"name": self.name,
+			"file": self.file.url if self.file else None,
+			"mime_type": self.mime_type,
+			"created_at": self.created_at.isoformat() if self.created_at else None,
+		}
 
 	@property
 	def file_extension(self) -> str:
@@ -905,6 +1006,19 @@ class Notification(models.Model):
 	def __str__(self) -> str:
 		return f"Notification for {self.recipient} on {self.ticket}"
 
+	def _data(self) -> dict:
+		return {
+			"id": self.pk,
+			"ticket": self.ticket.pk,
+			"ticket_title": self.ticket.title,
+			"recipient_id": self.recipient_id,
+			"actor_id": self.actor_id,
+			"verb": self.verb,
+			"body": self.body,
+			"read": self.read,
+			"created_at": self.created_at.isoformat() if self.created_at else None,
+		}
+
 
 class Watcher(models.Model):
 	"""A user who wants to be notified about changes to a ticket they don't own."""
@@ -1000,6 +1114,16 @@ class TicketRelation(models.Model):
 				target=self.subject,
 				relation_type=Ticket._REVERSE_LABELS[self.relation_type],
 			)
+
+	def delete(self, *args: Any, **kwargs: Any) -> None:
+		"""Delete both this relation and its symmetric counterpart."""
+		if self.relation_type in Ticket._REVERSE_LABELS:
+			TicketRelation.objects.filter(
+				subject=self.target,
+				target=self.subject,
+				relation_type=Ticket._REVERSE_LABELS[self.relation_type],
+			).delete()
+		super().delete(*args, **kwargs)
 
 
 class SavedFilter(models.Model):

@@ -27,6 +27,9 @@ class ProjectForm(forms.ModelForm):
 class TicketForm(forms.ModelForm):
 	"""Create / edit a ticket. State is managed via transitions, not here."""
 
+	type = forms.ChoiceField(choices=Ticket.Type.choices, required=False)
+	priority = forms.ChoiceField(choices=Ticket.Priority.choices, required=False)
+
 	class Meta:
 		model = Ticket
 		fields = [
@@ -84,6 +87,12 @@ class CommentForm(forms.ModelForm):
 		widgets = {
 			"body": forms.Textarea(attrs={"rows": 3}),
 		}
+
+	def clean_body(self):
+		body = self.cleaned_data.get('body', '').strip()
+		if not body:
+			raise forms.ValidationError('Comment body cannot be empty.')
+		return body
 
 
 class CommentEditForm(forms.ModelForm):
@@ -225,6 +234,15 @@ class SprintForm(forms.ModelForm):
 				raise forms.ValidationError(f"A sprint named '{name}' already exists.")
 		return name
 
+	def save(self, commit=True):
+		instance = super().save(commit=False)
+		if self.project is not None and instance.pk is None:
+			instance.project = self.project
+		if commit:
+			instance.save()
+			self.save_m2m()
+		return instance
+
 
 class SprintDeleteForm(forms.Form):
 	"""Delete a sprint."""
@@ -290,6 +308,11 @@ class AttachmentForm(forms.ModelForm):
 		name = cleaned.get("name")
 		if file and not name:
 			cleaned["name"] = file.name
+		if file:
+			ext = file.name.rsplit(".", 1)[-1].lower() if "." in file.name else ""
+			allowed = {"png", "jpg", "jpeg", "pdf", "txt", "log", "json"}
+			if ext and ext not in allowed:
+				raise forms.ValidationError("Unsupported file type: .{}".format(ext))
 		return cleaned
 
 	class Meta:

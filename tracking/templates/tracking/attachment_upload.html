@@ -1,0 +1,20 @@
+{% extends "tracking/base.html" %}
+
+{% block title %}Upload Attachment · {{ ticket }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+	<ol class="breadcrumb">
+		<li class="breadcrumb-item"><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket }}</a></li>
+		<li class="breadcrumb-item active">Upload</li>
+	</ol>
+</nav>
+
+<h2>Upload Attachment</h2>
+
+<form method="post" enctype="multipart/form-data">
+	{{ form.as_p }}
+	<button type="submit" class="btn btn-primary">Upload</button>
+	<a href="{% url 'ticket_detail' ticket.pk %}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

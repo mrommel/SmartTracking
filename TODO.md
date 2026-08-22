@@ -13,7 +13,6 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 
 | # | Item | Why now | Where |
 | - | ---- | ------- | ----- |
-| **P1** | Refactor oversized modules | `api.py` (~2k lines) & `views.py` (~1.6k lines) are hard to maintain | Refactor §1 |
 | **P1** | Production settings split | Env-driven config unblocks any real deployment | Tech §2 |
 | **P2** | Time Tracking / WorkLog | Natural extension of existing `estimation` | Product §3 |
 | **P2** | API hardening (rate limit, versioning, CORS) | Only remaining API gaps | Tech §3 |

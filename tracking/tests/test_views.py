@@ -686,7 +686,7 @@ class NotificationViewTests(TestCase):
 		response = self.client.get(reverse("notification_list_api"))
 		self.assertEqual(response.status_code, 200)
 		data = response.json()
-		self.assertIn("notifications", data)
+		self.assertIn("results", data)
 
 	def test_notification_api_requires_auth(self):
 		self.client.logout()

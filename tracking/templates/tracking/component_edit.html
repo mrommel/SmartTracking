@@ -1,0 +1,7 @@
+{% extends "tracking/base.html" %}
+
+{% block content %}
+	{% with component=component|default_if_none:None %}
+		{% include "tracking/component_form.html" %}
+	{% endwith %}
+{% endblock %}

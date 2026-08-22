@@ -1,0 +1,35 @@
+from django.urls import path
+from . import meta, projects, tickets, comments, components, labels, attachments, sprints, schema, active_sprints, watchers, notifications, relations
+
+urlpatterns = [
+	# Schema & Meta
+	path('schema/', schema.schema_view, name='api_schema'),
+	path('meta/', meta.meta, name='api_meta'),
+	path('projects/', projects.collection, name='api_project_collection'),
+	path('projects/<str:key>/', projects.detail, name='api_project_detail'),
+	path('sprints/<str:key>/create/', sprints.create_sprint, name='api_sprint_create'),
+	path('sprints/<str:key>/<int:pk>/close/', sprints.close_sprint, name='api_sprint_close'),
+	path('sprints/<str:key>/active/tickets/', active_sprints.active_sprint, name='api_active_sprint_tickets'),
+	path('tickets/', tickets.collection, name='api_ticket_collection'),
+	path('tickets/<int:pk>/', tickets.detail, name='api_ticket_detail'),
+	path('tickets/<int:pk>/transition/', tickets.transition, name='api_ticket_transition'),
+	path('tickets/<int:id>/relations/add/', tickets.ticket_relations_add, name='api_ticket_relation_add'),
+	path('tickets/relations/<int:pk>/delete/', tickets.ticket_relations_delete, name='api_ticket_relation_delete'),
+	path('comments/', comments.collection, name='api_comment_collection'),
+	path('comments/<int:pk>/', comments.detail, name='api_comment_detail'),
+	path('components/', components.collection, name='api_component_collection'),
+	path('components/<int:pk>/', components.detail, name='api_component_detail'),
+	path('labels/', labels.collection, name='api_label_collection'),
+	path('labels/<int:pk>/', labels.detail, name='api_label_detail'),
+	path('attachments/', attachments.collection, name='api_attachment_collection'),
+	path('attachments/<int:pk>/', attachments.detail, name='api_attachment_detail'),
+	path('notifications/', notifications.collection, name='api_notification_collection'),
+	path('notifications/<int:pk>/mark_read/', notifications.mark_read, name='api_notification_mark_read'),
+	path('notifications/mark_all_read/', notifications.mark_all_read, name='api_notification_mark_all_read'),
+	path('notifications/<int:pk>/delete/', notifications.delete_notification, name='api_notification_delete'),
+	path('watchers/<int:ticket_pk>/', watchers.detail, name='api_watcher_list'),
+	path('watchers/<int:ticket_pk>/remove/<int:user_pk>/', watchers.remove, name='api_watcher_remove'),
+	path('watchers/workspace/', watchers.workspace_list, name='api_watcher_workspace_list'),
+	path('watchers/workspace/add/', watchers.workspace_add, name='api_watcher_workspace_add'),
+	path('watchers/workspace/remove/<int:pk>/', watchers.workspace_remove, name='api_watcher_workspace_remove'),
+]
