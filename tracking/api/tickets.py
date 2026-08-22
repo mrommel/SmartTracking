@@ -9,44 +9,18 @@ from . import _common as api
 from . import _common
 from tracking.models import Ticket, Comment, Attachment, Sprint, WorkLog
 from tracking.forms import TicketForm, WorkLogForm
+from tracking.queryset_helpers import build_ticket_queryset
 import json
 
 @api.require_http_methods(['GET', 'POST'])
 @csrf_exempt
 def collection(request):
 	if request.method == 'GET':
-		qs = Ticket.objects.all().select_related('sprint', 'parent_epic', 'assignee').prefetch_related(
-			'child_tickets', 'labels', 'components'
-		).annotate(issue_count=Count('child_tickets'))
-		project = request.GET.get('project', '')
-		if project: qs = qs.filter(project__key=project)
-		state = request.GET.getlist('state')
-		if state: qs = qs.filter(state__in=state)
-		assignee = request.GET.get('assignee', '')
-		if assignee:
-			if assignee == 'me':
-				qs = qs.filter(assignee=request.user)
-			elif assignee == 'unassigned':
-				qs = qs.filter(assignee__isnull=True)
-			elif assignee.isdigit():
-				qs = qs.filter(assignee__pk=int(assignee))
-		component = request.GET.getlist('component')
-		if component: qs = qs.filter(components__id__in=component)
-		label = request.GET.getlist('label')
-		if label: qs = qs.filter(labels__id__in=label)
-		q = request.GET.get('q', '').strip()
-		if q: qs = qs.filter(title__icontains=q) | qs.filter(description__icontains=q)
-		sort_map = {
-			'title': 'title', 'type': 'type', 'priority': 'priority',
-			'state': 'state', 'due_date': 'due_date', 'created_at': 'created_at',
-			'updated_at': 'updated_at'
-		}
-		order = request.GET.get('order', '-created_at')
-		sort_field = request.GET.get('sort', '')
-		if sort_field in sort_map:
-			pref = '-' if order == 'desc' else ''
-			qs = qs.order_by(f'{pref}{sort_map[sort_field]}')
-		qs = qs.distinct()
+		qs = build_ticket_queryset(request, labels_by_id=True, components_by_id=True)
+		# API-specific annotations for serialization.
+		qs = qs.prefetch_related('child_tickets', 'labels', 'components').annotate(
+			issue_count=Count('child_tickets')
+		)
 		return api._page_json(request, qs)
 	elif request.method == 'POST':
 		body = request.body

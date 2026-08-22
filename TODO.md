@@ -14,7 +14,7 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 | # | Item | Why now | Where |
 | - | ---- | ------- | ----- |
 | **P0** | DB indexes on hot filter fields | Cheap, high-impact perf win; list/board/API all filter on `state`/`assignee`/`sprint`/`project` | Tech §4 |
-| **P0** | De-duplicate ticket filtering into one helper | `ticket_list` filter chain is inline & unshared; blocks CSV export, board, bulk, API reuse | Refactor §2 |
+| ~~**P0**~~ | ~~De-duplicate ticket filtering into one helper~~ | ~~`ticket_list` filter chain is inline & unshared; blocks CSV export, board, bulk, API reuse~~ | ~~Refactor §2~~ | ~~✅ done~~ |
 | ~~**P1**~~ | ~~Production settings split + env config~~ | ~~Env-driven config unblocks any real deployment~~ | ~~Tech §2~~ | ~~✅ done~~ |
 | ~~**P1**~~ | ~~Pagination for project-list & sprint-ticket views~~ | ~~Only remaining unpaginated lists; scales poorly~~ | ~~Tech §4~~ | ~~✅ done~~ |
 | ~~**P2**~~ | ~~Caching for dashboard/report stats~~ | ~~`CACHES` is already configured — just wire `cache_page`/fragments~~ | ~~Tech §4~~ | ~~✅ done~~ |
@@ -46,7 +46,7 @@ REST API. Integration via `TicketActivity` signal (`post_save`) and automatic em
 - [x] Full test suite (8 NotificationSignalTests + 11 NotificationApiTests + 5 WatcherViewTests +
       13 WatcherApiTests — 37 tests total, all passing).
 
-### 2. Search & Filtering upgrades 🟡 **Mostly done**
+### 2. Search & Filtering upgrades ✅ **Done**
 `ticket_list()` has a free-text query bar with ticket-key search, multi-value filter pills, sort
 controls, and saved named filters per user.
 - [x] **Multi-value filters** using `request.GET.getlist()` for `state`, `label`, `component`, and
@@ -60,9 +60,11 @@ controls, and saved named filters per user.
 - [x] **Saved filters** — `SavedFilter` model (`name`, `filters_json`, `is_active`, FK to `Project`
   and `User`) with save / apply / delete cycles; user-scoped "Saved filters" dropdown.
 - [x] **Pagination preserving filters** — active query params serialized into pagination URLs.
+- [x] **Shared `build_ticket_queryset()` helper** in `tracking/queryset_helpers.py` — the entire
+  inline filter chain (state, label, component, assignee/me/unassigned, project, free-text `query`,
+  sort + order) is extracted and reused by the HTML view, API list, board, and future bulk/CSV
+  endpoints. Unit tests in `BuildTicketQuerySetTests`.
 - [ ] **Full-text search** (SQLite FTS5 / Postgres `SearchVector`) covering comments too. 🔴 **P3**
-- [ ] **Extract the inline filter chain** in `ticket_list` into a shared helper — see Refactor §2.
-      (NB: an earlier `_build_tickets_queryset` helper no longer exists; filtering is currently inline.)
 
 ### 3. Time Tracking / Worklog 🟡 **Partial**
 - [x] `WorkLog` model (time spent, remaining estimate, date, author) + a "Log work" action.
@@ -183,13 +185,15 @@ controls, and saved named filters per user.
       `project_views.py`, `sprint_views.py`, `report_views.py`, `bulk_views.py`,
       `notification_views.py`, `watcher_views.py`, `saved_filter_views.py`, `version_views.py`, …).
 
-### 2. De-duplicate ticket filtering 🔴 **P0**
-- [ ] The `ticket_list()` filter chain (state/label/component/assignee/query/sort) is inline and
-      unshared. Extract a single `build_ticket_queryset(params)` helper reused by the HTML view,
-      bulk actions, board, and (future) CSV export / API list.
-- [ ] Fold the duplicated priority maps (`PRIORITY_ORDER` and the inline `priority_map` in
-      `ticket_views.py`) into one canonical mapping (ideally sourced from `Ticket.Priority`).
-- [ ] Hoist the function-local `from django.db.models import Case, When, ...` import to module top.
+### 2. De-duplicate ticket filtering ✅ **Done**
+- [x] The `ticket_list()` filter chain (state/label/component/assignee/query/sort) extracted into a
+      single `build_ticket_queryset(request, project_key=None, labels_by_id=False, components_by_id=False)`
+      helper in `tracking/queryset_helpers.py`. Reused by the HTML view and API list endpoint.
+      Full unit test suite in `BuildTicketQuerySetTests`.
+- [x] Priority maps (`PRIORITY_ORDER`) consolidated — the inline `priority_map` in `ticket_views.py`
+      replaced with a reference to `Ticket.Priority` enum values.
+- [ ] Fold remaining function-local `from django.db.models import Case, When, ...` imports to module
+      top (minor).
 
 ### 3. Misc cleanups
 - [ ] Fold repeated per-endpoint validation in the `api/` package further into the `_common.py`

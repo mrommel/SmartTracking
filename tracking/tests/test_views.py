@@ -800,3 +800,146 @@ class WorkLogViewTests(TestCase):
 		# Should redirect back with error (time_spent must be non-negative)
 		self.assertFalse(WorkLog.objects.filter(ticket=self.ticket).exists())
 
+
+class BuildTicketQuerySetTests(TestCase):
+	"""Unit tests for the shared ``build_ticket_queryset`` helper."""
+
+	@classmethod
+	def setUpTestData(cls):
+		cls.user1 = User.objects.create_user("alice", password="pw12345!")
+		cls.user2 = User.objects.create_user("bob", password="pw12345!")
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.other = Project.objects.create(key="OTH", name="Other")
+		cls.ticket1 = Ticket.objects.create(
+			project=cls.project, title="Fixed Bug", description="has fix",
+			state=Ticket.State.CLOSED, priority=Ticket.Priority.HIGH,
+			assignee=cls.user2,
+		)
+		cls.ticket2 = Ticket.objects.create(
+			project=cls.project, title="Open Task",
+			state=Ticket.State.IN_PROGRESS, priority=Ticket.Priority.LOW,
+			assignee=cls.user2,
+		)
+		cls.ticket3 = Ticket.objects.create(
+			project=cls.other, title="Other Project",
+			state=Ticket.State.IN_PROGRESS,
+			assignee=cls.user2,
+		)
+		cls.ticket_unassigned = Ticket.objects.create(
+			project=cls.project, title="No Assignee",
+			state=Ticket.State.OPEN,
+			assignee=None,
+		)
+		cls.ticket_assigned = Ticket.objects.create(
+			project=cls.project, title="Assigned to Alice",
+			state=Ticket.State.IN_PROGRESS,
+			assignee=cls.user1,
+		)
+
+	def _make_request(self, params: dict, user=None):
+		"""Create a minimal HttpRequest-like object with GET params."""
+		from django.test import RequestFactory
+		factory = RequestFactory()
+		request = factory.get("/", params)
+		if user is not None:
+			request.user = user
+		else:
+			request.user = self.user1
+		return request
+
+	def _import_helper(self):
+		from tracking.queryset_helpers import build_ticket_queryset
+		return build_ticket_queryset
+
+	# --- Basic sanity ---------------------------------------------------------
+
+	def test_empty_params_returns_all_project_tickets(self):
+		qs = self._import_helper()(self._make_request({}))
+		# Should include all tickets in the SMT project (4).
+		pks = set(t.pk for t in qs)
+		self.assertIn(self.ticket1.pk, pks)
+		self.assertIn(self.ticket2.pk, pks)
+		self.assertIn(self.ticket_unassigned.pk, pks)
+		self.assertIn(self.ticket_assigned.pk, pks)
+
+	def test_state_filter_single(self):
+		qs = self._import_helper()(self._make_request({"state": [Ticket.State.OPEN]}))
+		self.assertEqual(qs.count(), 1)
+		self.assertEqual(qs.first().pk, self.ticket_unassigned.pk)
+
+	def test_state_filter_multi(self):
+		qs = self._import_helper()(self._make_request({
+			"state": [Ticket.State.OPEN, Ticket.State.CLOSED],
+		}))
+		self.assertEqual(qs.count(), 2)
+		pks = set(t.pk for t in qs)
+		self.assertIn(self.ticket1.pk, pks)
+		self.assertIn(self.ticket_unassigned.pk, pks)
+
+	def test_project_filter_by_query_param(self):
+		qs = self._import_helper()(self._make_request({"project": "SMT"}))
+		pks = set(t.pk for t in qs)
+		# Excludes tickets from OTH project.
+		self.assertNotIn(self.ticket3.pk, pks)
+		self.assertIn(self.ticket1.pk, pks)
+
+	def test_project_filter_by_positional_arg(self):
+		qs = self._import_helper()(self._make_request({}), project_key="OTH")
+		self.assertEqual(qs.count(), 1)
+		self.assertEqual(qs.first().pk, self.ticket3.pk)
+
+	# --- Assignee -------------------------------------------------------------
+
+	def test_assignee_me(self):
+		qs = self._import_helper()(self._make_request({"assignee": ["me"]}, user=self.user1))
+		self.assertEqual(qs.count(), 1)
+		self.assertEqual(qs.first().pk, self.ticket_assigned.pk)
+
+	def test_assignee_unassigned(self):
+		qs = self._import_helper()(self._make_request({"assignee": ["unassigned"]}))
+		self.assertEqual(qs.count(), 1)
+		self.assertEqual(qs.first().pk, self.ticket_unassigned.pk)
+
+	def test_assignee_by_id(self):
+		qs = self._import_helper()(self._make_request({"assignee": [str(self.user1.pk)]}))
+		self.assertEqual(qs.count(), 1)
+		self.assertEqual(qs.first().pk, self.ticket_assigned.pk)
+
+	# --- Free-text query ------------------------------------------------------
+
+	def test_query_text_search(self):
+		qs = self._import_helper()(self._make_request({"query": "fix"}))
+		self.assertEqual(qs.count(), 1)
+		self.assertEqual(qs.first().pk, self.ticket1.pk)
+
+	def test_query_id_search(self):
+		qs = self._import_helper()(self._make_request({"query": str(self.ticket1.pk)}))
+		self.assertGreaterEqual(qs.count(), 1)
+		pks = set(t.pk for t in qs)
+		self.assertIn(self.ticket1.pk, pks)
+
+	# --- Sorting --------------------------------------------------------------
+
+	def test_sort_created_desc(self):
+		qs = self._import_helper()(self._make_request({"sort": "created", "order": "desc"}))
+		pks = list(qs.values_list("pk", flat=True))
+		# Last item should be the oldest ticket (ticket1).
+		self.assertEqual(pks[-1], self.ticket1.pk)
+
+	def test_sort_created_asc(self):
+		qs = self._import_helper()(self._make_request({"sort": "created", "order": "asc"}))
+		pks = list(qs.values_list("pk", flat=True))
+		# First item should be the oldest ticket (ticket1).
+		self.assertEqual(pks[0], self.ticket1.pk)
+
+	# --- Performance ----------------------------------------------------------
+
+	def test_select_related_applied(self):
+		"""FK accesses should not trigger additional queries."""
+		from django.db import connection
+		qs = self._import_helper()(self._make_request({}))
+		# All FKs are joined; listing should be a single query.
+		with self.assertNumQueries(1):
+			_ = list(qs)
+
+

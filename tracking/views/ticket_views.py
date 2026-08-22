@@ -7,95 +7,15 @@ from tracking.models import Ticket, Sprint, Comment, Attachment, Label, Componen
 from tracking.forms import TicketForm, TicketTransitionForm, CommentForm, AttachmentForm, WorkLogForm
 from django.http import JsonResponse, HttpResponseForbidden, FileResponse
 from django.views.decorators.http import require_http_methods
-from django.db.models import Q
-
-# Mapping of sort fields to database columns and priority ordering
-SORT_MAP = {
-	'title': 'title',
-	'type': 'type',
-	'priority': 'priority',
-	'state': 'state',
-	'due_date': 'due_date',
-	'created': 'created_at',
-	'updated': 'updated_at',
-}
-
-PRIORITY_ORDER = {
-	'CRITICAL': 0,
-	'HIGH': 1,
-	'MEDIUM': 2,
-	'LOW': 3,
-}
-
+from tracking.queryset_helpers import build_ticket_queryset, SORT_MAP
 
 @login_required
 def ticket_list(request, project_key: str = None):
-	if project_key:
-		qs = Ticket.objects.filter(project__key=project_key).select_related('sprint', 'parent_epic', 'assignee')
-	else:
-		qs = Ticket.objects.all().select_related('sprint', 'parent_epic', 'assignee')
+	qs = build_ticket_queryset(request, project_key=project_key)
 
-	# Multi-value filters
-	if request.GET.getlist('state'):
-		qs = qs.filter(state__in=request.GET.getlist('state'))
-	if request.GET.getlist('label'):
-		for label_name in request.GET.getlist('label'):
-			qs = qs.filter(labels__name=label_name)
-	if request.GET.getlist('component'):
-		for comp_name in request.GET.getlist('component'):
-			qs = qs.filter(components__name=comp_name)
-
-	# Single-value filters
-	project = request.GET.get('project')
-	if project:
-		qs = qs.filter(project__key=project)
-
-	# Assignee filter (supports multi-value via getlist)
-	assignee_values = request.GET.getlist('assignee')
-	if 'me' in assignee_values:
-		qs = qs.filter(assignee=request.user)
-	elif 'unassigned' in assignee_values:
-		qs = qs.filter(assignee__isnull=True)
-	elif assignee_values:
-		numeric_ids = [aid for aid in assignee_values if aid.isdigit()]
-		if numeric_ids:
-			qs = qs.filter(assignee_id__in=numeric_ids)
-
-	# Query filter – search title, description, or numeric ticket ID
-	query = request.GET.get('query') or request.GET.get('q')
-	if query:
-		# Try matching by numeric ticket ID first
-		if query.isdigit():
-			qs = qs.filter(Q(title__icontains=query) | Q(description__icontains=query) | Q(pk=int(query)))
-		else:
-			qs = qs.filter(Q(title__icontains=query) | Q(description__icontains=query))
-
-	# Sorting
+	# Sorting values needed by the template for the sort-header links.
 	sort_field = request.GET.get('sort', 'created_at')
 	order = request.GET.get('order', 'desc')
-	db_field = SORT_MAP.get(sort_field, 'created_at')
-	if sort_field == 'priority':
-		# Custom priority ordering (IntegerChoices: LOW=1, MEDIUM=2, HIGH=3, CRITICAL=4)
-		# "desc" priority = CRITICAL first (ascending numeric sort)
-		from django.db.models import Case, When, Value, IntegerField
-		priority_map = {
-			Ticket.Priority.CRITICAL: 0,
-			Ticket.Priority.HIGH: 1,
-			Ticket.Priority.MEDIUM: 2,
-			Ticket.Priority.LOW: 3,
-		}
-		annotated = qs.annotate(
-			priority_sort=Case(
-				*[When(priority=p, then=v) for p, v in priority_map.items()],
-				default=4,
-				output_field=IntegerField(),
-			)
-		)
-		ordering = ('priority_sort',) if order == 'desc' else ('-priority_sort',)
-		annotated = annotated.order_by(*ordering)
-	else:
-		ordering = (f'-{db_field}' if order == 'desc' else db_field,)
-		annotated = qs.order_by(*ordering)
 
 	# Context data for bulk actions
 	all_sprints = Sprint.objects.all().order_by('order')
@@ -125,7 +45,7 @@ def ticket_list(request, project_key: str = None):
 		saved_filters = saved_filters.filter(project__key=project_key)
 
 	return render(request, 'tracking/ticket_list.html', {
-		'tickets': annotated,
+		'tickets': qs,
 		'order': order,
 		'sort': sort_field,
 		'sprints_json': sprints_json,
