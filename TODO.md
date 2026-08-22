@@ -16,7 +16,7 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 | **P1** | Production settings split | Env-driven config unblocks any real deployment | Tech §2 |
 | **P2** | Time Tracking / WorkLog | Natural extension of existing `estimation` | Product §3 |
 | **P2** | API hardening (rate limit, versioning, CORS) | Only remaining API gaps | Tech §3 |
-| **P3** | Profiles/Teams/Permissions, Import/Export, Custom workflows, HTMX/dark mode | Larger efforts, lower urgency | see below |
+| **P3** | Profiles/Teams/Permissions, Import/Export, Custom workflows, HTMX | Larger efforts, lower urgency | see below |
 
 ---
 
@@ -162,7 +162,7 @@ multi-value filter pills, sort controls, and saved named filters per user.
 - [ ] Adopt **HTMX** for progressive enhancement (inline transitions, comment posting,
       board drag-drop) consistent with the "no JS framework" goal.
 - [ ] **Accessibility** pass (ARIA on badges, form labels, keyboard nav).
-- [ ] **Dark mode** toggle (Bootstrap 5.3 color modes).
+- [x] **Dark mode** toggle (Bootstrap 5.3 `data-bs-theme` on `<html>`, `localStorage` persistence, `prefers-color-scheme` fallback).
 
 ### 7. Observability 🟡
 - [x] Health-check endpoint (`GET /health/` → `{"status": "ok"}` / 503 on DB failure).
