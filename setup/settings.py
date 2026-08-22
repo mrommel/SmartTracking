@@ -112,6 +112,15 @@ CACHES = {
     }
 }
 
+# Dashboard / report stat cache timeout (seconds).
+# Used by `@cache_page` on dashboard/report views and `{% cache %}` fragments
+# in dashboard, project_detail, reports, and releases templates.
+# When DEBUG=True (dev/test), disable caching so tests see live data.
+if DEBUG:
+    DASHBOARD_CACHE_TIMEOUT = 0
+else:
+    DASHBOARD_CACHE_TIMEOUT = 300
+
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 

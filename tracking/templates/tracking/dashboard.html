@@ -1,4 +1,4 @@
-{% extends "tracking/base.html" %}
+{% extends "tracking/base.html" %}{% load cache %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -6,6 +6,7 @@
 	<a class="btn btn-primary" href="{% url 'project_create' %}">+ New project</a>
 </div>
 
+	{% cache 300 dashboard_projects %}
 	<div class="card">
 		<table class="table table-hover mb-0 align-middle">
 			<thead>
@@ -28,4 +29,5 @@
 			</tbody>
 		</table>
 	</div>
+	{% endcache %}
 {% endblock %}

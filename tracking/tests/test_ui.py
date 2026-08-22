@@ -3,6 +3,7 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -189,6 +190,7 @@ class ProjectDetailTests(TestCase):
 
     def setUp(self):
         self.client.force_login(self.user)
+        cache.clear()
 
     def test_project_detail_overview_shows_metrics(self):
         response = self.client.get(reverse("project_detail", args=[self.project.pk]), {"tab": "overview"})

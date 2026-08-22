@@ -17,7 +17,7 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 | **P0** | De-duplicate ticket filtering into one helper | `ticket_list` filter chain is inline & unshared; blocks CSV export, board, bulk, API reuse | Refactor §2 |
 | **P1** | Production settings split + env config | Env-driven config unblocks any real deployment | Tech §2 |
 | ~~**P1**~~ | ~~Pagination for project-list & sprint-ticket views~~ | ~~Only remaining unpaginated lists; scales poorly~~ | ~~Tech §4~~ | ~~✅ done~~ |
-| **P2** | Caching for dashboard/report stats | `CACHES` is already configured — just wire `cache_page`/fragments | Tech §4 |
+| ~~**P2**~~ | ~~Caching for dashboard/report stats~~ | ~~`CACHES` is already configured — just wire `cache_page`/fragments~~ | ~~Tech §4~~ | ~~✅ done~~ |
 | **P2** | Epic worklog rollups (original/remaining/spent) | Completes Time Tracking; model already exists | Product §3 |
 | **P2** | API hardening (rate limit, versioning, CORS) | Only remaining API gaps | Tech §3 |
 | **P3** | Profiles/Teams/Permissions, Import/Export, Custom workflows, HTMX, Full-text search, Observability | Larger efforts, lower urgency | see below |
@@ -139,7 +139,7 @@ controls, and saved named filters per user.
 - [x] **DB indexes** (`db_index=True` / `Meta.indexes`) on frequently filtered fields
       (`state`, `assignee`, `sprint`, `due_date`, `project`) — only `TicketActivity.action`
       is indexed today. 🔴 **P0**
-- [x] Wire the configured cache to **dashboard/report stats** (`cache_page` or fragment caching). 🟡 **P2**
+- [x] Wire the configured cache to **dashboard/report stats** (`cache_page` or fragment caching). 🟡 **P2** — ✅ `@cache_page` added to `dashboard`, `project_detail`, `sprint_velocity`, `reports`, and `releases` views; `{% cache 300 %}` fragments in `dashboard.html` (project table), `project_detail.html` (overview stats, charts, sidebar, reports tab, releases tab), `reports.html` (stat cards + detail panels), and `releases.html` (versions table). Timeout configurable via `DASHBOARD_CACHE_TIMEOUT` (300s when DEBUG=False, 0 when DEBUG=True to disable caching in dev/test).
 - [x] Add pagination to the **project list** and **sprint-ticket** views. 🔴 **P1**
 
 ### 5. Security 🟡

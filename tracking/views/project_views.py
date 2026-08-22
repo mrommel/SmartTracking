@@ -1,12 +1,15 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.cache import cache_page
 from tracking.models import Project, Ticket
 from tracking.forms import ProjectForm
 from django.db.models import Count, Q
 
 @login_required
+@cache_page(settings.DASHBOARD_CACHE_TIMEOUT)
 def dashboard(request):
 	project_key = request.GET.get('project_key')
 	tab = request.GET.get('tab', 'overview')
@@ -43,6 +46,7 @@ def project_list(request):
 	return render(request, 'tracking/project_list.html', {'projects': page})
 
 @login_required
+@cache_page(settings.DASHBOARD_CACHE_TIMEOUT)
 def project_detail(request, pk):
 	project = get_object_or_404(Project, pk=pk)
 	tab = request.GET.get('tab', 'overview')
