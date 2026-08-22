@@ -1,0 +1,268 @@
+{% extends "tracking/base.html" %}
+{% load humanize markdown_filters type_badge avatar_filters %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+	<ol class="breadcrumb">
+		<li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Profile</a></li>
+		<li class="breadcrumb-item active">{{ user.get_username }}</li>
+	</ol>
+</nav>
+
+<!-- Profile Header -->
+<div class="card mb-3">
+	<div class="card-body">
+		<div class="d-flex align-items-start gap-3">
+			<img src="{% avatar_url user 80 %}" class="rounded-circle" width="80" height="80" alt="{{ user.get_username }} avatar" loading="lazy">
+			<div class="flex-grow-1">
+				<h1 class="h4 mb-1">{{ user.get_username }}</h1>
+				{% if user.get_full_name %}
+					<p class="text-muted mb-1">{{ user.get_full_name }}</p>
+				{% endif %}
+				<p class="text-muted mb-2 small">
+					{{ user.email|default:"No email" }}
+					{% if user.is_staff %}
+						· <span class="badge bg-danger">Staff</span>
+					{% endif %}
+					{% if user.is_superuser %}
+						· <span class="badge bg-warning">Superuser</span>
+					{% endif %}
+				</p>
+				<div class="d-flex gap-2">
+					<small class="text-muted">
+						{% if user.date_joined %}Member since {{ user.date_joined|date:"M Y" }}{% endif %}
+					</small>
+					{% if is_owner %}
+						<a href="{% url 'user_profile' user.pk %}" class="btn btn-sm btn-outline-secondary ms-auto" title="Refresh">Refresh</a>
+					{% endif %}
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-3">
+	<div class="col-6 col-md-3">
+		<div class="card h-100">
+			<div class="card-body text-center">
+				<h3 class="h2 mb-1 text-primary">{{ assigned_tickets_count }}</h3>
+				<p class="text-muted mb-0 small">Assigned tickets</p>
+			</div>
+		</div>
+	</div>
+	<div class="col-6 col-md-3">
+		<div class="card h-100">
+			<div class="card-body text-center">
+				<h3 class="h2 mb-1 text-success">{{ reported_tickets_count }}</h3>
+				<p class="text-muted mb-0 small">Created tickets</p>
+			</div>
+		</div>
+	</div>
+	<div class="col-6 col-md-3">
+		<div class="card h-100">
+			<div class="card-body text-center">
+				<h3 class="h2 mb-1 text-info">{{ total_work_logged|intcomma }}</h3>
+				<p class="text-muted mb-0 small">Minutes logged</p>
+			</div>
+		</div>
+	</div>
+	<div class="col-6 col-md-3">
+		<div class="card h-100">
+			<div class="card-body text-center">
+				<h3 class="h2 mb-1 text-warning">{{ comments_count }}</h3>
+				<p class="text-muted mb-0 small">Comments</p>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Assigned Tickets Breakdown -->
+{% if assigned_by_state %}
+<div class="card mb-3">
+	<div class="card-body">
+		<h2 class="h6 text-muted mb-3">Assigned Tickets by State</h2>
+		<div class="d-flex gap-2 flex-wrap">
+			{% for state, data in assigned_by_state.items %}
+				{% state_badge ticket__state=state ticket__label=data.0 ticket__count=data.1 %}
+			{% endfor %}
+		</div>
+	</div>
+</div>
+{% endif %}
+
+<!-- Assigned Tickets -->
+<div class="card mb-3">
+	<div class="card-body">
+		<h2 class="h6 text-muted mb-3">Assigned Tickets</h2>
+		{% if page_assigned %}
+			<table class="table table-sm table-hover">
+				<thead>
+					<tr>
+						<th>Ticket</th>
+						<th>Project</th>
+						<th>Type</th>
+						<th>State</th>
+						<th>Priority</th>
+						<th>Updated</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for ticket in page_assigned %}
+						<tr>
+							<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.project.key }}-{{ ticket.pk }}: {{ ticket.title }}</a></td>
+							<td>{{ ticket.project.key }}</td>
+							<td>{% type_badge ticket=ticket %}</td>
+							<td>{% state_badge ticket=ticket %}</td>
+							<td>{% priority_badge ticket=ticket %}</td>
+							<td>{{ ticket.updated_at|naturaltime }}</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		{% else %}
+			<div class="alert alert-info">No assigned tickets.</div>
+		{% endif %}
+	</div>
+</div>
+
+<!-- Reported Tickets -->
+<div class="card mb-3">
+	<div class="card-body">
+		<h2 class="h6 text-muted mb-3">Created Tickets</h2>
+		{% if page_reported %}
+			<table class="table table-sm table-hover">
+				<thead>
+					<tr>
+						<th>Ticket</th>
+						<th>Project</th>
+						<th>Type</th>
+						<th>State</th>
+						<th>Priority</th>
+						<th>Assignee</th>
+						<th>Created</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for ticket in page_reported %}
+						<tr>
+							<td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.project.key }}-{{ ticket.pk }}: {{ ticket.title }}</a></td>
+							<td>{{ ticket.project.key }}</td>
+							<td>{% type_badge ticket=ticket %}</td>
+							<td>{% state_badge ticket=ticket %}</td>
+							<td>{% priority_badge ticket=ticket %}</td>
+							<td>{{ ticket.assignee|default:"—" }}</td>
+							<td>{{ ticket.created_at|naturaltime }}</td>
+						</tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		{% else %}
+			<div class="alert alert-info">No created tickets.</div>
+		{% endif %}
+	</div>
+</div>
+
+<!-- Activity Feed -->
+<div class="card mb-3">
+	<div class="card-body">
+		<h2 class="h6 text-muted mb-3">Activity Feed</h2>
+		{% if activity_items %}
+			<ul class="list-unstyled">
+				{% for item in activity_items %}
+					<li class="mb-3 pb-2 {% if not forloop.last %}border-bottom{% endif %}">
+						<div class="d-flex gap-2">
+							<img src="{% avatar_url item.actor 28 %}" class="rounded-circle mt-1" width="28" height="28" alt="{{ item.actor.get_username }} avatar" loading="lazy">
+							<div class="flex-grow-1">
+								<p class="mb-1">
+									<strong>{{ item.actor.get_username }}</strong>
+									{% if item.type == 'activity' %}
+										{{ item.action }} on
+									{% elif item.type == 'comment' %}
+										commented on
+									{% endif %}
+									<a href="{% url 'ticket_detail' item.ticket.pk %}">{{ item.ticket.project.key }}-{{ item.ticket.pk }}: {{ item.ticket.title }}</a>
+								</p>
+								{% if item.type == 'activity' and item.field_name %}
+									<small class="text-muted">
+										{{ item.field_name }}: {{ item.old_value|default:"—" }} → {{ item.new_value|default:"—" }}
+									</small>
+								{% endif %}
+								{% if item.type == 'comment' and item.comment_body %}
+									<small class="text-muted fst-italic">"{{ item.comment_body|markdown|truncatewords:15|safe }}"</small>
+								{% endif %}
+								<small class="text-muted">{{ item.created_at|naturaltime }}</small>
+							</div>
+						</div>
+					</li>
+				{% endfor %}
+			</ul>
+		{% else %}
+			<div class="alert alert-info">No recent activity.</div>
+		{% endif %}
+	</div>
+</div>
+
+<!-- Pagination for assigned tickets -->
+{% if page_assigned.has_other_pages %}
+<nav aria-label="Assigned tickets pagination">
+	<ul class="pagination justify-content-center">
+		{% if page_assigned.has_previous %}
+			<li class="page-item">
+				<a class="page-link" href="?assigned_page={{ page_assigned.previous_page_number }}&reported_page={{ page_reported.number }}">Previous</a>
+			</li>
+		{% else %}
+			<li class="page-item disabled"><span class="page-link">Previous</span></li>
+		{% endif %}
+		{% for num in page_assigned.paginator.page_range %}
+			{% if page_assigned.number == num %}
+				<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+			{% elif num == 1 or num == page_assigned.paginator.num_pages or num|add:"-1" == page_assigned.number or num|add:"1" == page_assigned.number %}
+				<li class="page-item"><a class="page-link" href="?assigned_page={{ num }}&reported_page={{ page_reported.number }}">{{ num }}</a></li>
+			{% elif num|add:"-1" == page_assigned.number or num|add:"1" == page_assigned.number %}
+				<li class="page-item disabled"><span class="page-link">…</span></li>
+			{% endif %}
+		{% endfor %}
+		{% if page_assigned.has_next %}
+			<li class="page-item">
+				<a class="page-link" href="?assigned_page={{ page_assigned.next_page_number }}&reported_page={{ page_reported.number }}">Next</a>
+			</li>
+		{% else %}
+			<li class="page-item disabled"><span class="page-link">Next</span></li>
+		{% endif %}
+	</ul>
+</nav>
+{% endif %}
+
+<!-- Pagination for reported tickets -->
+{% if page_reported.has_other_pages %}
+<nav aria-label="Reported tickets pagination">
+	<ul class="pagination justify-content-center mt-2">
+		{% if page_reported.has_previous %}
+			<li class="page-item">
+				<a class="page-link" href="?assigned_page={{ page_assigned.number }}&reported_page={{ page_reported.previous_page_number }}">Previous</a>
+			</li>
+		{% else %}
+			<li class="page-item disabled"><span class="page-link">Previous</span></li>
+		{% endif %}
+		{% for num in page_reported.paginator.page_range %}
+			{% if page_reported.number == num %}
+				<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+			{% elif num == 1 or num == page_reported.paginator.num_pages or num|add:"-1" == page_reported.number or num|add:"1" == page_reported.number %}
+				<li class="page-item"><a class="page-link" href="?assigned_page={{ page_assigned.number }}&reported_page={{ num }}">{{ num }}</a></li>
+			{% elif num|add:"-1" == page_reported.number or num|add:"1" == page_reported.number %}
+				<li class="page-item disabled"><span class="page-link">…</span></li>
+			{% endif %}
+		{% endfor %}
+		{% if page_reported.has_next %}
+			<li class="page-item">
+				<a class="page-link" href="?assigned_page={{ page_assigned.number }}&reported_page={{ page_reported.next_page_number }}">Next</a>
+			</li>
+		{% else %}
+			<li class="page-item disabled"><span class="page-link">Next</span></li>
+		{% endif %}
+	</ul>
+</nav>
+{% endif %}
+
+{% endblock %}

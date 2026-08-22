@@ -13,6 +13,7 @@ import tracking.views.notification_views as _nv
 import tracking.views.watcher_views as _ww
 import tracking.views.bulk_views as _bv
 import tracking.views.saved_filter_views as _sfv
+import tracking.views.user_views as _uv
 
 urlpatterns = [
     path('', RedirectView.as_view(url='dashboard', permanent=False), name='dashboard'),
@@ -52,6 +53,8 @@ urlpatterns = [
     path('saved-filters/create/', _sfv.saved_filter_create, name='saved_filter_create'),
     path('saved-filters/<int:pk>/delete/', _sfv.saved_filter_delete, name='saved_filter_delete'),
     path('saved-filters/<int:pk>/apply/', _sfv.saved_filter_apply, name='saved_filter_apply'),
+    # User profiles.
+    path('users/<int:pk>/', _uv.user_profile, name='user_profile'),
     # Notifications.
     path('notifications/', _nv.notification_feed, name='notification_feed'),
     path('notifications/mark-read/', _nv.notification_mark_read, name='notification_mark_read'),

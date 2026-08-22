@@ -73,7 +73,7 @@ multi-value filter pills, sort controls, and saved named filters per user.
 - [ ] Original vs remaining vs spent rollups on epics.
 
 ### 4. User Profiles, Teams & Permissions 🔴 **P3**
-- [ ] User profile page (avatar, tickets assigned, activity feed).
+- [x] User profile page (avatar, tickets assigned, activity feed).
 - [ ] **Project-level roles/membership** and permission checks in `views.py`.
 - [ ] Object-level permissions (e.g. `django-guardian`) or per-project membership.
 

@@ -1,4 +1,4 @@
-{% load humanize %}{% load static %}{% load markdown_filters %}
+{% load humanize %}{% load static %}{% load markdown_filters %}{% load avatar_filters %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,7 +25,9 @@
 	</div>
 	<div class="ms-auto">
 		{% if user.is_authenticated %}
-			<span class="navbar-text me-2">{{ user.get_username }}</span>
+			<span class="navbar-text me-2">
+				<a href="{% url 'user_profile' user.pk %}">{{ user.get_username }}</a>
+			</span>
 			<a href="{% url 'notification_feed' %}" class="nav-link position-relative text-decoration-none">
 				<span class="badge bg-danger position-absolute"
 					style="top:2px;right:-2px;font-size:10px;">
