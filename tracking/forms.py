@@ -494,9 +494,11 @@ class MarkNotificationsForm(forms.Form):
 class WorkLogForm(forms.ModelForm):
 	class Meta:
 		model = WorkLog
-		fields = ["time_spent", "date", "comment"]
+		fields = ["time_spent", "original_estimate", "remaining_estimate", "date", "comment"]
 		widgets = {
 			"time_spent": forms.NumberInput(attrs={"class": "form-control", "min": "1", "placeholder": "Minutes spent"}),
+			"original_estimate": forms.NumberInput(attrs={"class": "form-control", "min": "0", "step": "0.5", "placeholder": "Original estimate (hours, optional)"}),
+			"remaining_estimate": forms.NumberInput(attrs={"class": "form-control", "min": "0", "step": "0.5", "placeholder": "Remaining estimate (hours, optional)"}),
 			"date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
 			"comment": forms.Textarea(attrs={"class": "form-control", "rows": "3", "placeholder": "What did you work on? (optional)"}),
 		}

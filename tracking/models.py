@@ -649,14 +649,68 @@ class Ticket(models.Model):
 
 	@property
 	def total_spent(self):
-		spent = sum(wl.time_spent for wl in self.worklog_entries.all())
+		"""Sum of ``time_spent`` (minutes) on this ticket's own worklogs + all child worklogs."""
+		spent = 0
+		if self.worklog_entries.exists():
+			spent = self.worklog_entries.aggregate(models.Sum("time_spent"))["time_spent__sum"] or 0
 		if self.type == Ticket.Type.EPIC:
-			spent += sum(ct.total_spent for ct in self.child_tickets.all())
+			child_pks = self.child_tickets.values_list("pk", flat=True)
+			spent += WorkLog.objects.filter(ticket__in=child_pks).aggregate(models.Sum("time_spent"))["time_spent__sum"] or 0
 		return spent
 
 	@property
-	def total_remaining(self):
-		return max(0, self.total_estimation - self.total_spent)
+	def total_original_estimate(self):
+		"""Sum of ``original_estimate`` (hours) on child worklogs; falls back to estimation field.
+
+		For an epic: aggregates ``original_estimate`` from all child-ticket worklogs
+		and adds the epic's own ``estimation``.
+		If no worklogs have ``original_estimate``, falls back to the sum of each child's
+		``estimation`` plus the epic's own ``estimation``.
+		For a non-epic: uses the ticket's own ``estimation`` or its worklogs'
+		``original_estimate``.
+		"""
+		if self.type == Ticket.Type.EPIC:
+			child_pks = self.child_tickets.values_list("pk", flat=True)
+			worklog_estimates = WorkLog.objects.filter(
+				ticket__in=child_pks,
+				original_estimate__isnull=False,
+			).aggregate(models.Sum("original_estimate"))["original_estimate__sum"]
+			worklog_sum = worklog_estimates or 0
+			if worklog_sum > 0:
+				return worklog_sum + (self.estimation or 0)
+			# No worklogs have original_estimate — fall back to each child's estimation + epic
+			return sum(c.estimation or 0 for c in self.child_tickets.all()) + (self.estimation or 0)
+		# Non-epic: sum from own worklogs' original_estimate, or fall back to estimation
+		worklog_sum = (
+			self.worklog_entries.filter(original_estimate__isnull=False)
+			.aggregate(models.Sum("original_estimate"))["original_estimate__sum"] or 0
+		)
+		return worklog_sum or (self.estimation or 0)
+
+	@property
+	def total_remaining_estimate(self):
+		"""Sum of remaining estimates from worklogs; falls back to total_original - total_spent."""
+		if self.type == Ticket.Type.EPIC:
+			child_pks = self.child_tickets.values_list("pk", flat=True)
+			worklog_remaining = WorkLog.objects.filter(
+				ticket__in=child_pks,
+				remaining_estimate__isnull=False,
+			).aggregate(models.Sum("remaining_estimate"))["remaining_estimate__sum"]
+			if worklog_remaining is not None and worklog_remaining > 0:
+				return worklog_remaining
+		# Fallback: original estimate minus spent (converted to hours)
+		spent_hours = self.total_spent / 60.0
+		return max(0.0, self.total_original_estimate - spent_hours)
+
+	@property
+	def progress_percent(self):
+		"""Progress percentage based on spent vs. original estimate, capped at 100."""
+		original = self.total_original_estimate
+		if original <= 0:
+			return 0.0
+		spent_hours = self.total_spent / 60.0
+		pct = (spent_hours / original) * 100
+		return round(min(pct, 100.0), 1)
 
 
 
@@ -823,7 +877,11 @@ class Attachment(models.Model):
 
 
 class WorkLog(models.Model):
-	"""A time-tracking entry on a ticket (who spent how many minutes)."""
+	"""A time-tracking entry on a ticket (who spent how many minutes).
+
+	Optionally tracks ``original_estimate`` and ``remaining_estimate`` in hours
+	so that epic-level rollups can show original vs. spent vs. remaining.
+	"""
 
 	ticket = models.ForeignKey(
 		Ticket,
@@ -841,6 +899,20 @@ class WorkLog(models.Model):
 	time_spent = models.PositiveIntegerField(
 		_("time spent"),
 		help_text=_("Time spent in minutes"),
+	)
+	original_estimate = models.FloatField(
+		_("original estimate (hours)"),
+		blank=True,
+		null=True,
+		default=None,
+		help_text=_("Per-entry original estimate in hours. Used for epic rollups."),
+	)
+	remaining_estimate = models.FloatField(
+		_("remaining estimate (hours)"),
+		blank=True,
+		null=True,
+		default=None,
+		help_text=_("Per-entry remaining estimate in hours. Falls back to calculation if blank."),
 	)
 	date = models.DateField(
 		_("date"),

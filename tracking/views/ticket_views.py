@@ -95,6 +95,12 @@ def ticket_detail(request, pk):
 		),
 		'sprints': Sprint.objects.filter(project=ticket.project),
 		'worklog_form': WorkLogForm(),
+		'rollup': {
+			'total_original_estimate': ticket.total_original_estimate,
+			'total_spent_time': ticket.total_spent,
+			'total_remaining_estimate': ticket.total_remaining_estimate,
+			'progress_percent': ticket.progress_percent,
+		} if ticket.type == Ticket.Type.EPIC else None,
 	})
 
 

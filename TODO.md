@@ -18,7 +18,7 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 | ~~**P1**~~ | ~~Production settings split + env config~~ | ~~Env-driven config unblocks any real deployment~~ | ~~Tech §2~~ | ~~✅ done~~ |
 | ~~**P1**~~ | ~~Pagination for project-list & sprint-ticket views~~ | ~~Only remaining unpaginated lists; scales poorly~~ | ~~Tech §4~~ | ~~✅ done~~ |
 | ~~**P2**~~ | ~~Caching for dashboard/report stats~~ | ~~`CACHES` is already configured — just wire `cache_page`/fragments~~ | ~~Tech §4~~ | ~~✅ done~~ |
-| **P2** | Epic worklog rollups (original/remaining/spent) | Completes Time Tracking; model already exists | Product §3 |
+| ~~**P2**~~ | ~~Epic worklog rollups (original/remaining/spent)~~ | ~~Completes Time Tracking; model already exists~~ | ~~Product §3~~ | ~~✅ done~~ |
 | **P2** | API hardening (rate limit, versioning, CORS) | Only remaining API gaps | Tech §3 |
 | **P3** | Profiles/Teams/Permissions, Import/Export, Custom workflows, HTMX, Full-text search, Observability | Larger efforts, lower urgency | see below |
 
@@ -66,10 +66,9 @@ controls, and saved named filters per user.
   endpoints. Unit tests in `BuildTicketQuerySetTests`.
 - [ ] **Full-text search** (SQLite FTS5 / Postgres `SearchVector`) covering comments too. 🔴 **P3**
 
-### 3. Time Tracking / Worklog 🟡 **Partial**
+### 3. Time Tracking / Worklog ✅ **Done**
 - [x] `WorkLog` model (time spent, remaining estimate, date, author) + a "Log work" action.
-- [ ] **Original vs remaining vs spent rollups on epics** (aggregate child `WorkLog`s up
-      `parent_epic`). 🟡 **P2**
+- [x] **Original vs remaining vs spent rollups on epics** — aggregate child `WorkLog`s up `parent_epic`; model properties (`total_original_estimate`, `total_spent`, `total_remaining_estimate`, `progress_percent`), extended form, admin inlines, API rollup context, template summary cards & progress bar.
 
 ### 4. User Profiles, Teams & Permissions 🔴 **P3**
 - [x] User profile page (avatar, tickets assigned, activity feed).

@@ -83,6 +83,8 @@ def api_ticket_worklog_collection(request, pk):
 				"id": entry.pk,
 				"author": entry.author.get_full_name() or entry.author.username,
 				"time_spent": entry.time_spent,
+				"original_estimate": entry.original_estimate,
+				"remaining_estimate": entry.remaining_estimate,
 				"date": entry.date.isoformat(),
 				"comment": entry.comment,
 				"created_at": entry.created_at.isoformat(),
@@ -103,7 +105,13 @@ def api_ticket_worklog_collection(request, pk):
 			entry.ticket = ticket
 			entry.author = request.user
 			entry.save()
-			return JsonResponse({"id": entry.pk, "time_spent": entry.time_spent, "date": entry.date.isoformat()}, status=201)
+			return JsonResponse({
+				"id": entry.pk,
+				"time_spent": entry.time_spent,
+				"original_estimate": entry.original_estimate,
+				"remaining_estimate": entry.remaining_estimate,
+				"date": entry.date.isoformat(),
+			}, status=201)
 		return JsonResponse({"error": dict(form.errors)}, status=400)
 
 
@@ -122,6 +130,11 @@ def detail(request, pk):
 		data['subtasks_count'] = ticket.child_tickets.count()
 		data['sprint_name'] = ticket.sprint.name if ticket.sprint else 'Backlog'
 		data['project_key'] = ticket.project.key
+		# Time-tracking rollups
+		data['total_original_estimate'] = ticket.total_original_estimate
+		data['total_spent_time'] = ticket.total_spent
+		data['total_remaining_estimate'] = ticket.total_remaining_estimate
+		data['progress_percent'] = ticket.progress_percent
 		return JsonResponse(data)
 	elif request.method == 'PATCH':
 		data = api.parse_json(request)

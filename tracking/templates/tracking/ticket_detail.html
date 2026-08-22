@@ -371,39 +371,93 @@
  	</div>
   	{% endif %}
 
-  	<!-- Work Logs -->
- 	<div class="card mt-4">
- 		<div class="card-header d-flex justify-content-between align-items-center">
- 			<h5 class="mb-0">Time Tracking</h5>
- 			<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#worklogCollapse">
- 				Log work
- 			</button>
- 		</div>
- 		<div class="collapse" id="worklogCollapse">
- 			<div class="card-body">
- 				<form method="post" action="{% url 'ticket_worklog_create' ticket.pk %}">
- 					{% csrf_token %}
- 					<input type="hidden" name="form_type" value="worklog">
- 					<div class="row mb-3">
- 						<div class="col-md-4">
- 							{{ worklog_form.time_spent.label_tag }}
- 							{{ worklog_form.time_spent }}
- 							{% if worklog_form.time_spent.errors %}<div class="invalid-feedback d-block">{{ worklog_form.time_spent.errors|first }}</div>{% endif %}
- 						</div>
- 						<div class="col-md-4">
- 							{{ worklog_form.date.label_tag }}
- 							{{ worklog_form.date }}
- 						</div>
- 					</div>
- 					<div class="mb-3">
- 						{{ worklog_form.comment.label_tag }}
- 						{{ worklog_form.comment }}
- 					</div>
- 					<button type="submit" class="btn btn-primary btn-sm">Log time</button>
- 				</form>
- 			</div>
- 		</div>
- 	</div>
+   	<!-- Work Logs -->
+  	<div class="card mt-4">
+  		<div class="card-header d-flex justify-content-between align-items-center">
+  			<h5 class="mb-0">Time Tracking</h5>
+  			<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#worklogCollapse">
+  				Log work
+  			</button>
+  		</div>
+  		<div class="collapse" id="worklogCollapse">
+  			<div class="card-body">
+  				<form method="post" action="{% url 'ticket_worklog_create' ticket.pk %}">
+  					{% csrf_token %}
+  					<input type="hidden" name="form_type" value="worklog">
+  					<div class="row mb-3">
+  						<div class="col-md-3">
+  							{{ worklog_form.time_spent.label_tag }}
+  							{{ worklog_form.time_spent }}
+  							{% if worklog_form.time_spent.errors %}<div class="invalid-feedback d-block">{{ worklog_form.time_spent.errors|first }}</div>{% endif %}
+  						</div>
+  						<div class="col-md-3">
+  							{{ worklog_form.original_estimate.label_tag }}
+  							{{ worklog_form.original_estimate }}
+  							{% if worklog_form.original_estimate.errors %}<div class="invalid-feedback d-block">{{ worklog_form.original_estimate.errors|first }}</div>{% endif %}
+  						</div>
+  						<div class="col-md-3">
+  							{{ worklog_form.remaining_estimate.label_tag }}
+  							{{ worklog_form.remaining_estimate }}
+  							{% if worklog_form.remaining_estimate.errors %}<div class="invalid-feedback d-block">{{ worklog_form.remaining_estimate.errors|first }}</div>{% endif %}
+  						</div>
+  						<div class="col-md-3">
+  							{{ worklog_form.date.label_tag }}
+  							{{ worklog_form.date }}
+  						</div>
+  					</div>
+  					<div class="mb-3">
+  						{{ worklog_form.comment.label_tag }}
+  						{{ worklog_form.comment }}
+  					</div>
+  					<button type="submit" class="btn btn-primary btn-sm">Log time</button>
+  				</form>
+  			</div>
+  		</div>
+  	</div>
+
+  	{% if rollup %}
+  	<!-- Epic time rollup summary cards -->
+  	<div class="card mt-3">
+  		<div class="card-body">
+  			<h6 class="text-muted mb-3">Epic Time Rollup</h6>
+  			<div class="row g-3">
+  				<div class="col-6 col-md-3">
+  					<div class="border rounded p-3 text-center">
+  						<div class="text-muted small">Original</div>
+  						<div class="h5 mb-0">{{ rollup.total_original_estimate }}h</div>
+  					</div>
+  				</div>
+  				<div class="col-6 col-md-3">
+  					<div class="border rounded p-3 text-center">
+  						<div class="text-muted small">Spent</div>
+  						<div class="h5 mb-0 text-info">{{ rollup.total_spent_time }} min</div>
+  					</div>
+  				</div>
+  				<div class="col-6 col-md-3">
+  					<div class="border rounded p-3 text-center">
+  						<div class="text-muted small">Remaining</div>
+  						<div class="h5 mb-0">{{ rollup.total_remaining_estimate }}h</div>
+  					</div>
+  				</div>
+  				<div class="col-6 col-md-3">
+  					<div class="border rounded p-3 text-center">
+  						<div class="text-muted small">Progress</div>
+  						<div class="h5 mb-0 {% if rollup.progress_percent >= 100 %}text-success{% elif rollup.progress_percent > 0 %}text-warning{% else %}text-muted{% endif %}">{{ rollup.progress_percent }}%</div>
+  					</div>
+  				</div>
+  			</div>
+  			{% if rollup.progress_percent > 0 %}
+  			<div class="progress mt-3" style="height: 10px">
+  				<div class="progress-bar bg-success" role="progressbar"
+  					style="width: {{ rollup.progress_percent }}%"
+  					aria-valuenow="{{ rollup.progress_percent }}"
+  					aria-valuemin="0" aria-valuemax="100">
+  				</div>
+  			</div>
+  			{% endif %}
+  		</div>
+  	</div>
+  	{% endif %}
 
  	{% if ticket.worklog_entries.exists %}
  	<div class="card mt-4">

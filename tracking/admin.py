@@ -21,6 +21,14 @@ class TicketRelationInline(admin.TabularInline):
 	can_delete = True
 
 
+class WorkLogInline(admin.TabularInline):
+	model = WorkLog
+	extra = 0
+	raw_id_fields = ("ticket", "author")
+	fields = ("author", "time_spent", "original_estimate", "remaining_estimate", "date", "comment")
+	readonly_fields = ()
+
+
 @admin.register(Ticket)
 class TicketAdmin(admin.ModelAdmin):
 	list_display = ("title", "project", "type", "state", "estimation", "priority", "assignee", "due_date", "created_at")
@@ -28,7 +36,7 @@ class TicketAdmin(admin.ModelAdmin):
 	search_fields = ("title", "description")
 	autocomplete_fields = ("project", "reporter", "assignee", "parent_epic")
 	readonly_fields = ("created_at", "updated_at")
-	inlines = (TicketRelationInline,)
+	inlines = (TicketRelationInline, WorkLogInline)
 
 
 @admin.register(TicketRelation)
@@ -123,7 +131,7 @@ class WatcherAdmin(admin.ModelAdmin):
 
 @admin.register(WorkLog)
 class WorkLogAdmin(admin.ModelAdmin):
-	list_display = ["ticket_link", "author", "time_spent", "date", "created_at"]
+	list_display = ["ticket_link", "author", "time_spent", "original_estimate", "remaining_estimate", "date", "created_at"]
 	list_filter = ["date", "author"]
 	search_fields = ["ticket__title"]
 	raw_id_fields = ["ticket", "author"]
