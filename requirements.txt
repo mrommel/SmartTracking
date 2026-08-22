@@ -15,3 +15,4 @@ httpx==0.28.1
 # dev / CI tooling
 ruff==0.15.0
 black==26.1.0
+polib==1.2.0

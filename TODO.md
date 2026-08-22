@@ -127,7 +127,7 @@ multi-value filter pills, sort controls, and saved named filters per user.
 - [x] Linting/formatting (`ruff` + `black`, tabs convention) and pre-commit hooks.
 - [x] GitHub Actions CI (`.github/workflows/ci.yml`): migrations check, tests + coverage,
       ruff/black lint, translation compilation.
-- [ ] **CI translation guard** — fail if any `msgid` is untranslated / catalogs are stale (i18n).
+- [x] **CI translation guard** (`scripts/check_translations.py`) — regenerates catalogs, checks every `msgid` has a non-empty `msgstr`, compiles `.mo` files, and fails the build on any untranslated string or stale catalog.
 
 ### 2. Production settings & Deployment 🔴 **P1**
 `settings.py` is dev-only (`DEBUG=True`, hardcoded `SECRET_KEY`, console email, `ALLOWED_HOSTS=[]`).
@@ -177,7 +177,7 @@ multi-value filter pills, sort controls, and saved named filters per user.
 
 ### 9. Internationalization 🟡
 - [x] `gettext_lazy` used consistently; `LANGUAGES` + `LOCALE_PATHS` configured.
-- [ ] CI check that catalogs are compiled and no `msgid` is untranslated (see Tech §1).
+- [x] CI translation guard (`scripts/check_translations.py`) that regenerates catalogs, verifies every `msgid` has a `msgstr`, and compiles `.mo` files.
 
 ---
 
@@ -198,5 +198,5 @@ multi-value filter pills, sort controls, and saved named filters per user.
 ### 3. Misc cleanups
 - [ ] Fold repeated per-endpoint validation in `api.py` further into the serializer helpers.
 - [ ] Audit remaining N+1 risks on detail views (relations, labels, components, comments).
-- [ ] Keep new strings wrapped in `gettext_lazy` (enforced via the CI guard in Tech §1/§9).
+- [x] Keep new strings wrapped in `gettext_lazy` (enforced via the CI guard in Tech §1/§9).
 

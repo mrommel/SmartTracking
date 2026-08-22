@@ -1,0 +1,656 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-08-22 16:54+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+#: setup/settings.py:157
+msgid "German"
+msgstr "Deutsch"
+
+#: setup/settings.py:158
+msgid "English"
+msgstr "Englisch"
+
+#: templates/admin/change_list_results.html:18
+msgid "Remove from sorting"
+msgstr "Aus Sortierung entfernen"
+
+#: templates/admin/change_list_results.html:19
+#, python-format
+msgid "Sorting priority: %(priority_number)s"
+msgstr "Sortierungspriorität: %(priority_number)s"
+
+#: templates/admin/change_list_results.html:20
+msgid "Toggle sorting"
+msgstr "Sortierung umschalten"
+
+#: tracking/admin.py:52 tracking/models.py:672 tracking/models.py:1044
+msgid "body"
+msgstr "Text"
+
+#: tracking/forms.py:262
+msgid "Move unassigned tickets to backlog"
+msgstr "Nicht zugewiesene Tickets zum Backlog verschieben"
+
+#: tracking/forms.py:263
+msgid "Move unassigned tickets to another sprint"
+msgstr "Nicht zugewiesene Tickets zu einem anderen Sprint verschieben"
+
+#: tracking/forms.py:264
+msgid "Leave tickets in sprint"
+msgstr "Tickets im Sprint belassen"
+
+#: tracking/forms.py:270
+msgid "Action for target tickets"
+msgstr "Aktion für Ziel-Tickets"
+
+#: tracking/forms.py:275
+msgid "Target sprint"
+msgstr "Ziel-Sprint"
+
+#: tracking/forms.py:413
+msgid "Transition"
+msgstr "Status ändern"
+
+#: tracking/forms.py:414
+msgid "Reassign"
+msgstr "Zuweisen"
+
+#: tracking/forms.py:415
+msgid "Add labels"
+msgstr "Labels hinzufügen"
+
+#: tracking/forms.py:416
+msgid "Add components"
+msgstr "Komponenten hinzufügen"
+
+#: tracking/forms.py:417
+msgid "Move to sprint"
+msgstr "Zum Sprint verschieben"
+
+#: tracking/forms.py:418
+msgid "Delete"
+msgstr "Löschen"
+
+#: tracking/forms.py:453
+#, python-format
+msgid "Cannot transition '%(t)s' to '%(s)s' — only to: %(allowed)s."
+msgstr "Statusänderung für '%(t)s' nach '%(s)s' nicht möglich — nur folgende sind erlaubt: %(allowed)s."
+
+#: tracking/forms.py:465
+msgid "User to watch"
+msgstr "Beobachtender Benutzer"
+
+#: tracking/models.py:20 tracking/models.py:57 tracking/models.py:297
+#: tracking/models.py:334 tracking/models.py:761 tracking/models.py:922
+msgid "name"
+msgstr "Name"
+
+#: tracking/models.py:22
+msgid "key"
+msgstr "Schlüssel"
+
+#: tracking/models.py:23 tracking/models.py:58 tracking/models.py:298
+#: tracking/models.py:336 tracking/models.py:417 tracking/models.py:932
+msgid "description"
+msgstr "Beschreibung"
+
+#: tracking/models.py:24 tracking/models.py:63 tracking/models.py:299
+#: tracking/models.py:337 tracking/models.py:501 tracking/models.py:681
+#: tracking/models.py:722 tracking/models.py:767 tracking/models.py:850
+#: tracking/models.py:902 tracking/models.py:934 tracking/models.py:1046
+#: tracking/models.py:1091 tracking/models.py:1129
+msgid "created at"
+msgstr "Erstellt am"
+
+#: tracking/models.py:27 tracking/models.py:55 tracking/models.py:295
+#: tracking/models.py:332 tracking/models.py:414 tracking/models.py:920
+msgid "project"
+msgstr "Projekt"
+
+#: tracking/models.py:28
+msgid "projects"
+msgstr "Projekte"
+
+#: tracking/models.py:59
+msgid "start date"
+msgstr "Startdatum"
+
+#: tracking/models.py:60
+msgid "end date"
+msgstr "Enddatum"
+
+#: tracking/models.py:61
+msgid "order"
+msgstr "Reihenfolge"
+
+#: tracking/models.py:62
+msgid "is active"
+msgstr "Ist aktiv"
+
+#: tracking/models.py:66 tracking/models.py:243 tracking/models.py:444
+#: tracking/models.py:928
+msgid "sprint"
+msgstr "Sprint"
+
+#: tracking/models.py:67
+msgid "sprints"
+msgstr "Sprints"
+
+#: tracking/models.py:112
+msgid "At most one active sprint per project."
+msgstr "Höchstens ein aktiver Sprint pro Projekt."
+
+#: tracking/models.py:246
+msgid "duration (days)"
+msgstr "Dauer (Tage)"
+
+#: tracking/models.py:247
+msgid "Calendar days between start_date and end_date."
+msgstr "Kalendertage zwischen Start- und Enddatum."
+
+#: tracking/models.py:250
+msgid "ticket count"
+msgstr "Ticketanzahl"
+
+#: tracking/models.py:251
+msgid "Excluding tickets in CLOSED state."
+msgstr "Ohne Tickets im Status GESCHLOSSEN."
+
+#: tracking/models.py:254
+msgid "completed count"
+msgstr "Abgeschlossene"
+
+#: tracking/models.py:255
+msgid "Tickets in CLOSED state."
+msgstr "Tickets im Status GESCHLOSSEN."
+
+#: tracking/models.py:258
+msgid "total points"
+msgstr "Gesamtpunkte"
+
+#: tracking/models.py:259
+msgid "SUM(estimation) for all sprint tickets with estimation > 0."
+msgstr "SUMME(Schätzung) für alle Sprint-Tickets mit Schätzung > 0."
+
+#: tracking/models.py:262
+msgid "completed points"
+msgstr "Abgeschlossene Punkte"
+
+#: tracking/models.py:263
+msgid "SUM(estimation) for CLOSED tickets with estimation > 0."
+msgstr "SUMME(Schätzung) für abgeschlossene Tickets mit Schätzung > 0."
+
+#: tracking/models.py:266
+msgid "waste ratio"
+msgstr "Verschwendungsanteil"
+
+#: tracking/models.py:268
+msgid ""
+"Percentage of high-priority (HIGH / CRITICAL) open tickets in the sprint."
+msgstr ""
+"Anteil hochpriorisierter (HOCH / KRITISCH) offener Tickets im Sprint."
+
+#: tracking/models.py:272
+msgid "velocity window"
+msgstr "Velocity-Fenster"
+
+#: tracking/models.py:273
+msgid "Days look-back window used for velocity calculations."
+msgstr "Tage Rückblick für Velocity-Berechnungen."
+
+#: tracking/models.py:276
+msgid "completed date"
+msgstr "Abschlussdatum"
+
+#: tracking/models.py:277
+msgid "Date when this snapshot was taken."
+msgstr "Datum der Aufnahme dieses Snapshots."
+
+#: tracking/models.py:281 tracking/models.py:282
+msgid "sprint metrics"
+msgstr "Sprint-Kennzahlen"
+
+#: tracking/models.py:302
+msgid "component"
+msgstr "Komponente"
+
+#: tracking/models.py:303 tracking/models.py:466
+msgid "components"
+msgstr "Komponenten"
+
+#: tracking/models.py:335
+msgid "color"
+msgstr "Farbe"
+
+#: tracking/models.py:340
+msgid "label"
+msgstr "Label"
+
+#: tracking/models.py:341 tracking/models.py:472
+msgid "labels"
+msgstr "Labels"
+
+#: tracking/models.py:368
+msgid "Task"
+msgstr "Aufgabe"
+
+#: tracking/models.py:369
+msgid "Bug"
+msgstr "Fehler"
+
+#: tracking/models.py:370
+msgid "Story"
+msgstr "User Story"
+
+#: tracking/models.py:371
+msgid "Epic"
+msgstr "Epic"
+
+#: tracking/models.py:372
+msgid "Sub-task"
+msgstr "Teilaufgabe"
+
+#: tracking/models.py:375
+msgid "Open"
+msgstr "Offen"
+
+#: tracking/models.py:376
+msgid "In Progress"
+msgstr "In Bearbeitung"
+
+#: tracking/models.py:377
+msgid "Resolved"
+msgstr "Behoben"
+
+#: tracking/models.py:378
+msgid "Closed"
+msgstr "Geschlossen"
+
+#: tracking/models.py:389
+msgid "Low"
+msgstr "Niedrig"
+
+#: tracking/models.py:390
+msgid "Medium"
+msgstr "Mittel"
+
+#: tracking/models.py:391
+msgid "High"
+msgstr "Hoch"
+
+#: tracking/models.py:392
+msgid "Critical"
+msgstr "Kritisch"
+
+#: tracking/models.py:395
+msgid "Related to"
+msgstr "Zusammenhang mit"
+
+#: tracking/models.py:396
+msgid "Blocked by"
+msgstr "Gesperrt durch"
+
+#: tracking/models.py:397
+msgid "Found during testing of"
+msgstr "Gefunden beim Testen von"
+
+#: tracking/models.py:398
+msgid "Is parent"
+msgstr "Ist übergeordnet"
+
+#: tracking/models.py:399
+msgid "Is child"
+msgstr "Ist untergeordnet"
+
+#: tracking/models.py:416
+msgid "title"
+msgstr "Titel"
+
+#: tracking/models.py:419
+msgid "type"
+msgstr "Typ"
+
+#: tracking/models.py:422
+msgid "state"
+msgstr "Status"
+
+#: tracking/models.py:425
+msgid "priority"
+msgstr "Priorität"
+
+#: tracking/models.py:428
+msgid "estimation"
+msgstr "Schätzung"
+
+#: tracking/models.py:436
+msgid "reporter"
+msgstr "Melder"
+
+#: tracking/models.py:452
+msgid "epic"
+msgstr "Epic"
+
+#: tracking/models.py:460
+msgid "assignee"
+msgstr "Bearbeiter"
+
+#: tracking/models.py:474
+msgid "due date"
+msgstr "Fälligkeitsdatum"
+
+#: tracking/models.py:476
+msgid "backlog order"
+msgstr "Backlog-Reihenfolge"
+
+#: tracking/models.py:477
+msgid "Position in backlog ordering. Higher numbers = higher priority."
+msgstr "Position in der Backlog-Reihenfolge. Höhere Zahlen = höhere Priorität."
+
+#: tracking/models.py:484
+msgid "fix version"
+msgstr "Fix-Version"
+
+#: tracking/models.py:490
+msgid "affects versions"
+msgstr "Betrifft Versionen"
+
+#: tracking/models.py:499
+msgid "related tickets"
+msgstr "Zugehörige Tickets"
+
+#: tracking/models.py:502 tracking/models.py:682 tracking/models.py:1132
+msgid "updated at"
+msgstr "Aktualisiert am"
+
+#: tracking/models.py:505 tracking/models.py:670 tracking/models.py:759
+#: tracking/models.py:832 tracking/models.py:884 tracking/models.py:1025
+#: tracking/models.py:1083
+msgid "ticket"
+msgstr "Ticket"
+
+#: tracking/models.py:506
+msgid "tickets"
+msgstr "Tickets"
+
+#: tracking/models.py:679 tracking/models.py:839
+msgid "author"
+msgstr "Autor"
+
+#: tracking/models.py:685 tracking/models.py:710 tracking/models.py:849
+msgid "comment"
+msgstr "Kommentar"
+
+#: tracking/models.py:686
+msgid "comments"
+msgstr "Kommentare"
+
+#: tracking/models.py:712
+msgid "old body"
+msgstr "Alter Text"
+
+#: tracking/models.py:713
+msgid "new body"
+msgstr "Neuer Text"
+
+#: tracking/models.py:720 tracking/models.py:892 tracking/models.py:1039
+msgid "actor"
+msgstr "Aktionär"
+
+#: tracking/models.py:725
+msgid "comment edit history"
+msgstr "Kommentar-Änderungsverlauf"
+
+#: tracking/models.py:726
+msgid "comment edit histories"
+msgstr "Kommentar-Änderungsverläufe"
+
+#: tracking/models.py:763
+msgid "file"
+msgstr "Datei"
+
+#: tracking/models.py:766
+msgid "mime type"
+msgstr "MIME-Typ"
+
+#: tracking/models.py:770
+msgid "attachment"
+msgstr "Anhang"
+
+#: tracking/models.py:771
+msgid "attachments"
+msgstr "Anhänge"
+
+#: tracking/models.py:814
+#, python-format
+msgid "File type '.%(ext)s' is not allowed. Allowed: %(allowed)s"
+msgstr "Dateityp '.%(ext)s' ist nicht erlaubt. Erlaubt: %(allowed)s"
+
+#: tracking/models.py:820
+#, python-format
+msgid "MIME type '%(mime)s' is not allowed."
+msgstr "MIME-Typ '%(mime)s' ist nicht erlaubt."
+
+#: tracking/models.py:842
+msgid "time spent"
+msgstr "Aufgewendete Zeit"
+
+#: tracking/models.py:843
+msgid "Time spent in minutes"
+msgstr "Aufgewendete Zeit in Minuten"
+
+#: tracking/models.py:846
+msgid "date"
+msgstr "Datum"
+
+#: tracking/models.py:863
+msgid "State changed"
+msgstr "Status geändert"
+
+#: tracking/models.py:864
+msgid "Title changed"
+msgstr "Titel geändert"
+
+#: tracking/models.py:865
+msgid "Description changed"
+msgstr "Beschreibung geändert"
+
+#: tracking/models.py:866
+msgid "Related ticket added"
+msgstr "Zugehöriges Ticket hinzugefügt"
+
+#: tracking/models.py:867
+msgid "Comment added"
+msgstr "Kommentar hinzugefügt"
+
+#: tracking/models.py:868
+msgid "Component added"
+msgstr "Komponente hinzugefügt"
+
+#: tracking/models.py:869
+msgid "Component removed"
+msgstr "Komponente entfernt"
+
+#: tracking/models.py:870
+msgid "Label added"
+msgstr "Label hinzugefügt"
+
+#: tracking/models.py:871
+msgid "Label removed"
+msgstr "Label entfernt"
+
+#: tracking/models.py:872
+msgid "Relation added"
+msgstr "Beziehung hinzugefügt"
+
+#: tracking/models.py:873
+msgid "Relation removed"
+msgstr "Beziehung entfernt"
+
+#: tracking/models.py:874
+msgid "Sprint changed"
+msgstr "Sprint geändert"
+
+#: tracking/models.py:875
+msgid "Attachment added"
+msgstr "Anhang hinzugefügt"
+
+#: tracking/models.py:876
+msgid "Attachment removed"
+msgstr "Anhang entfernt"
+
+#: tracking/models.py:877
+msgid "Ticket created"
+msgstr "Ticket erstellt"
+
+#: tracking/models.py:878
+msgid "Ticket deleted"
+msgstr "Ticket gelöscht"
+
+#: tracking/models.py:895
+msgid "action"
+msgstr "Aktion"
+
+#: tracking/models.py:898
+msgid "field"
+msgstr "Feld"
+
+#: tracking/models.py:900
+msgid "old value"
+msgstr "Alter Wert"
+
+#: tracking/models.py:901
+msgid "new value"
+msgstr "Neuer Wert"
+
+#: tracking/models.py:905
+msgid "activity log entry"
+msgstr "Aktivitätsprotokoll-Eintrag"
+
+#: tracking/models.py:906
+msgid "activity log entries"
+msgstr "Aktivitätsprotokoll-Einträge"
+
+#: tracking/models.py:930
+msgid "target date"
+msgstr "Zieldatum"
+
+#: tracking/models.py:931
+msgid "release date"
+msgstr "Veröffentlichungsdatum"
+
+#: tracking/models.py:933
+msgid "archived"
+msgstr "Archiviert"
+
+#: tracking/models.py:937
+msgid "version"
+msgstr "Version"
+
+#: tracking/models.py:938
+msgid "versions"
+msgstr "Versionen"
+
+#: tracking/models.py:1015
+msgid "Issue assigned to you"
+msgstr "Ticket wurde Ihnen zugewiesen"
+
+#: tracking/models.py:1016
+msgid "You were mentioned in an issue"
+msgstr "Sie wurden in einem Ticket erwähnt"
+
+#: tracking/models.py:1017
+msgid "Issue state changed"
+msgstr "Ticket-Status geändert"
+
+#: tracking/models.py:1018
+msgid "New comment on issue you watch"
+msgstr "Neuer Kommentar in beobachtetem Ticket"
+
+#: tracking/models.py:1019
+msgid "You were mentioned in a comment"
+msgstr "Sie wurden in einem Kommentar erwähnt"
+
+#: tracking/models.py:1031
+msgid "recipient"
+msgstr "Empfänger"
+
+#: tracking/models.py:1042
+msgid "verb"
+msgstr "Aktion"
+
+#: tracking/models.py:1045
+msgid "read"
+msgstr "Gelesen"
+
+#: tracking/models.py:1049
+msgid "notification"
+msgstr "Benachrichtigung"
+
+#: tracking/models.py:1050
+msgid "notifications"
+msgstr "Benachrichtigungen"
+
+#: tracking/models.py:1089
+msgid "user"
+msgstr "Benutzer"
+
+#: tracking/models.py:1094
+msgid "watcher"
+msgstr "Beobachter"
+
+#: tracking/models.py:1095
+msgid "watchers"
+msgstr "Beobachter"
+
+#: tracking/models.py:1115
+msgid "subject ticket"
+msgstr "Quell-Ticket"
+
+#: tracking/models.py:1121
+msgid "target ticket"
+msgstr "Ziel-Ticket"
+
+#: tracking/models.py:1124
+msgid "relation type"
+msgstr "Beziehungsart"
+
+#: tracking/models.py:1158
+msgid "A relation already exists between these two tickets."
+msgstr "Zwischen diesen beiden Tickets existiert bereits eine Beziehung."
+
+#: tracking/models.py:1199
+msgid "Saved filter"
+msgstr "Gespeicherter Filter"
+
+#: tracking/models.py:1200
+msgid "Saved filters"
+msgstr "Gespeicherte Filter"
+
+#: tracking/views/sprint_views.py:16
+#, python-format
+msgid "Sprint '%(name)s' created."
+msgstr "Sprint '%(name)s' erstellt."
+
+#: tracking/views/sprint_views.py:43
+#, python-format
+msgid "Sprint '%(name)s' closed."
+msgstr "Sprint '%(name)s' geschlossen."
+
+#: tracking/views/user_views.py:109
+msgid "Profile"
+msgstr "Profil"

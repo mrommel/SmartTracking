@@ -48,3 +48,9 @@ jobs:
 
       - name: Compile translations
         run: python manage.py compilemessages
+
+      - name: Install polib (translation guard)
+        run: pip install polib
+
+      - name: Check translations (translation guard)
+        run: python scripts/check_translations.py

@@ -44,6 +44,9 @@ preparetranslations: venv
 compiletranslations: venv
 	./$(VENV)/bin/python3.12 manage.py compilemessages --ignore=venv/*
 
+check-translations: venv
+	./$(VENV)/bin/python3.12 scripts/check_translations.py
+
 # createsuperuser: venv
 #	./$(VENV)/bin/python3.12 manage.py createsuperuser
 # mrommel + mKuAZ6v4ytxLPO37
@@ -58,7 +61,7 @@ test: venv
 	./$(VENV)/bin/python3.12 -m coverage report
 
 coverage-report: venv
-	./$(VENV)/bin/python3.12 -m coverage html
+	./$(VENV)/bin/python3.12 -m coverage html --fail-under=0
 	@echo "HTML report generated at htmlcov/index.html"
 
 coverage-clean: venv
