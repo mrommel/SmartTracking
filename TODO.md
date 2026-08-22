@@ -15,7 +15,7 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 | - | ---- | ------- | ----- |
 | **P0** | DB indexes on hot filter fields | Cheap, high-impact perf win; list/board/API all filter on `state`/`assignee`/`sprint`/`project` | Tech §4 |
 | **P0** | De-duplicate ticket filtering into one helper | `ticket_list` filter chain is inline & unshared; blocks CSV export, board, bulk, API reuse | Refactor §2 |
-| **P1** | Production settings split + env config | Env-driven config unblocks any real deployment | Tech §2 |
+| ~~**P1**~~ | ~~Production settings split + env config~~ | ~~Env-driven config unblocks any real deployment~~ | ~~Tech §2~~ | ~~✅ done~~ |
 | ~~**P1**~~ | ~~Pagination for project-list & sprint-ticket views~~ | ~~Only remaining unpaginated lists; scales poorly~~ | ~~Tech §4~~ | ~~✅ done~~ |
 | ~~**P2**~~ | ~~Caching for dashboard/report stats~~ | ~~`CACHES` is already configured — just wire `cache_page`/fragments~~ | ~~Tech §4~~ | ~~✅ done~~ |
 | **P2** | Epic worklog rollups (original/remaining/spent) | Completes Time Tracking; model already exists | Product §3 |
@@ -117,13 +117,13 @@ controls, and saved named filters per user.
 - [x] **CI translation guard** (`scripts/check_translations.py`) — regenerates catalogs, checks every
       `msgid` has a non-empty `msgstr`, compiles `.mo` files, fails on any untranslated/stale string.
 
-### 2. Production settings & Deployment 🔴 **P1**
+### 2. Production settings & Deployment ✅ **Done**
 `setup/settings.py` is a single dev-only file (`DEBUG=True`, hardcoded `SECRET_KEY`, console email,
 `ALLOWED_HOSTS=[]`).
-- [ ] **Env-driven settings** (`django-environ`): `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`,
+- [x] **Env-driven settings** (`django-environ`): `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`,
       DB URL (Postgres option), real email backend.
-- [ ] **Production settings split** (`settings/base.py` + `dev.py` + `prod.py`, or env-gated).
-- [ ] Static via WhiteNoise/CDN.
+- [x] **Production settings split** (`settings/base.py` + `dev.py` + `prod.py`, or env-gated).
+- [x] Static via WhiteNoise/CDN.
 - [ ] **Dockerfile + docker-compose** for reproducible dev/prod.
 
 ### 3. API hardening (`tracking/api/`) 🟡 **P2**
