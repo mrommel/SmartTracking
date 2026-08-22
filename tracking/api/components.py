@@ -3,7 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 from . import _common as api
 from tracking.models import Component, Project
-import json
+from tracking.forms import ComponentForm
 
 @api.require_http_methods(['GET', 'POST'])
 def collection(request):
@@ -28,11 +28,7 @@ def detail(request, pk):
 	if request.method == 'GET':
 		return JsonResponse(component._data())
 	elif request.method == 'PATCH':
-		body = request.body
-		try:
-			data = json.loads(body) if body else {}
-		except json.JSONDecodeError:
-			data = {}
+		data = api.parse_json(request)
 		for field in ['name', 'description']:
 			if field in data:
 				setattr(component, field, data[field])

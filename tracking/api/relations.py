@@ -1,12 +1,11 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from . import _common as api
-from . import _common
 from tracking.models import TicketRelation
 
 @api.require_http_methods(['POST'])
 def relations_add(request, pk):
-	data = _common._parse_json(request)
+	data = api.parse_json(request)
 	relation = TicketRelation.objects.create(
 		subject_id=data.get('ticket', 0),
 		target_id=data.get('related_ticket', 0),

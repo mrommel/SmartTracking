@@ -1,4 +1,5 @@
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseNotAllowed, HttpResponseForbidden, HttpRequest, HttpResponseServerError
+from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import crypto
 from django.conf import settings
@@ -8,6 +9,26 @@ import json
 import urllib.parse
 
 # --- API Core Helpers ---
+
+def parse_json(request: HttpRequest, key: str = None) -> dict:
+	"""Safely parse request.body as JSON, returning {} on failure."""
+	body = request.body
+	if not body:
+		return {}
+	try:
+		data = json.loads(body)
+		return data.get(key) if key else data
+	except (json.JSONDecodeError, ValueError):
+		return {}
+
+
+def get_object_or_404_json(model, *args, **kwargs) -> Any:
+	"""Retrieve a model instance or return a 404 JSON response."""
+	try:
+		return get_object_or_404(model, *args, **kwargs)
+	except Exception:
+		return JsonResponse({'error': 'Not found'}, status=404)
+
 
 def _page_json(request: HttpRequest, qs, default_page_size: int = 25) -> JsonResponse:
 	page_size = request.GET.get('page_size', default_page_size)
@@ -62,15 +83,6 @@ def _serialize(obj):
 	else:
 		data = {f.name: getattr(obj, f.name) for f in obj._meta.get_fields() if isinstance(f, Field) and hasattr(obj, f.name)}
 	return data
-
-def _parse_json(request: HttpRequest, key: str = None) -> Optional[dict]:
-	body = request.body
-	if not body: return {}
-	try:
-		data = json.loads(body)
-		return data.get(key) if key else data
-	except json.JSONDecodeError:
-		return None
 
 def _valid_required(data: dict, fields: list) -> Optional[str]:
 	missing = [f for f in fields if f not in data]

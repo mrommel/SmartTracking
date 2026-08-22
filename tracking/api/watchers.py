@@ -4,7 +4,7 @@ from django.shortcuts import get_object_or_404
 from . import _common as api
 from tracking.models import Ticket, Watcher
 from django.contrib.auth import get_user_model
-import json
+
 User = get_user_model()
 
 @api.require_http_methods(['GET', 'POST'])
@@ -24,10 +24,7 @@ def detail(request, ticket_pk):
 			'watchers': results,
 		})
 	elif request.method == 'POST':
-		try:
-			data = json.loads(request.body) if request.body else {}
-		except json.JSONDecodeError:
-			data = {}
+		data = api.parse_json(request)
 		user_id = data.get('user_id') or request.POST.get('user_id')
 		if not user_id:
 			return JsonResponse({'error': 'user_id is required'}, status=400)
@@ -61,10 +58,7 @@ def workspace_list(request):
 
 @api.require_http_methods(['POST'])
 def workspace_add(request):
-	try:
-		data = json.loads(request.body) if request.body else {}
-	except json.JSONDecodeError:
-		data = {}
+	data = api.parse_json(request)
 	ticket_id = data.get('ticket_id') or request.POST.get('ticket_id')
 	if not ticket_id:
 		return JsonResponse({'error': 'ticket_id is required'}, status=400)

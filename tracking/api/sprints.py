@@ -43,12 +43,7 @@ def detail(request, pk):
 def close_sprint(request, key, pk):
 	project = get_object_or_404(Project, key=key)
 	sprint = get_object_or_404(Sprint, pk=pk, project=project)
-	body = request.body
-	try:
-		import json
-		data = json.loads(body)
-	except json.JSONDecodeError:
-		data = {}
+	data = api.parse_json(request)
 	action = data.get('action', 'backlog')
 	target_id = data.get('target_sprint') or data.get('target_sprint_id')
 	if action == 'sprint' and not target_id:

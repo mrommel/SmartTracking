@@ -1,9 +1,8 @@
-import json
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from tracking.api._common import require_api_auth
+from tracking.api._common import require_api_auth, parse_json
 from tracking.models import WorkLog
 from tracking.forms import WorkLogForm
 

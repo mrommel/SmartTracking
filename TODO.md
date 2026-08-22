@@ -146,7 +146,7 @@ controls, and saved named filters per user.
 
 ### 5. Security 🟡
 - [x] Constant-time API token comparison (`hmac.compare_digest`).
-- [ ] Move `SECRET_KEY` and secrets to env; never commit (see Tech §2).
+- [x] Move `SECRET_KEY` and secrets to env; never commit (see Tech §2).
 - [ ] Security middleware for prod (HSTS, secure cookies, `SECURE_SSL_REDIRECT`).
 - [ ] **File upload hardening** beyond extension/MIME; correct `Content-Disposition` on download.
 
@@ -196,8 +196,7 @@ controls, and saved named filters per user.
       top (minor).
 
 ### 3. Misc cleanups
-- [ ] Fold repeated per-endpoint validation in the `api/` package further into the `_common.py`
-      serializer helpers.
+- [x] Fold repeated per-endpoint JSON parsing into `api/_common.py::parse_json` and eliminate 10 scattered `json.loads`/try-except blocks, plus remove 4 `import json` statements and 2 dual-imports across the `api/` package.
 - [ ] Audit remaining N+1 risks on detail views (relations, labels, components, comments).
 - [x] Keep new strings wrapped in `gettext_lazy` (enforced via the CI guard in Tech §1/§9).
 

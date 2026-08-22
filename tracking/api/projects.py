@@ -11,11 +11,7 @@ def collection(request):
 	if request.method == 'GET':
 		return api._page_json(request, Project.objects.all())
 	elif request.method == 'POST':
-		import json
-		try:
-			data = json.loads(request.body)
-		except json.JSONDecodeError:
-			data = {}
+		data = api.parse_json(request)
 		key = data.get('key', '').upper()
 		if key and Project.objects.filter(key=key).exists():
 			return JsonResponse({'key': ['Project with this key already exists']}, status=409)

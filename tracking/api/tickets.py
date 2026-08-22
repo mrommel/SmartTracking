@@ -6,11 +6,9 @@ from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 from django.contrib.auth import get_user_model
 from . import _common as api
-from . import _common
 from tracking.models import Ticket, Comment, Attachment, Sprint, WorkLog
 from tracking.forms import TicketForm, WorkLogForm
 from tracking.queryset_helpers import build_ticket_queryset
-import json
 
 @api.require_http_methods(['GET', 'POST'])
 @csrf_exempt
@@ -23,11 +21,7 @@ def collection(request):
 		)
 		return api._page_json(request, qs)
 	elif request.method == 'POST':
-		body = request.body
-		try:
-			data = json.loads(body)
-		except json.JSONDecodeError:
-			data = {}
+		data = api.parse_json(request)
 		# Convert project key to ID
 		project_key = data.pop('project', None)
 		if project_key:
@@ -60,14 +54,10 @@ def transition(request, pk):
 	ticket = Ticket.objects.select_related('project').filter(pk=pk).first()
 	if not ticket:
 		return JsonResponse({'error': 'Not found'}, status=404)
-	body = request.body
-	try:
-		data = json.loads(body)
-	except json.JSONDecodeError:
-		return JsonResponse({'error': 'Invalid JSON'}, status=400)
-	next_state = data.get('state')
-	if not next_state:
+	data = api.parse_json(request)
+	if 'state' not in data:
 		return JsonResponse({'error': 'state is required'}, status=400)
+	next_state = data['state']
 	if next_state not in ticket.allowed_transitions():
 		return JsonResponse({
 			'error': f'Cannot transition to {Ticket.State(next_state)}',
@@ -106,11 +96,8 @@ def api_ticket_worklog_collection(request, pk):
 			"results": data,
 		})
 	elif request.method == "POST":
-		try:
-			body = json.loads(request.body)
-		except (json.JSONDecodeError, ValueError):
-			return JsonResponse({"error": "Invalid JSON"}, status=400)
-		form = WorkLogForm(data=body)
+		data = api.parse_json(request)
+		form = WorkLogForm(data=data)
 		if form.is_valid():
 			entry = form.save(commit=False)
 			entry.ticket = ticket
@@ -137,11 +124,7 @@ def detail(request, pk):
 		data['project_key'] = ticket.project.key
 		return JsonResponse(data)
 	elif request.method == 'PATCH':
-		body = request.body
-		try:
-			data = json.loads(body)
-		except json.JSONDecodeError:
-			return JsonResponse({'error': 'Invalid JSON'}, status=400)
+		data = api.parse_json(request)
 		state = data.get('state')
 		if state:
 			return JsonResponse({'error': 'State transitions must use the /transition/ endpoint.'}, status=400)
@@ -181,25 +164,19 @@ def ticket_relations_add(request, id):
 	ticket = Ticket.objects.filter(pk=id).first()
 	if not ticket:
 		return JsonResponse({'error': 'Not found'}, status=404)
-	if request.method == 'POST':
-		body = request.body
-		try:
-			data = json.loads(body)
-		except json.JSONDecodeError:
-			return JsonResponse({'error': 'Invalid JSON'}, status=400)
-		target_pk = data.get('target_id')
-		relation_type = data.get('type', 'related_to')
-		if not target_pk:
-			return JsonResponse({'error': 'target_id is required'}, status=400)
-		target = Ticket.objects.filter(pk=target_pk).first()
-		if not target:
-			return JsonResponse({'error': 'Target ticket not found'}, status=404)
-		if ticket.project != target.project:
-			return JsonResponse({'error': 'Tickets must be in the same project'}, status=400)
-		from tracking.models import TicketRelation
-		relation = TicketRelation.objects.create(subject=ticket, target=target, relation_type=relation_type)
-		return JsonResponse({'id': relation.pk, 'type': relation.type}, status=201)
-	return JsonResponse({'error': 'Unsupported method'}, status=405)
+	data = api.parse_json(request)
+	target_pk = data.get('target_id')
+	relation_type = data.get('type', 'related_to')
+	if not target_pk:
+		return JsonResponse({'error': 'target_id is required'}, status=400)
+	target = Ticket.objects.filter(pk=target_pk).first()
+	if not target:
+		return JsonResponse({'error': 'Target ticket not found'}, status=404)
+	if ticket.project != target.project:
+		return JsonResponse({'error': 'Tickets must be in the same project'}, status=400)
+	from tracking.models import TicketRelation
+	relation = TicketRelation.objects.create(subject=ticket, target=target, relation_type=relation_type)
+	return JsonResponse({'id': relation.pk, 'type': relation.type}, status=201)
 
 @api.require_http_methods(['DELETE'])
 @csrf_exempt
