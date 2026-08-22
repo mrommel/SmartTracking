@@ -13,7 +13,7 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 
 | # | Item | Why now | Where |
 | - | ---- | ------- | ----- |
-| **P0** | DB indexes on hot filter fields | Cheap, high-impact perf win; list/board/API all filter on `state`/`assignee`/`sprint`/`project` | Tech §4 |
+| ~~**P0**~~ | ~~DB indexes on hot filter fields~~ | ~~Cheap, high-impact perf win; list/board/API all filter on `state`/`assignee`/`sprint`/`project`~~ | ~~Tech §4~~ | ~~✅ done~~ |
 | ~~**P0**~~ | ~~De-duplicate ticket filtering into one helper~~ | ~~`ticket_list` filter chain is inline & unshared; blocks CSV export, board, bulk, API reuse~~ | ~~Refactor §2~~ | ~~✅ done~~ |
 | ~~**P1**~~ | ~~Production settings split + env config~~ | ~~Env-driven config unblocks any real deployment~~ | ~~Tech §2~~ | ~~✅ done~~ |
 | ~~**P1**~~ | ~~Pagination for project-list & sprint-ticket views~~ | ~~Only remaining unpaginated lists; scales poorly~~ | ~~Tech §4~~ | ~~✅ done~~ |
@@ -139,8 +139,7 @@ controls, and saved named filters per user.
 - [x] `select_related`/`prefetch_related` used across list/detail views.
 - [x] `CACHES` backend configured (LocMemCache) in `settings.py` — not yet used by any view.
 - [x] **DB indexes** (`db_index=True` / `Meta.indexes`) on frequently filtered fields
-      (`state`, `assignee`, `sprint`, `due_date`, `project`) — only `TicketActivity.action`
-      is indexed today. 🔴 **P0**
+       (`state`, `assignee`, `sprint`, `due_date`, `project`). 🟢 **P0** — ✅ `Ticket` model has: composite `(state, project)`, `(assignee, state)`, `(type, state)`, `(state, priority)` indexes; single-column `sprint`, `priority`, `fix_version`, `reporter`, `created_at`, `updated_at` indexes. Only `TicketActivity.action` and `Notification` fields have standalone `db_index=True`.
 - [x] Wire the configured cache to **dashboard/report stats** (`cache_page` or fragment caching). 🟡 **P2** — ✅ `@cache_page` added to `dashboard`, `project_detail`, `sprint_velocity`, `reports`, and `releases` views; `{% cache 300 %}` fragments in `dashboard.html` (project table), `project_detail.html` (overview stats, charts, sidebar, reports tab, releases tab), `reports.html` (stat cards + detail panels), and `releases.html` (versions table). Timeout configurable via `DASHBOARD_CACHE_TIMEOUT` (300s when DEBUG=False, 0 when DEBUG=True to disable caching in dev/test).
 - [x] Add pagination to the **project list** and **sprint-ticket** views. 🔴 **P1**
 
