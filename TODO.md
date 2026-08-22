@@ -173,7 +173,7 @@ multi-value filter pills, sort controls, and saved named filters per user.
 - [ ] Add model-level `constraints` to complement `save()`-based enforcement:
       `UniqueConstraint` for `TicketRelation`, a partial `UniqueConstraint`/`CheckConstraint`
       for "one active sprint per project", and migrate `unique_together` → `UniqueConstraint`.
-- [ ] Parameterize the Makefile's hardcoded `sqlmigrate tracking 0001`.
+- [x] Parameterize the Makefile's hardcoded `sqlmigrate tracking 0001`.
 
 ### 9. Internationalization 🟡
 - [x] `gettext_lazy` used consistently; `LANGUAGES` + `LOCALE_PATHS` configured.

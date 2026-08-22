@@ -1,5 +1,6 @@
 # define the name of the virtual environment directory
 VENV := .venv
+MIGRATION ?= 0001
 
 # default target, when make executed without arguments
 all: venv
@@ -30,7 +31,7 @@ clean:
 
 makemigrations: venv
 	./$(VENV)/bin/python3.12 manage.py makemigrations
-	./$(VENV)/bin/python3.12 manage.py sqlmigrate tracking 0001  # change this
+	./$(VENV)/bin/python3.12 manage.py sqlmigrate tracking $(MIGRATION)  # override: make makemigrations MIGRATION=0015
 	./$(VENV)/bin/python3.12 manage.py migrate
 
 migrate: venv
