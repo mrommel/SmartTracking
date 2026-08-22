@@ -3,10 +3,12 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
+from django.core.paginator import Paginator
+from django.contrib.auth import get_user_model
 from . import _common as api
 from . import _common
-from tracking.models import Ticket, Comment, Attachment, Sprint
-from tracking.forms import TicketForm
+from tracking.models import Ticket, Comment, Attachment, Sprint, WorkLog
+from tracking.forms import TicketForm, WorkLogForm
 import json
 
 @api.require_http_methods(['GET', 'POST'])
@@ -100,6 +102,49 @@ def transition(request, pk):
 	ticket.state = next_state
 	ticket.save(update_fields=['state', 'updated_at'])
 	return JsonResponse(ticket._data())
+
+@api.require_http_methods(["GET", "POST"])
+@csrf_exempt
+def api_ticket_worklog_collection(request, pk):
+	ticket = get_object_or_404(Ticket, pk=pk)
+	if request.method == "GET":
+		entries = ticket.worklog_entries.all()
+		page = int(request.GET.get("page", 1))
+		page_size = min(int(request.GET.get("page_size", 25)), 100)
+		paginator = Paginator(entries, page_size)
+		page_obj = paginator.get_page(page)
+		data = []
+		for entry in page_obj:
+			data.append({
+				"id": entry.pk,
+				"author": entry.author.get_full_name() or entry.author.username,
+				"time_spent": entry.time_spent,
+				"date": entry.date.isoformat(),
+				"comment": entry.comment,
+				"created_at": entry.created_at.isoformat(),
+			})
+		return JsonResponse({
+			"count": paginator.count,
+			"pagination": {
+				"next": paginator.get_page(page).has_next() and f"/tracking/api/tickets/{pk}/worklogs/?page={page+1}&page_size={page_size}" or None,
+				"previous": paginator.get_page(page).has_previous() and f"/tracking/api/tickets/{pk}/worklogs/?page={page-1}&page_size={page_size}" or None,
+			},
+			"results": data,
+		})
+	elif request.method == "POST":
+		try:
+			body = json.loads(request.body)
+		except (json.JSONDecodeError, ValueError):
+			return JsonResponse({"error": "Invalid JSON"}, status=400)
+		form = WorkLogForm(data=body)
+		if form.is_valid():
+			entry = form.save(commit=False)
+			entry.ticket = ticket
+			entry.author = request.user
+			entry.save()
+			return JsonResponse({"id": entry.pk, "time_spent": entry.time_spent, "date": entry.date.isoformat()}, status=201)
+		return JsonResponse({"error": dict(form.errors)}, status=400)
+
 
 @api.require_http_methods(['GET', 'PATCH'])
 @csrf_exempt

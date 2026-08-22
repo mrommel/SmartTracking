@@ -1,5 +1,5 @@
 from django.urls import path
-from . import meta, projects, tickets, comments, components, labels, attachments, sprints, schema, active_sprints, watchers, notifications, relations
+from . import meta, projects, tickets, comments, components, labels, attachments, sprints, schema, active_sprints, watchers, notifications, relations, worklogs
 
 urlpatterns = [
 	# Schema & Meta
@@ -15,6 +15,8 @@ urlpatterns = [
 	path('tickets/<int:pk>/transition/', tickets.transition, name='api_ticket_transition'),
 	path('tickets/<int:id>/relations/add/', tickets.ticket_relations_add, name='api_ticket_relation_add'),
 	path('tickets/relations/<int:pk>/delete/', tickets.ticket_relations_delete, name='api_ticket_relation_delete'),
+	path('tickets/<int:pk>/worklogs/', tickets.api_ticket_worklog_collection, name='api_ticket_worklog_collection'),
+	path('worklogs/<int:pk>/delete/', worklogs.api_worklog_delete, name='api_worklog_delete'),
 	path('comments/', comments.collection, name='api_comment_collection'),
 	path('comments/<int:pk>/', comments.detail, name='api_comment_detail'),
 	path('components/', components.collection, name='api_component_collection'),

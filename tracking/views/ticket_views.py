@@ -3,9 +3,10 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
-from tracking.models import Ticket, Sprint, Comment, Attachment, Label, Component, SavedFilter
-from tracking.forms import TicketForm, TicketTransitionForm, CommentForm, AttachmentForm
+from tracking.models import Ticket, Sprint, Comment, Attachment, Label, Component, SavedFilter, WorkLog
+from tracking.forms import TicketForm, TicketTransitionForm, CommentForm, AttachmentForm, WorkLogForm
 from django.http import JsonResponse, HttpResponseForbidden, FileResponse
+from django.views.decorators.http import require_http_methods
 from django.db.models import Q
 
 # Mapping of sort fields to database columns and priority ordering
@@ -173,6 +174,7 @@ def ticket_detail(request, pk):
 			int(request.GET.get('comments_page', 1))
 		),
 		'sprints': Sprint.objects.filter(project=ticket.project),
+		'worklog_form': WorkLogForm(),
 	})
 
 
@@ -286,6 +288,36 @@ def ticket_relation_delete(request, pk):
 	ticket_pk = rel.subject.pk
 	rel.delete()
 	messages.success(request, 'Relation deleted')
+	return redirect('ticket_detail', pk=ticket_pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def ticket_worklog_create(request, pk):
+	ticket = get_object_or_404(Ticket, pk=pk)
+	if request.POST.get("form_type") != "worklog":
+		return HttpResponseForbidden()
+	form = WorkLogForm(request.POST)
+	if form.is_valid():
+		entry = form.save(commit=False)
+		entry.ticket = ticket
+		entry.author = request.user
+		entry.save()
+		messages.success(request, "Work logged successfully")
+	else:
+		messages.error(request, "Please fix the errors below")
+	return redirect('ticket_detail', pk=ticket.pk)
+
+
+@login_required
+@require_http_methods(["POST"])
+def worklog_delete(request, pk):
+	entry = get_object_or_404(WorkLog, pk=pk)
+	if entry.author != request.user and not request.user.is_superuser:
+		return HttpResponseForbidden()
+	ticket_pk = entry.ticket.pk
+	entry.delete()
+	messages.success(request, "Work log entry deleted")
 	return redirect('ticket_detail', pk=ticket_pk)
 
 

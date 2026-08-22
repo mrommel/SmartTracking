@@ -6,6 +6,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Count, Q
 from django.utils.translation import gettext_lazy as _
+from django.utils.timezone import localdate
 
 if TYPE_CHECKING:
   from typing import Any
@@ -639,6 +640,24 @@ class Ticket(models.Model):
 		"""Child tickets that belong to the backlog order (ordered by backlog_order then pk)."""
 		return self.child_tickets.filter(sprint__isnull=True).order_by("backlog_order", "pk")
 
+	@property
+	def total_estimation(self):
+		total = self.estimation or 0
+		if self.type == Ticket.Type.EPIC:
+			total += sum(ct.total_estimation for ct in self.child_tickets.all())
+		return total
+
+	@property
+	def total_spent(self):
+		spent = sum(wl.time_spent for wl in self.worklog_entries.all())
+		if self.type == Ticket.Type.EPIC:
+			spent += sum(ct.total_spent for ct in self.child_tickets.all())
+		return spent
+
+	@property
+	def total_remaining(self):
+		return max(0, self.total_estimation - self.total_spent)
+
 
 
 class Comment(models.Model):
@@ -801,6 +820,40 @@ class Attachment(models.Model):
 				_("MIME type '%(mime)s' is not allowed."),
 				params={"mime": self.mime_type},
 			)
+
+
+class WorkLog(models.Model):
+	"""A time-tracking entry on a ticket (who spent how many minutes)."""
+
+	ticket = models.ForeignKey(
+		Ticket,
+		on_delete=models.CASCADE,
+		related_name="worklog_entries",
+		verbose_name=_("ticket"),
+	)
+	author = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.SET_NULL,
+		null=True,
+		related_name="worklog_entries",
+		verbose_name=_("author"),
+	)
+	time_spent = models.PositiveIntegerField(
+		_("time spent"),
+		help_text=_("Time spent in minutes"),
+	)
+	date = models.DateField(
+		_("date"),
+		default=localdate,
+	)
+	comment = models.TextField(_("comment"), blank=True)
+	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+
+	class Meta:
+		ordering = ["-date", "-created_at"]
+
+	def __str__(self) -> str:
+		return f"{self.author} spent {self.time_spent}min on {self.ticket}"
 
 
 class TicketActivity(models.Model):

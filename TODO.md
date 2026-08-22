@@ -68,9 +68,8 @@ multi-value filter pills, sort controls, and saved named filters per user.
 - [ ] **Full-text search** (SQLite FTS5 / Postgres `SearchVector`) covering comments too.
 - [ ] A **JQL-style query bar** as an advanced option.
 
-### 3. Time Tracking / Worklog 🔴 **P2**
-`estimation` exists but no logging of actual work.
-- [ ] `WorkLog` model (time spent, remaining estimate, date, author) + a "Log work" action.
+### 3. Time Tracking / Worklog ✅ **Done**
+- [x] `WorkLog` model (time spent, remaining estimate, date, author) + a "Log work" action.
 - [ ] Original vs remaining vs spent rollups on epics.
 
 ### 4. User Profiles, Teams & Permissions 🔴 **P3**

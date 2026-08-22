@@ -3,7 +3,7 @@ from django.utils.translation import gettext_lazy as _
 
 from .models import (
     Attachment, Comment, Component, Label, Notification, Project, Sprint,
-    Ticket, TicketActivity, TicketRelation, Version, Watcher,
+    Ticket, TicketActivity, TicketRelation, Version, Watcher, WorkLog,
 )
 
 
@@ -119,3 +119,15 @@ class WatcherAdmin(admin.ModelAdmin):
 	search_fields = ("ticket__title", "user__username")
 	readonly_fields = ("created_at",)
 	autocomplete_fields = ("ticket", "user")
+
+
+@admin.register(WorkLog)
+class WorkLogAdmin(admin.ModelAdmin):
+	list_display = ["ticket_link", "author", "time_spent", "date", "created_at"]
+	list_filter = ["date", "author"]
+	search_fields = ["ticket__title"]
+	raw_id_fields = ["ticket", "author"]
+
+	def ticket_link(self, obj):
+		return f"{obj.ticket.project.key} / {obj.ticket.pk}"
+	ticket_link.short_description = "Ticket"

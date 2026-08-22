@@ -369,10 +369,72 @@
  			</div>
  		</div>
  	</div>
+  	{% endif %}
+
+  	<!-- Work Logs -->
+ 	<div class="card mt-4">
+ 		<div class="card-header d-flex justify-content-between align-items-center">
+ 			<h5 class="mb-0">Time Tracking</h5>
+ 			<button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#worklogCollapse">
+ 				Log work
+ 			</button>
+ 		</div>
+ 		<div class="collapse" id="worklogCollapse">
+ 			<div class="card-body">
+ 				<form method="post" action="{% url 'ticket_worklog_create' ticket.pk %}">
+ 					{% csrf_token %}
+ 					<input type="hidden" name="form_type" value="worklog">
+ 					<div class="row mb-3">
+ 						<div class="col-md-4">
+ 							{{ worklog_form.time_spent.label_tag }}
+ 							{{ worklog_form.time_spent }}
+ 							{% if worklog_form.time_spent.errors %}<div class="invalid-feedback d-block">{{ worklog_form.time_spent.errors|first }}</div>{% endif %}
+ 						</div>
+ 						<div class="col-md-4">
+ 							{{ worklog_form.date.label_tag }}
+ 							{{ worklog_form.date }}
+ 						</div>
+ 					</div>
+ 					<div class="mb-3">
+ 						{{ worklog_form.comment.label_tag }}
+ 						{{ worklog_form.comment }}
+ 					</div>
+ 					<button type="submit" class="btn btn-primary btn-sm">Log time</button>
+ 				</form>
+ 			</div>
+ 		</div>
+ 	</div>
+
+ 	{% if ticket.worklog_entries.exists %}
+ 	<div class="card mt-4">
+ 		<div class="card-body">
+ 			<h6 class="text-muted mb-3">Time logged</h6>
+ 			<ul class="list-unstyled">
+ 				{% for entry in ticket.worklog_entries.all %}
+ 				<li class="d-flex justify-content-between align-items-start mb-2 pb-2 border-bottom">
+ 					<div>
+ 						<strong>{{ entry.author.get_full_name|default:entry.author.username }}</strong> —
+ 						<span class="text-muted">{{ entry.date|date:"M d, Y" }}</span>
+ 						{% if entry.comment %}<p class="mb-1 mt-1 text-muted small">{{ entry.comment }}</p>{% endif %}
+ 					</div>
+ 					<div class="text-end">
+ 						<span class="badge bg-info text-dark">{{ entry.time_spent }} min</span>
+ 						{% if entry.author == user or user.is_superuser %}
+ 						<form method="post" action="{% url 'worklog_delete' entry.pk %}" class="d-inline">
+ 							{% csrf_token %}
+ 							<button type="submit" class="btn btn-sm btn-link text-danger" title="Delete">×</button>
+ 						</form>
+ 						{% endif %}
+ 					</div>
+ 				</li>
+ 				{% endfor %}
+ 			</ul>
+ 		</div>
+ 	</div>
  	{% endif %}
 
- 	<!-- Comments section -->
-	<div class="card mt-4">
+  	<!-- Comments section -->
+ 	<div class="card mt-4">
 		<div class="card-body">
 			<h2 class="h6 text-muted">Comments ({{ comments.paginator.count }})</h2>
 

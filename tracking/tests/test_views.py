@@ -4,9 +4,10 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils.timezone import localdate
 
 from tracking.forms import SprintForm
-from tracking.models import Attachment, Project, Sprint, Ticket, TicketRelation
+from tracking.models import Attachment, Project, Sprint, Ticket, TicketRelation, WorkLog
 
 User = get_user_model()
 
@@ -745,4 +746,57 @@ class WatcherViewTests(TestCase):
 			{"user": self.another.pk, "ticket_pk": self.ticket.pk},
 		)
 		self.assertIn("Already watching", str(response.content))
+
+
+class WorkLogViewTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+		cls.user = User.objects.create_user("bob", password="pw12345!")
+		cls.ticket = Ticket.objects.create(project=cls.project, title="t", reporter=cls.user)
+
+	def setUp(self):
+		self.client.force_login(self.user)
+
+	def test_create_worklog(self):
+		response = self.client.post(
+			reverse("ticket_worklog_create", args=[self.ticket.pk]),
+			{"form_type": "worklog", "time_spent": 90, "date": localdate(), "comment": "Testing"},
+			follow=True,
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Work logged successfully")
+		self.assertEqual(WorkLog.objects.filter(ticket=self.ticket).count(), 1)
+
+	def test_worklog_shown_in_detail(self):
+		WorkLog.objects.create(ticket=self.ticket, author=self.user, time_spent=60, date=localdate())
+		response = self.client.get(reverse("ticket_detail", args=[self.ticket.pk]))
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "60 min")
+
+	def test_delete_own_worklog(self):
+		entry = WorkLog.objects.create(ticket=self.ticket, author=self.user, time_spent=60, date=localdate())
+		response = self.client.post(
+			reverse("worklog_delete", args=[entry.pk]),
+			follow=True,
+		)
+		self.assertEqual(response.status_code, 200)
+		self.assertContains(response, "Work log entry deleted")
+		self.assertEqual(WorkLog.objects.filter(pk=entry.pk).count(), 0)
+
+	def test_non_author_cannot_delete(self):
+		other_user = User.objects.create_user("alice", password="pw12345!")
+		entry = WorkLog.objects.create(ticket=self.ticket, author=other_user, time_spent=60, date=localdate())
+		response = self.client.post(reverse("worklog_delete", args=[entry.pk]))
+		self.assertEqual(response.status_code, 403)
+
+	def test_form_validation_error_shown(self):
+		response = self.client.post(
+			reverse("ticket_worklog_create", args=[self.ticket.pk]),
+			{"form_type": "worklog", "time_spent": -1, "date": localdate()},
+			follow=True,
+		)
+		self.assertEqual(response.status_code, 200)
+		# Should redirect back with error (time_spent must be non-negative)
+		self.assertFalse(WorkLog.objects.filter(ticket=self.ticket).exists())
 

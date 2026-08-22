@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, Version, Notification, Watcher
+from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, Version, Notification, Watcher, WorkLog
 
 
 class ProjectForm(forms.ModelForm):
@@ -489,3 +489,14 @@ class MarkNotificationsForm(forms.Form):
 	def __init__(self, *args, user=None, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.user = user
+
+
+class WorkLogForm(forms.ModelForm):
+	class Meta:
+		model = WorkLog
+		fields = ["time_spent", "date", "comment"]
+		widgets = {
+			"time_spent": forms.NumberInput(attrs={"class": "form-control", "min": "1", "placeholder": "Minutes spent"}),
+			"date": forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+			"comment": forms.Textarea(attrs={"class": "form-control", "rows": "3", "placeholder": "What did you work on? (optional)"}),
+		}
