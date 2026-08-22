@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
 from tracking.models import Project, Ticket
 from tracking.forms import ProjectForm
@@ -33,7 +34,13 @@ def health_check(request):
 @login_required
 def project_list(request):
 	queryset = Project.objects.annotate(Count('tickets')).order_by('-id')
-	return render(request, 'tracking/project_list.html', {'projects': queryset})
+	page_num = int(request.GET.get('page', 1))
+	paginator = Paginator(queryset, 25)
+	try:
+		page = paginator.page(page_num)
+	except Exception:
+		page = paginator.page(1)
+	return render(request, 'tracking/project_list.html', {'projects': page})
 
 @login_required
 def project_detail(request, pk):
@@ -110,52 +117,69 @@ def project_detail(request, pk):
 		})
 
 	elif tab == 'backlog':
-		# Tickets without a sprint (backlog)
-		tickets_without_sprint = project.tickets.filter(sprint__isnull=True).select_related('assignee').order_by('backlog_order', '-created_at')
+ 		# Tickets without a sprint (backlog)
+ 		tickets_without_sprint = project.tickets.filter(sprint__isnull=True).select_related('assignee').order_by('backlog_order', '-created_at')
 
-		# Filter: show_closed toggle
-		show_closed = request.GET.get('show_closed') != '1'
+ 		# Filter: show_closed toggle
+ 		show_closed = request.GET.get('show_closed') != '1'
 
-		# Sprint ticket lists (all non-backlog sprints with their tickets)
-		sprint_ticket_list = []
-		for sprint in project.sprints.exclude(pk=1).order_by('order'):
-			sprint_tickets = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
-			if sprint_tickets or True:  # always include even if empty
-				sprint_ticket_list.append((sprint, sprint_tickets))
+ 		# Sprint ticket lists (all non-backlog sprints with their tickets) — paginated
+ 		sprint_qs = project.sprints.exclude(pk=1).order_by('order')
+ 		page_num_sprint = int(request.GET.get('sprint_page', 1))
+ 		paginator_sprint = Paginator(sprint_qs, 10)
+ 		try:
+ 			sprint_page = paginator_sprint.page(page_num_sprint)
+ 		except Exception:
+ 			sprint_page = paginator_sprint.page(1)
+ 		sprint_ticket_list = []
+ 		for sprint in sprint_page:
+ 			sprint_tickets = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
+ 			sprint_ticket_list.append((sprint, sprint_tickets))
 
-		context.update({
-			'tickets_without_sprint': tickets_without_sprint,
-			'show_closed': show_closed,
-			'sprint_ticket_list': sprint_ticket_list,
-		})
+ 		context.update({
+ 			'tickets_without_sprint': tickets_without_sprint,
+ 			'show_closed': show_closed,
+ 			'sprint_ticket_list': sprint_ticket_list,
+ 			'sprint_page': sprint_page,
+ 			'sprint_paginator': paginator_sprint,
+ 		})
 
 	elif tab == 'active_sprint':
-		board_view = request.GET.get('board_view', 'kanban')
-		swimlane_mode = request.GET.get('swimlane', '')
+ 		board_view = request.GET.get('board_view', 'kanban')
+ 		swimlane_mode = request.GET.get('swimlane', '')
 
-		# Find the active sprint for this project
-		active_sprint = project.sprints.filter(is_active=True).first()
+ 		# Find the active sprint for this project
+ 		active_sprint = project.sprints.filter(is_active=True).first()
 
-		# All sprints with their tickets (for the sidebar)
-		sprint_ticket_lists = []
-		sprint_state_counts = []
-		for sprint in project.sprints.order_by('-order'):
-			sprint_tickets = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
-			sprint_ticket_lists.append((sprint, sprint_tickets))
+ 		# All sprints with their tickets (for the sidebar) — paginated
+ 		sprint_qs = project.sprints.order_by('-order')
+ 		page_num_sprint = int(request.GET.get('sprint_page', 1))
+ 		paginator_sprint = Paginator(sprint_qs, 10)
+ 		try:
+ 			sprint_page = paginator_sprint.page(page_num_sprint)
+ 		except Exception:
+ 			sprint_page = paginator_sprint.page(1)
+ 		sprint_ticket_lists = []
+ 		sprint_state_counts = []
+ 		for sprint in sprint_page:
+ 			sprint_tickets = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
+ 			sprint_ticket_lists.append((sprint, sprint_tickets))
 
-			# State counts for this sprint
-			for state in Ticket.State:
-				count = sprint_tickets.filter(state=state).count()
-				if count:
-					sprint_state_counts.append((state.label, count))
+ 			# State counts for this sprint
+ 			for state in Ticket.State:
+ 				count = sprint_tickets.filter(state=state).count()
+ 				if count:
+ 					sprint_state_counts.append((state.label, count))
 
-		context.update({
-			'active_sprint': active_sprint,
-			'sprint_ticket_lists': sprint_ticket_lists,
-			'sprint_state_counts': sprint_state_counts,
-			'board_view': board_view,
-			'swimlane_mode': swimlane_mode,
-		})
+ 		context.update({
+ 			'active_sprint': active_sprint,
+ 			'sprint_ticket_lists': sprint_ticket_lists,
+ 			'sprint_state_counts': sprint_state_counts,
+ 			'sprint_page': sprint_page,
+ 			'sprint_paginator': paginator_sprint,
+ 			'board_view': board_view,
+ 			'swimlane_mode': swimlane_mode,
+ 		})
 
 	elif tab == 'reports':
 		# State counts

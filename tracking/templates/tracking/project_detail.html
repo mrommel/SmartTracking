@@ -226,6 +226,40 @@
 		</div>
 		{% endfor %}
 
+		{% if sprint_page and sprint_page.has_other_pages %}
+		<div class="d-flex justify-content-between align-items-center mt-3">
+			<div class="text-muted small">
+				{{ sprint_paginator.count }} sprint{{ sprint_paginator.count|pluralize }}
+			</div>
+			<nav aria-label="Sprint pagination">
+				<ul class="pagination justify-content-center mb-0">
+					{% if sprint_page.has_previous %}
+						<li class="page-item">
+							<a class="page-link" href="?tab=backlog&show_closed={{ show_closed|yesno:'1,0' }}&sprint_page={{ sprint_page.previous_page_number }}">&laquo;</a>
+						</li>
+					{% endif %}
+					{% for num in sprint_paginator.page_range %}
+						{% if sprint_page.number == num %}
+							<li class="page-item active"><span class="page-link">{{ num }}</span></li>
+						{% elif num == 1 or num == sprint_paginator.num_pages or num|add:"-1" == sprint_page.number or num|add:"1" == sprint_page.number %}
+							<li class="page-item"><a class="page-link" href="?tab=backlog&show_closed={{ show_closed|yesno:'1,0' }}&sprint_page={{ num }}">{{ num }}</a></li>
+						{% else %}
+							<li class="page-item disabled"><span class="page-link">…</span></li>
+						{% endif %}
+					{% endfor %}
+					{% if sprint_page.has_next %}
+						<li class="page-item">
+							<a class="page-link" href="?tab=backlog&show_closed={{ show_closed|yesno:'1,0' }}&sprint_page={{ sprint_page.next_page_number }}">&raquo;</a>
+						</li>
+					{% endif %}
+				</ul>
+			</nav>
+			<div class="text-muted small">
+				Page {{ sprint_page.number }} of {{ sprint_paginator.num_pages }}
+			</div>
+		</div>
+		{% endif %}
+
 	{% elif tab == 'active_sprint' %}
 		{% include "tracking/active_sprint.html" %}
 

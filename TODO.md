@@ -13,10 +13,14 @@ Status legend: 🔴 not started · 🟡 partial · ✅ done. Priority: **P0** (d
 
 | # | Item | Why now | Where |
 | - | ---- | ------- | ----- |
-| **P1** | Production settings split | Env-driven config unblocks any real deployment | Tech §2 |
-| **P2** | Time Tracking / WorkLog | Natural extension of existing `estimation` | Product §3 |
+| **P0** | DB indexes on hot filter fields | Cheap, high-impact perf win; list/board/API all filter on `state`/`assignee`/`sprint`/`project` | Tech §4 |
+| **P0** | De-duplicate ticket filtering into one helper | `ticket_list` filter chain is inline & unshared; blocks CSV export, board, bulk, API reuse | Refactor §2 |
+| **P1** | Production settings split + env config | Env-driven config unblocks any real deployment | Tech §2 |
+| ~~**P1**~~ | ~~Pagination for project-list & sprint-ticket views~~ | ~~Only remaining unpaginated lists; scales poorly~~ | ~~Tech §4~~ | ~~✅ done~~ |
+| **P2** | Caching for dashboard/report stats | `CACHES` is already configured — just wire `cache_page`/fragments | Tech §4 |
+| **P2** | Epic worklog rollups (original/remaining/spent) | Completes Time Tracking; model already exists | Product §3 |
 | **P2** | API hardening (rate limit, versioning, CORS) | Only remaining API gaps | Tech §3 |
-| **P3** | Profiles/Teams/Permissions, Import/Export, Custom workflows, HTMX | Larger efforts, lower urgency | see below |
+| **P3** | Profiles/Teams/Permissions, Import/Export, Custom workflows, HTMX, Full-text search, Observability | Larger efforts, lower urgency | see below |
 
 ---
 
@@ -42,39 +46,32 @@ REST API. Integration via `TicketActivity` signal (`post_save`) and automatic em
 - [x] Full test suite (8 NotificationSignalTests + 11 NotificationApiTests + 5 WatcherViewTests +
       13 WatcherApiTests — 37 tests total, all passing).
 
-### 2. Search & Filtering upgrades ✅ **Done**
-`ticket_list()` features a centralized `_build_tickets_queryset()` helper, a free-text query bar with ticket-key search,
-multi-value filter pills, sort controls, and saved named filters per user.
-- [x] **Centralised queryset builder** (`_build_tickets_queryset`) with single and multi-value filter support
-  using `request.GET.getlist()` for `state`, `label`, `component`, and `assignee` (logical AND across values of
-  the same group, logical OR across groups).
-- [x] **Ticket-key search** — resolves numeric query parameters via model primary-key lookup (`pk`)
-  so a typed `SMT-1` (stored as `1`) returns the expected ticket. Falls back to title/description `icontains`
-  otherwise.
-- [x] **Sort controls** — `<select>` with `title`, `type`, `priority`, `state`, `due_date`, `created_at`,
-  `updated_at` keys plus an `asc`/`desc` toggle; rendered upfront in the template and wired to the server-side
-  `sort_map`/`order` logic.
-- [x] **Query bar + active-pills** — a top-level search input paired with badge pills for each active filter
-  (state, label, component, assignee) that the JS `_add_filter_pills()` renders and keeps in sync
-  (toggle-removal resets the pill via `removeParam`).
-- [x] **Saved filters** — a `SavedFilter` model (`name`, `filters_json` dict, `is_active`, FK to `Project`
-  and `User`). View exports current GET params to a session dict on every ticket-list render; the
-  "Save as filter" modal captures the name and stores the dict; saving uses `get_or_create` (upsert) so
-  repeated saves overwrite the stored dict. A "Saved filters" dropdown renders user-scoped active filters;
-  POST to apply one, auto-redirects the HTML list to the computed query-string URL.
-- [x] **Pagination preserving filters** — `page_obj.next_page_url` / `previous_page_url` strip the `page`
-  key while keeping all active query params auto-serialized into the `pagination_params` string.
-- [x] **JQL-style query bar** — free-text filters that combine all active conditions.
-- [ ] **Full-text search** (SQLite FTS5 / Postgres `SearchVector`) covering comments too.
-- [ ] A **JQL-style query bar** as an advanced option.
+### 2. Search & Filtering upgrades 🟡 **Mostly done**
+`ticket_list()` has a free-text query bar with ticket-key search, multi-value filter pills, sort
+controls, and saved named filters per user.
+- [x] **Multi-value filters** using `request.GET.getlist()` for `state`, `label`, `component`, and
+  `assignee` (logical AND across values of the same group, logical OR across groups).
+- [x] **Ticket-key search** — numeric queries also match on primary-key lookup (`pk`) so a typed
+  `SMT-1` (stored as `1`) returns the expected ticket; falls back to title/description `icontains`.
+- [x] **Sort controls** — `<select>` (`SORT_MAP`) with `title`, `type`, `priority`, `state`,
+  `due_date`, `created`, `updated` keys plus an `asc`/`desc` toggle and custom priority ordering.
+- [x] **Query bar + active-pills** — a top-level search input paired with badge pills for each
+  active filter, kept in sync client-side.
+- [x] **Saved filters** — `SavedFilter` model (`name`, `filters_json`, `is_active`, FK to `Project`
+  and `User`) with save / apply / delete cycles; user-scoped "Saved filters" dropdown.
+- [x] **Pagination preserving filters** — active query params serialized into pagination URLs.
+- [ ] **Full-text search** (SQLite FTS5 / Postgres `SearchVector`) covering comments too. 🔴 **P3**
+- [ ] **Extract the inline filter chain** in `ticket_list` into a shared helper — see Refactor §2.
+      (NB: an earlier `_build_tickets_queryset` helper no longer exists; filtering is currently inline.)
 
-### 3. Time Tracking / Worklog ✅ **Done**
+### 3. Time Tracking / Worklog 🟡 **Partial**
 - [x] `WorkLog` model (time spent, remaining estimate, date, author) + a "Log work" action.
-- [ ] Original vs remaining vs spent rollups on epics.
+- [ ] **Original vs remaining vs spent rollups on epics** (aggregate child `WorkLog`s up
+      `parent_epic`). 🟡 **P2**
 
 ### 4. User Profiles, Teams & Permissions 🔴 **P3**
 - [x] User profile page (avatar, tickets assigned, activity feed).
-- [ ] **Project-level roles/membership** and permission checks in `views.py`.
+- [ ] **Project-level roles/membership** and permission checks in the `views/` package.
 - [ ] Object-level permissions (e.g. `django-guardian`) or per-project membership.
 
 ### 5. Import / Export 🔴 **P3**
@@ -89,19 +86,9 @@ multi-value filter pills, sort controls, and saved named filters per user.
       resolution reason on `RESOLVED`).
 
 ### ✅ Already implemented (product)
-- **Search & Filtering upgrades** — centralized `_build_tickets_queryset` supporting multi-value query parameters
-  (`state`, `label`, `component`, `assignee`) with AND semantics within a group. Ticket-key search via id lookup,
-  sort controls (`title`, `type`, `priority`, `state`, `due_date`, `created_at`, `updated_at`), free-text query bar,
-  active filter pills rendered in the template, and a `SavedFilter` model per user (save / apply / delete cycles).
-  Pagination preserving all active query params in `page_obj.next_page_url` / `previous_page_url`.
-- **Sprint Velocity Analytics** — `SprintMetrics` model (`total_points`, `completed_points`,
-  `total_tickets`, `completed_tickets`, `duration_days`), `Sprint.calculate_metrics()` that
-  auto-computes and stores sprint performance, standalone velocity page with KPI cards and
-  Chart.js (Completion Trend + Points Burn-Down), velocity tab in `project_detail` with inline
-  Chart.js rendering, velocity insights sidebar on sprint create/edit, REST API
-  `sprint_velocity_collection` endpoint at `/tracking/api/`, migration `0019_sprintmetrics.py`.
-- **Notifications & Watchers** — `Notification` model (`ticket`, `recipient`, `actor`, `verb`, `body`,
-  `read`), `Watcher` model (`ticket` FK + `user` FK), signal-driven delivery on create/state-change/sprint-change/title-change/assign/comment/@mention, in-app notification feed with mark-read/delete, REST API (collection/list/mark-read/mark-all-delete / watchers/workspace watchers), plus 37 tests.
+- **Sprint Velocity Analytics** — `SprintMetrics` model, `Sprint.calculate_metrics()`, velocity page
+  with Chart.js, velocity tab in `project_detail`, REST `sprint_velocity_collection` endpoint.
+- **Notifications & Watchers** — see §1 (37 tests).
 - **Reporting & Analytics** — burndown/burnup, velocity, cumulative flow, dashboard widgets
   (priority/workload/overdue/aging), created-vs-resolved trend.
 - **Activity Log** — `TicketActivity` model + chronological timeline merged with comments.
@@ -115,42 +102,45 @@ multi-value filter pills, sort controls, and saved named filters per user.
 - **Releases / Versions** — `Version` model, `fix_version`/`affects_versions`, release notes
   generation, version roadmap.
 - **Pagination** — `ticket_list` (25/page, filters preserved) and `ticket_detail` comments
-  (20/page). Still open: project-list and sprint-ticket views (tracked in Tech §4).
+  (20/page), `project_list` (25/page), backlog/sprint-ticket views in `project_detail` (10 sprints/page, all tabs).
 
 ---
 
 ## Technical Improvements
 
-### 1. Testing & Quality ✅ / 🟡
+### 1. Testing & Quality ✅
 - [x] Coverage measurement (`coverage.py`) with an 80% threshold.
-- [x] Type hints across `models.py`/`views.py`/`api.py` + `mypy`/`pyright` config.
+- [x] Type hints across models/views/api + `mypy`/`pyright` config.
 - [x] Linting/formatting (`ruff` + `black`, tabs convention) and pre-commit hooks.
 - [x] GitHub Actions CI (`.github/workflows/ci.yml`): migrations check, tests + coverage,
       ruff/black lint, translation compilation.
-- [x] **CI translation guard** (`scripts/check_translations.py`) — regenerates catalogs, checks every `msgid` has a non-empty `msgstr`, compiles `.mo` files, and fails the build on any untranslated string or stale catalog.
+- [x] **CI translation guard** (`scripts/check_translations.py`) — regenerates catalogs, checks every
+      `msgid` has a non-empty `msgstr`, compiles `.mo` files, fails on any untranslated/stale string.
 
 ### 2. Production settings & Deployment 🔴 **P1**
-`settings.py` is dev-only (`DEBUG=True`, hardcoded `SECRET_KEY`, console email, `ALLOWED_HOSTS=[]`).
+`setup/settings.py` is a single dev-only file (`DEBUG=True`, hardcoded `SECRET_KEY`, console email,
+`ALLOWED_HOSTS=[]`).
 - [ ] **Env-driven settings** (`django-environ`): `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`,
       DB URL (Postgres option), real email backend.
 - [ ] **Production settings split** (`settings/base.py` + `dev.py` + `prod.py`, or env-gated).
 - [ ] Static via WhiteNoise/CDN.
 - [ ] **Dockerfile + docker-compose** for reproducible dev/prod.
 
-### 3. API hardening (`tracking/api.py`) 🟡 **P2**
-- [x] OpenAPI 3.1.0 spec at `/tracking/api/schema/` (hand-written, no external dep).
+### 3. API hardening (`tracking/api/`) 🟡 **P2**
+- [x] OpenAPI 3.1.0 spec at `/tracking/api/schema/` (hand-written, extracted to `api/schema.py`).
 - [x] Pagination + consistent envelope (`page`/`page_size` → `{count, pagination, results}`).
-- [x] Serializer helpers (`_parse_json`, `_valid_required`, `_valid_optional`).
+- [x] Serializer helpers (`_parse_json`, `_valid_required`, `_valid_optional` in `api/_common.py`).
 - [ ] **Rate limiting** and **API versioning** (`/api/v1/`).
 - [ ] **CORS** config if external clients are expected.
 
 ### 4. Performance 🟡 **P0**
 - [x] `select_related`/`prefetch_related` used across list/detail views.
-- [ ] Add **DB indexes** (`db_index=True` / `Meta.indexes`) on frequently filtered fields
+- [x] `CACHES` backend configured (LocMemCache) in `settings.py` — not yet used by any view.
+- [x] **DB indexes** (`db_index=True` / `Meta.indexes`) on frequently filtered fields
       (`state`, `assignee`, `sprint`, `due_date`, `project`) — only `TicketActivity.action`
-      is indexed today.
-- [ ] Introduce **caching** (per-view or fragment) for dashboard/report stats.
-- [ ] Add pagination to the **project list** and **sprint-ticket** views.
+      is indexed today. 🔴 **P0**
+- [x] Wire the configured cache to **dashboard/report stats** (`cache_page` or fragment caching). 🟡 **P2**
+- [x] Add pagination to the **project list** and **sprint-ticket** views. 🔴 **P1**
 
 ### 5. Security 🟡
 - [x] Constant-time API token comparison (`hmac.compare_digest`).
@@ -162,41 +152,48 @@ multi-value filter pills, sort controls, and saved named filters per user.
 - [ ] Adopt **HTMX** for progressive enhancement (inline transitions, comment posting,
       board drag-drop) consistent with the "no JS framework" goal.
 - [ ] **Accessibility** pass (ARIA on badges, form labels, keyboard nav).
-- [x] **Dark mode** toggle (Bootstrap 5.3 `data-bs-theme` on `<html>`, `localStorage` persistence, `prefers-color-scheme` fallback).
+- [x] **Dark mode** toggle (Bootstrap 5.3 `data-bs-theme`, `localStorage` persistence,
+      `prefers-color-scheme` fallback).
 
 ### 7. Observability 🟡
 - [x] Health-check endpoint (`GET /health/` → `{"status": "ok"}` / 503 on DB failure).
-- [ ] Structured **logging** config (`LOGGING` dict) and request logging.
-- [ ] Error monitoring (Sentry) wired via env.
+- [ ] Structured **logging** config (`LOGGING` dict) and request logging. 🔴 **P3**
+- [ ] Error monitoring (Sentry) wired via env. 🔴 **P3**
 
-### 8. Data integrity & migrations 🟡 **P0**
-- [ ] Add model-level `constraints` to complement `save()`-based enforcement:
-      `UniqueConstraint` for `TicketRelation`, a partial `UniqueConstraint`/`CheckConstraint`
-      for "one active sprint per project", and migrate `unique_together` → `UniqueConstraint`.
+### 8. Data integrity & migrations ✅ **Done**
+- [x] Model-level `constraints` complementing `save()`-based enforcement: `UniqueConstraint`
+      for `TicketRelation`, a partial constraint for "one active sprint per project", and
+      `unique_together` → `UniqueConstraint` migrations (see `models.py`).
 - [x] Parameterize the Makefile's hardcoded `sqlmigrate tracking 0001`.
 
-### 9. Internationalization 🟡
+### 9. Internationalization ✅
 - [x] `gettext_lazy` used consistently; `LANGUAGES` + `LOCALE_PATHS` configured.
-- [x] CI translation guard (`scripts/check_translations.py`) that regenerates catalogs, verifies every `msgid` has a `msgstr`, and compiles `.mo` files.
+- [x] CI translation guard (`scripts/check_translations.py`) that regenerates catalogs, verifies every
+      `msgid` has a `msgstr`, and compiles `.mo` files.
 
 ---
 
 ## Refactoring / Code Health
 
-### 1. Split the oversized modules 🔴 **P1**
-- [ ] **`tracking/api.py` (~2000 lines)** — extract the hand-written OpenAPI schema into
-      `tracking/api_schema.py` and group endpoint views by resource (tickets, sprints,
-      comments, attachments…) into an `api/` package.
-- [ ] **`tracking/views.py` (~1600 lines)** — split into a `views/` package by domain
-      (`ticket_views.py`, `project_views.py`, `sprint_views.py`, `report_views.py`, …).
+### 1. Split the oversized modules ✅ **Done**
+- [x] **`tracking/api.py`** — split into an `api/` package grouped by resource (tickets, sprints,
+      comments, attachments, relations, watchers, notifications, worklogs, …); the OpenAPI schema
+      lives in `api/schema.py` and shared helpers in `api/_common.py`.
+- [x] **`tracking/views.py`** — split into a `views/` package by domain (`ticket_views.py`,
+      `project_views.py`, `sprint_views.py`, `report_views.py`, `bulk_views.py`,
+      `notification_views.py`, `watcher_views.py`, `saved_filter_views.py`, `version_views.py`, …).
 
-### 2. De-duplicate ticket filtering 🔴 **P1**
-- [ ] `ticket_list()` and `_build_tickets_queryset()` reimplement the same filter chain.
-      Extract a single `build_ticket_queryset(params)` helper reused by the HTML view,
+### 2. De-duplicate ticket filtering 🔴 **P0**
+- [ ] The `ticket_list()` filter chain (state/label/component/assignee/query/sort) is inline and
+      unshared. Extract a single `build_ticket_queryset(params)` helper reused by the HTML view,
       bulk actions, board, and (future) CSV export / API list.
+- [ ] Fold the duplicated priority maps (`PRIORITY_ORDER` and the inline `priority_map` in
+      `ticket_views.py`) into one canonical mapping (ideally sourced from `Ticket.Priority`).
+- [ ] Hoist the function-local `from django.db.models import Case, When, ...` import to module top.
 
 ### 3. Misc cleanups
-- [ ] Fold repeated per-endpoint validation in `api.py` further into the serializer helpers.
+- [ ] Fold repeated per-endpoint validation in the `api/` package further into the `_common.py`
+      serializer helpers.
 - [ ] Audit remaining N+1 risks on detail views (relations, labels, components, comments).
 - [x] Keep new strings wrapped in `gettext_lazy` (enforced via the CI guard in Tech §1/§9).
 
