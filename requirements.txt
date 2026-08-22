@@ -3,17 +3,17 @@ django-admin-inline-paginator==0.4.0
 django-crispy-forms==2.7
 django-extensions==4.1
 django-liststyle==0.2b
-django==6.1.0
+django==6.1
 pip==26.2.1
-slippers==0.7.0
+slippers==0.7.1
 django-autocomplete-light==3.12.1
 mistune==3.3.4
 django-environ==0.14.0
-coverage==7.13.0
+coverage==7.15.4
 # MCP server (served by `make run`) + its HTTP client
-mcp==1.28.1
+mcp==2.0.0
 httpx==0.28.1
 # dev / CI tooling
-ruff==0.15.0
-black==26.1.0
+ruff==0.16.4
+black==26.5.1
 polib==1.2.0
