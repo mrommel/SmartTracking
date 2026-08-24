@@ -19,6 +19,7 @@ import sys
 from typing import Any
 
 import httpx
+import uvicorn
 from mcp.server import Server
 from mcp.types import (
 	CallToolResult,
@@ -628,4 +629,5 @@ if __name__ == "__main__":
 	_logger.info("Django API base: %s", API)
 	_logger.info("API token: %s", "set" if TOKEN else "not set")
 	# Streamable HTTP transport -> reachable at http://MCP_HOST:MCP_PORT/mcp
-	mcp.run(transport="streamable-http")
+	app = mcp.streamable_http_app()
+	uvicorn.run(app, host=MCP_HOST, port=MCP_PORT)
