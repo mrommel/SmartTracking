@@ -222,9 +222,15 @@ class SprintForm(forms.ModelForm):
 		}
 
 	def __init__(self, *args, project=None, **kwargs):
+		# Assign project to the instance so Sprint.clean() can access it
+		# during validation (before save() is called).
+		if project is not None and kwargs.get("instance") is None:
+			kwargs["instance"] = Sprint(project=project)
 		super().__init__(*args, **kwargs)
 		self.project = project
 		if project is not None:
+			if kwargs["instance"].pk is None:
+				kwargs["instance"].project = project
 			self.fields["name"].widget.attrs["placeholder"] = f"e.g. Sprint 1"
 
 	def clean_name(self):
