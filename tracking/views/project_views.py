@@ -8,6 +8,95 @@ from tracking.models import Project, Ticket
 from tracking.forms import ProjectForm
 from django.db.models import Count, Q
 
+# Default WIP limits per state for the active-sprint board
+_DEFAULT_WIP_LIMITS = {
+	'open': 5,
+	'in_progress': 8,
+	'resolved': 4,
+	'closed': 0,
+}
+
+def _build_board_context(project, request):
+	"""Build the Kanban/swimlane board context for the active-sprint tab."""
+	from django.utils import timezone
+	board_view = request.GET.get('board_view', 'kanban')
+	swimlane_mode = request.GET.get('swimlane', '')
+
+	active_sprint = project.sprints.filter(is_active=True).first()
+
+	# WIP limits: defaults overridable via ?wip__<state>=<n>
+	wip_limits = dict(_DEFAULT_WIP_LIMITS)
+	for param, val in request.GET.items():
+		if param.startswith('wip__'):
+			state_name = param[5:]
+			try:
+				limit = int(val)
+				if limit > 0:
+					wip_limits[state_name] = limit
+			except ValueError:
+				pass
+
+	state_ticket_tuples = []
+	swimlane_groups = []
+
+	def _wip_flags(state, tickets):
+		wip_text = wip_limits.get(state.value, '')
+		if wip_text and len(tickets) > wip_text:
+			return wip_text, True, True
+		return wip_text, wip_text != '', False
+
+	if active_sprint:
+		tickets_qs = active_sprint.tickets.select_related('project', 'assignee', 'parent_epic').order_by('-priority', 'created_at')
+		tickets = list(tickets_qs)
+
+		state_ticket_map = {}
+		for t in tickets:
+			state_ticket_map.setdefault(t.state, []).append(t)
+		for state in Ticket.State:
+			state_tickets = state_ticket_map.get(state.value, [])
+			wip_text, wip_over, wip_exceeded = _wip_flags(state, state_tickets)
+			state_ticket_tuples.append({'state': state, 'tickets': state_tickets, 'wip_text': wip_text, 'wip_over': wip_over, 'wip_exceeded': wip_exceeded})
+
+		if swimlane_mode:
+			group_map = {}
+			for t in tickets:
+				if swimlane_mode == 'assignee':
+					grp = str(t.assignee) if t.assignee else '(Unassigned)'
+				elif swimlane_mode == 'epic':
+					grp = t.parent_epic.title[:50] if t.parent_epic else '(No Epic)'
+				elif swimlane_mode == 'priority':
+					grp = t.get_priority_display()
+				else:
+					grp = 'All'
+				group_map.setdefault(grp, []).append(t)
+
+			for grp_name, grp_tickets in sorted(group_map.items(), key=lambda x: 0 if 'unassigned' in x[0].lower() or 'no epic' in x[0].lower() else 1):
+				state_ticket_map_grp = {}
+				for t in grp_tickets:
+					state_ticket_map_grp.setdefault(t.state, []).append(t)
+				lane_tickets = []
+				for state in Ticket.State:
+					state_tickets = state_ticket_map_grp.get(state.value, [])
+					wip_text, wip_over, wip_exceeded = _wip_flags(state, state_tickets)
+					lane_tickets.append({'state': state, 'tickets': state_tickets, 'wip_text': wip_text, 'wip_over': wip_over, 'wip_exceeded': wip_exceeded})
+				swimlane_groups.append((grp_name, lane_tickets))
+	else:
+		for state in Ticket.State:
+			state_ticket_tuples.append({'state': state, 'tickets': [], 'wip_text': '', 'wip_over': False, 'wip_exceeded': False})
+
+	wip_limit_texts = {item['state'].value: item['wip_text'] for item in state_ticket_tuples}
+
+	return {
+		'active_sprint': active_sprint,
+		'state_ticket_tuples': state_ticket_tuples,
+		'board_view': board_view,
+		'swimlane_mode': swimlane_mode,
+		'wip_limits': wip_limits,
+		'wip_limit_texts': wip_limit_texts,
+		'swimlane_groups': swimlane_groups if swimlane_mode else [],
+		'today': timezone.localdate(),
+	}
+
 @login_required
 @cache_page(settings.DASHBOARD_CACHE_TIMEOUT)
 def dashboard(request):
@@ -149,41 +238,42 @@ def project_detail(request, pk):
  		})
 
 	elif tab == 'active_sprint':
- 		board_view = request.GET.get('board_view', 'kanban')
- 		swimlane_mode = request.GET.get('swimlane', '')
+		board_view = request.GET.get('board_view', 'kanban')
+		swimlane_mode = request.GET.get('swimlane', '')
 
- 		# Find the active sprint for this project
- 		active_sprint = project.sprints.filter(is_active=True).first()
+		# Find the active sprint for this project
+		active_sprint = project.sprints.filter(is_active=True).first()
 
- 		# All sprints with their tickets (for the sidebar) — paginated
- 		sprint_qs = project.sprints.order_by('-order')
- 		page_num_sprint = int(request.GET.get('sprint_page', 1))
- 		paginator_sprint = Paginator(sprint_qs, 10)
- 		try:
- 			sprint_page = paginator_sprint.page(page_num_sprint)
- 		except Exception:
- 			sprint_page = paginator_sprint.page(1)
- 		sprint_ticket_lists = []
- 		sprint_state_counts = []
- 		for sprint in sprint_page:
- 			sprint_tickets = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
- 			sprint_ticket_lists.append((sprint, sprint_tickets))
+		# All sprints with their tickets (for the sidebar) — paginated
+		sprint_qs = project.sprints.order_by('-order')
+		page_num_sprint = int(request.GET.get('sprint_page', 1))
+		paginator_sprint = Paginator(sprint_qs, 10)
+		try:
+			sprint_page = paginator_sprint.page(page_num_sprint)
+		except Exception:
+			sprint_page = paginator_sprint.page(1)
+		sprint_ticket_lists = []
+		sprint_state_counts = []
+		for sprint in sprint_page:
+			sprint_tickets = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
+			sprint_ticket_lists.append((sprint, sprint_tickets))
 
- 			# State counts for this sprint
- 			for state in Ticket.State:
- 				count = sprint_tickets.filter(state=state).count()
- 				if count:
- 					sprint_state_counts.append((state.label, count))
+			# State counts for this sprint
+			for state in Ticket.State:
+				count = sprint_tickets.filter(state=state).count()
+				if count:
+					sprint_state_counts.append((state.label, count))
 
- 		context.update({
- 			'active_sprint': active_sprint,
- 			'sprint_ticket_lists': sprint_ticket_lists,
- 			'sprint_state_counts': sprint_state_counts,
- 			'sprint_page': sprint_page,
- 			'sprint_paginator': paginator_sprint,
- 			'board_view': board_view,
- 			'swimlane_mode': swimlane_mode,
- 		})
+		context.update({
+			'active_sprint': active_sprint,
+			'sprint_ticket_lists': sprint_ticket_lists,
+			'sprint_state_counts': sprint_state_counts,
+			'sprint_page': sprint_page,
+			'sprint_paginator': paginator_sprint,
+			'board_view': board_view,
+			'swimlane_mode': swimlane_mode,
+		})
+		context.update(_build_board_context(project, request))
 
 	elif tab == 'reports':
 		# State counts
@@ -269,3 +359,4 @@ def project_create(request):
 	else:
 		form = ProjectForm()
 	return render(request, 'tracking/project_form.html', {'form': form, 'title': 'Create project'})
+

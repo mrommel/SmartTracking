@@ -238,6 +238,30 @@ class ProjectDetailTests(TestCase):
         self.assertContains(response, "Sprint 1")
         self.assertContains(response, "ticket")
 
+    def test_project_detail_active_sprint_renders_board_with_state_columns(self):
+        sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+        Ticket.objects.create(project=self.project, title="Sprint item", sprint=sprint, state=Ticket.State.OPEN)
+        response = self.client.get(reverse("project_detail", args=[self.project.pk]), {"tab": "active_sprint"})
+        self.assertEqual(response.status_code, 200)
+        # Drag-and-drop board container and one column per state
+        self.assertContains(response, 'id="boardContainer"')
+        self.assertContains(response, 'data-state="open"')
+        self.assertContains(response, 'data-state="in_progress"')
+        self.assertContains(response, 'data-state="resolved"')
+        self.assertContains(response, 'data-state="closed"')
+        # The ticket card is rendered inside the board
+        self.assertContains(response, 'data-ticket-id="%d"' % response.context["state_ticket_tuples"][0]["tickets"][0].pk)
+        # SortableJS drag-and-drop script is included
+        self.assertContains(response, "Sortable.min.js")
+
+    def test_project_detail_active_sprint_swimlane_renders_lanes(self):
+        sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+        Ticket.objects.create(project=self.project, title="Sprint item", sprint=sprint, state=Ticket.State.OPEN)
+        response = self.client.get(reverse("project_detail", args=[self.project.pk]), {"tab": "active_sprint", "board_view": "swimlane", "swimlane": "priority"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "swimlane-row")
+        self.assertContains(response, "swimlane-separator")
+
 
 # ── Project create / edit ────────────────────────────────────────────────────
 
@@ -504,7 +528,7 @@ class TicketDetailTests(TestCase):
         self.assertIn("Add a comment", content)
 
 
-# ── Ticket create / edit ────────────────────────────────────────────────────
+# ── Ticket create / edit ───────────────────��────────────────────────────────
 
 class TicketCreateEditTests(TestCase):
     @classmethod
@@ -1079,7 +1103,7 @@ class TicketListAdvancedTests(TestCase):
         self.assertContains(resp, "Urgent security fix")
         self.assertNotContains(resp, "Fix login bug")
 
-    # ── Sorting ──────────────────────────────────────────────────────────
+    # ── Sorting ──────────────────────────────────────��───────────────────
 
     def test_sort_by_title_ascending(self):
         resp = self.client.get(reverse("ticket_list"), {"sort": "title", "order": "asc"})
