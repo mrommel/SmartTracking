@@ -183,7 +183,7 @@ def project_detail(request, pk):
 		epic_data = []
 		for epic in epics:
 			child_count = epic.child_tickets.count()
-			completed = epic.child_tickets.filter(state=Ticket.State.DONE).count()
+			completed = epic.child_tickets.filter(state=Ticket.State.CLOSED).count()
 			completion = round(100 * completed / child_count) if child_count else 0
 			epic_data.append({'title': epic.title, 'child_count': child_count, 'completion': completion})
 
@@ -285,7 +285,7 @@ def project_detail(request, pk):
 		from datetime import date
 		today = date.today()
 		overdue_count = project.tickets.filter(due_date__lt=today).exclude(
-			state__in=[Ticket.State.DONE, Ticket.State.CLOSED]
+			state=Ticket.State.CLOSED
 		).count()
 
 		# Assignee workload
