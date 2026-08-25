@@ -120,7 +120,7 @@ def user_profile(request, pk):
 		'activity_items': activity_items,
 		'page_assigned': page_assigned,
 		'page_reported': page_reported,
-		'title': _('Profile') + f' - {user.get_username}',
+		'title': _('Profile') + f' - {user.get_username()}',
 	}
 
 	return render(request, 'tracking/user_profile.html', context)
