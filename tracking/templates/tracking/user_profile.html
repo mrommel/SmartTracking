@@ -41,6 +41,35 @@
 	</div>
 </div>
 
+<!-- Avatar (owner only) -->
+{% if is_owner %}
+<div class="card mb-3">
+	<div class="card-body">
+		<h2 class="h6 text-muted mb-3">Avatar</h2>
+		<div class="d-flex gap-2 align-items-end flex-wrap">
+			<form method="post" action="{% url 'user_avatar_update' user.pk %}" enctype="multipart/form-data" class="row g-2 align-items-end flex-grow-1 w-100">
+				{% csrf_token %}
+				<div class="col-12 col-md-8">
+					{{ avatar_form.avatar }}
+					<div class="text-muted small mb-0">PNG, JPG, WebP or GIF · max 5 MB</div>
+				</div>
+				<div class="col-auto">
+					<button type="submit" class="btn btn-primary btn-sm">
+						{% if user.profile.avatar %}Replace{% else %}Upload{% endif %}
+					</button>
+				</div>
+			</form>
+			{% if user.profile.avatar %}
+			<form method="post" action="{% url 'user_avatar_delete' user.pk %}">
+				{% csrf_token %}
+				<button type="submit" class="btn btn-outline-danger btn-sm">Remove</button>
+			</form>
+			{% endif %}
+		</div>
+	</div>
+</div>
+{% endif %}
+
 <!-- Stats -->
 <div class="row g-3 mb-3">
 	<div class="col-6 col-md-3">

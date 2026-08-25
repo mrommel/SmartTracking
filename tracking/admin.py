@@ -3,7 +3,8 @@ from django.utils.translation import gettext_lazy as _
 
 from .models import (
     Attachment, Comment, Component, Label, Notification, Project, Sprint,
-    Ticket, TicketActivity, TicketRelation, Version, Watcher, WorkLog,
+    Ticket, TicketActivity, TicketRelation, UserProfile, Version, Watcher,
+    WorkLog,
 )
 
 
@@ -139,3 +140,9 @@ class WorkLogAdmin(admin.ModelAdmin):
 	def ticket_link(self, obj):
 		return f"{obj.ticket.project.key} / {obj.ticket.pk}"
 	ticket_link.short_description = "Ticket"
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+	list_display = ("user", "avatar")
+	search_fields = ("user__username",)

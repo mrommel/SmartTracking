@@ -1,13 +1,23 @@
 """User profile page tests."""
 
+import os
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from django.utils.timezone import localdate
 
-from tracking.models import Project, Ticket, TicketActivity, Comment, WorkLog
+from tracking.models import Project, Ticket, TicketActivity, Comment, WorkLog, UserProfile
 
 User = get_user_model()
+
+
+def _png_upload(name="avatar.png", size=None):
+	"""A fake PNG upload (content is never decoded, only extension/size)."""
+	data = b"\x89PNG" + (b"0" * (size - 4 if size else 128))
+	return SimpleUploadedFile(name, data, content_type="image/png")
 
 
 class UserProfileViewTests(TestCase):
@@ -200,3 +210,155 @@ class UserProfileStatsTests(TestCase):
 			)
 		response = self.client.get(reverse("user_profile", args=[self.user.pk]))
 		self.assertEqual(len(response.context["page_assigned"]), 20)
+
+
+class AvatarUploadTests(TestCase):
+	"""Tests for the avatar upload UI on the user profile page."""
+
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+		cls.other = User.objects.create_user("bob", password="pw12345!")
+
+	def setUp(self):
+		self.client.force_login(self.user)
+
+	def test_avatar_card_shown_for_owner(self):
+		"""Owners should see the avatar upload form."""
+		response = self.client.get(reverse("user_profile", args=[self.user.pk]))
+		self.assertContains(response, reverse("user_avatar_update", args=[self.user.pk]))
+		self.assertContains(response, "Avatar")
+
+	def test_avatar_card_hidden_for_non_owner(self):
+		"""Non-owners should not see the avatar upload form."""
+		response = self.client.get(reverse("user_profile", args=[self.other.pk]))
+		self.assertNotContains(response, reverse("user_avatar_update", args=[self.other.pk]))
+
+	def test_avatar_update_requires_login(self):
+		"""Anonymous users should be redirected to login."""
+		self.client.logout()
+		response = self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": _png_upload()},
+		)
+		self.assertEqual(response.status_code, 302)
+		self.assertIn("/tracking/login", response.url)
+
+	def test_avatar_upload(self):
+		"""Owners should be able to upload an avatar."""
+		response = self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": _png_upload()},
+		)
+		self.assertRedirects(response, reverse("user_profile", args=[self.user.pk]))
+		self.user.profile.refresh_from_db()
+		self.assertTrue(self.user.profile.avatar)
+		self.assertIn("/media/avatars/png/", self.user.profile.avatar.url)
+
+	def test_avatar_upload_replaces_existing(self):
+		"""Uploading a second avatar should replace the first."""
+		self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": _png_upload("first.png")},
+		)
+		old_path = self.user.profile.avatar.name
+		self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": _png_upload("second.png")},
+		)
+		self.user.profile.refresh_from_db()
+		self.assertNotEqual(self.user.profile.avatar.name, old_path)
+
+	def test_avatar_upload_rejects_bad_extension(self):
+		"""Non-image uploads should be rejected."""
+		response = self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": SimpleUploadedFile("notes.txt", b"hi")},
+		)
+		self.assertRedirects(response, reverse("user_profile", args=[self.user.pk]))
+		self.assertFalse(UserProfile.objects.filter(user=self.user).exists())
+
+	def test_avatar_upload_rejects_oversize(self):
+		"""Images over 5 MB should be rejected."""
+		response = self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": _png_upload("big.png", size=5 * 1024 * 1024 + 1)},
+		)
+		self.assertRedirects(response, reverse("user_profile", args=[self.user.pk]))
+		self.assertFalse(UserProfile.objects.filter(user=self.user).exists())
+
+	def test_avatar_upload_forbidden_for_non_owner(self):
+		"""Non-owners cannot upload to someone else's profile."""
+		self.client.force_login(self.other)
+		response = self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": _png_upload()},
+		)
+		self.assertEqual(response.status_code, 403)
+		self.assertFalse(UserProfile.objects.filter(user=self.user).exists())
+
+	def test_avatar_profile_page_shows_upload_after_avatar(self):
+		"""The card should show Replace/Remove once an avatar exists."""
+		self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": _png_upload()},
+		)
+		response = self.client.get(reverse("user_profile", args=[self.user.pk]))
+		self.assertContains(response, "Replace")
+		self.assertContains(response, reverse("user_avatar_delete", args=[self.user.pk]))
+
+	def test_avatar_delete(self):
+		"""Owners should be able to remove their avatar."""
+		self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": _png_upload()},
+		)
+		old_path = self.user.profile.avatar.name
+		response = self.client.post(
+			reverse("user_avatar_delete", args=[self.user.pk])
+		)
+		self.assertRedirects(response, reverse("user_profile", args=[self.user.pk]))
+		self.user.profile.refresh_from_db()
+		self.assertFalse(self.user.profile.avatar)
+		self.assertFalse(os.path.exists(os.path.join(settings.MEDIA_ROOT, old_path)))
+
+	def test_avatar_delete_forbidden_for_non_owner(self):
+		"""Non-owners cannot remove someone else's avatar."""
+		self.client.post(
+			reverse("user_avatar_update", args=[self.user.pk]),
+			{"avatar": _png_upload()},
+		)
+		self.client.force_login(self.other)
+		response = self.client.post(
+			reverse("user_avatar_delete", args=[self.user.pk])
+		)
+		self.assertEqual(response.status_code, 403)
+		self.user.profile.refresh_from_db()
+		self.assertTrue(self.user.profile.avatar)
+
+
+class AvatarTagTests(TestCase):
+	"""Tests for the avatar_url template tag fallback logic."""
+
+	@classmethod
+	def setUpTestData(cls):
+		cls.user = User.objects.create_user("alice", password="pw12345!")
+
+	def test_placeholder_without_profile(self):
+		"""Users without an uploaded avatar get the UI-Avatars placeholder."""
+		from tracking.templatetags.avatar_filters import avatar_url
+		url = avatar_url(self.user, 40)
+		self.assertIn("ui-avatars.com", url)
+		self.assertIn("alice", url)
+
+	def test_uploaded_avatar_takes_precedence(self):
+		"""Uploaded avatars are served instead of the placeholder."""
+		from tracking.templatetags.avatar_filters import avatar_url
+		profile = UserProfile.objects.create(user=self.user)
+		profile.avatar.save(
+			"alice.png",
+			SimpleUploadedFile("alice.png", b"\x89PNG", content_type="image/png"),
+		)
+		url = avatar_url(self.user, 40)
+		self.assertIn("/media/avatars/png/", url)
+		self.assertNotIn("ui-avatars.com", url)

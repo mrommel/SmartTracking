@@ -1,6 +1,8 @@
 from django import template
 import hashlib
 
+from tracking.models import UserProfile
+
 register = template.Library()
 
 
@@ -20,5 +22,15 @@ def _generate_avatar_url(username, size=40):
 
 @register.simple_tag
 def avatar_url(user, size=40):
-	"""Return the avatar image URL for a Django User."""
+	"""Return the avatar image URL for a Django User.
+
+	Uses the user's uploaded avatar when present, falling back to the
+	deterministic placeholder.
+	"""
+	try:
+		profile = user.profile
+	except UserProfile.DoesNotExist:
+		profile = None
+	if profile and profile.avatar:
+		return profile.avatar.url
 	return _generate_avatar_url(user.get_username(), size)

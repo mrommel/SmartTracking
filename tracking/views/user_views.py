@@ -1,10 +1,13 @@
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
-from django.shortcuts import render, get_object_or_404
+from django.http import HttpResponseForbidden
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Count, Sum, Q
-from tracking.models import Ticket, TicketActivity, Comment, WorkLog
+from tracking.forms import AvatarForm
+from tracking.models import Ticket, TicketActivity, Comment, WorkLog, UserProfile
 
 User = get_user_model()
 
@@ -52,8 +55,18 @@ def user_profile(request, pk):
 			reported_by_state[state.value] = (state.label, count)
 
 	# Activity feed: merge TicketActivity + Comments by this user
-	activities = TicketActivity.objects.filter(actor=user).select_related('ticket__project').order_by('-created_at')[:20]
-	comments = user.comments.select_related('ticket__project').order_by('-created_at')[:20]
+	activities = (
+		TicketActivity.objects.filter(actor=user)
+		.select_related('ticket__project')
+		.prefetch_related('actor__profile')
+		.order_by('-created_at')[:20]
+	)
+	comments = (
+		user.comments
+		.select_related('ticket__project')
+		.prefetch_related('author__profile')
+		.order_by('-created_at')[:20]
+	)
 
 	activity_items = []
 	for act in activities:
@@ -97,6 +110,7 @@ def user_profile(request, pk):
 	context = {
 		'user': user,
 		'is_owner': is_owner,
+		'avatar_form': AvatarForm(),
 		'assigned_tickets_count': assigned_tickets_count,
 		'reported_tickets_count': reported_tickets_count,
 		'total_work_logged': total_work_logged,
@@ -110,3 +124,41 @@ def user_profile(request, pk):
 	}
 
 	return render(request, 'tracking/user_profile.html', context)
+
+
+@login_required
+def user_avatar_update(request, pk):
+	"""Upload / replace the profile avatar (owner only, POST)."""
+	user = get_object_or_404(User, pk=pk)
+	if request.user.pk != user.pk:
+		return HttpResponseForbidden()
+	if request.method == "POST":
+		form = AvatarForm(request.POST, request.FILES)
+		if form.is_valid():
+			profile, _created = UserProfile.objects.get_or_create(user=user)
+			if profile.avatar:
+				profile.avatar.delete(save=False)
+			profile.avatar = form.cleaned_data["avatar"]
+			profile.save()
+			messages.success(request, _("Avatar updated"))
+			return redirect("user_profile", pk=pk)
+		for error in form.errors.get("avatar", []):
+			messages.error(request, error)
+	return redirect("user_profile", pk=pk)
+
+
+@login_required
+def user_avatar_delete(request, pk):
+	"""Remove the profile avatar (owner only, POST)."""
+	user = get_object_or_404(User, pk=pk)
+	if request.user.pk != user.pk:
+		return HttpResponseForbidden()
+	if request.method == "POST":
+		try:
+			profile = user.profile
+		except UserProfile.DoesNotExist:
+			profile = None
+		if profile and profile.avatar:
+			profile.avatar.delete()
+			messages.success(request, _("Avatar removed"))
+	return redirect("user_profile", pk=pk)

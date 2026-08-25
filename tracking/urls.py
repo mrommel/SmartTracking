@@ -55,6 +55,8 @@ urlpatterns = [
     path('saved-filters/<int:pk>/apply/', _sfv.saved_filter_apply, name='saved_filter_apply'),
     # User profiles.
     path('users/<int:pk>/', _uv.user_profile, name='user_profile'),
+    path('users/<int:pk>/avatar/', _uv.user_avatar_update, name='user_avatar_update'),
+    path('users/<int:pk>/avatar/delete/', _uv.user_avatar_delete, name='user_avatar_delete'),
     # Notifications.
     path('notifications/', _nv.notification_feed, name='notification_feed'),
     path('notifications/mark-read/', _nv.notification_mark_read, name='notification_mark_read'),

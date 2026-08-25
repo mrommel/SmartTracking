@@ -2,7 +2,11 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 
-from .models import Attachment, Comment, Component, Label, Project, Sprint, Ticket, Version, Notification, Watcher, WorkLog
+from .models import (
+	Attachment, Comment, Component, Label, Project, Sprint, Ticket,
+	Version, Notification, Watcher, WorkLog,
+	_AVATAR_EXTENSIONS, _AVATAR_MAX_SIZE,
+)
 
 
 class ProjectForm(forms.ModelForm):
@@ -325,6 +329,31 @@ class AttachmentForm(forms.ModelForm):
 		model = Attachment
 		fields = ["file", "name"]
 		widgets = {"file": forms.ClearableFileInput(attrs={"class": "form-control"})}
+
+
+class AvatarForm(forms.Form):
+	"""Upload a user's avatar image (owner only, see user_views)."""
+
+	avatar = forms.FileField(
+		label=_("avatar"),
+		widget=forms.ClearableFileInput(attrs={"class": "form-control"}),
+	)
+
+	def clean_avatar(self):
+		file = self.cleaned_data.get("avatar")
+		if file:
+			ext = file.name.rsplit(".", 1)[-1].lower() if "." in file.name else ""
+			if ext not in _AVATAR_EXTENSIONS:
+				raise forms.ValidationError(
+					_("Unsupported image type. Allowed: %(allowed)s"),
+					params={"allowed": ", ".join(sorted(_AVATAR_EXTENSIONS))},
+				)
+			if file.size > _AVATAR_MAX_SIZE:
+				raise forms.ValidationError(
+					_("Image too large (max %(max_kb)s KB)."),
+					params={"max_kb": _AVATAR_MAX_SIZE // 1024},
+				)
+		return file
 
 
 class VersionForm(forms.ModelForm):

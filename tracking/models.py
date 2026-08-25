@@ -1273,3 +1273,47 @@ class SavedFilter(models.Model):
 
 	def __str__(self):
 		return f"{self.title} ({self.user})"
+
+
+_AVATAR_EXTENSIONS = {
+	"png": "image/png",
+	"jpg": "image/jpeg",
+	"jpeg": "image/jpeg",
+	"webp": "image/webp",
+	"gif": "image/gif",
+}
+_AVATAR_MAX_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
+def avatar_path(instance: UserProfile, filename: str) -> str:
+	ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+	return f"avatars/{ext}/{filename}"
+
+
+class UserProfile(models.Model):
+	"""Per-user extras. Currently only the avatar image (users without a
+	profile get a deterministic placeholder avatar)."""
+
+	user = models.OneToOneField(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.CASCADE,
+		related_name="profile",
+		verbose_name=_("user"),
+	)
+	avatar = models.FileField(
+		_("avatar"),
+		upload_to=avatar_path,
+		null=True,
+		blank=True,
+	)
+
+	class Meta:
+		verbose_name = _("user profile")
+		verbose_name_plural = _("user profiles")
+
+	def __str__(self) -> str:
+		return f"{self.user} profile"
+
+	@property
+	def avatar_url(self) -> str | None:
+		return self.avatar.url if self.avatar else None
