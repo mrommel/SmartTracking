@@ -26,38 +26,42 @@
 	</script>
 	</head>
 <body>
-<nav class="navbar navbar-expand-sm">
+<nav class="navbar flex-nowrap">
 	<a class="navbar-brand" href="{% url 'dashboard' %}">SmartTracking</a>
-	<div class="navbar-nav">
+	<div class="navbar-nav flex-row align-items-center">
 		{% if user.is_authenticated %}
 			<a class="nav-link" href="{% url 'project_list' %}">Projects</a>
 			<a class="nav-link" href="{% url 'ticket_list' %}">Tickets</a>
-			<a class="nav-link" href="{% url 'ticket_create' %}">+ New ticket</a>
+			<a class="nav-link text-nowrap" href="{% url 'ticket_create' %}">+ New ticket</a>
 		{% endif %}
 	</div>
-	<div class="ms-auto">
+	<div class="ms-auto d-flex align-items-center gap-2">
 		{% if user.is_authenticated %}
-			<span class="navbar-text me-2">
+			<span class="navbar-text text-nowrap">
 				<a href="{% url 'user_profile' user.pk %}">{{ user.get_username }}</a>
 			</span>
-			<button id="themeToggle" class="btn btn-sm btn-outline-secondary" title="Toggle dark mode"
-				aria-label="Toggle dark mode">
+			<button id="themeToggle" class="btn btn-sm btn-outline-secondary d-flex align-items-center"
+				title="Toggle dark mode" aria-label="Toggle dark mode">
 				<span id="themeIcon">☀️</span>
 			</button>
-			<a href="{% url 'notification_feed' %}" class="nav-link position-relative text-decoration-none">
-				<span class="badge bg-danger position-absolute"
-					style="top:2px;right:-2px;font-size:10px;">
-					{% if request.resolver_match.url_name == 'notification_feed' %}
-						{{ unread_count|default:0 }}
-					{% else %}
-						{% spaceless %}{% if user|notifications_count > 0 %}{{ user|notifications_count }}{% endif %}{% endspaceless %}
-					{% endif %}
-				</span>
+			<a href="{% url 'notification_feed' %}"
+				class="nav-link position-relative text-decoration-none d-flex align-items-center px-2">
 				<span aria-hidden="true">🔔</span>
+				{% spaceless %}
+					{% if request.resolver_match.url_name == 'notification_feed' %}
+						{% if unread_count %}
+							<span class="badge bg-danger position-absolute translate-middle top-0 start-100"
+								style="font-size:10px;">{{ unread_count }}</span>
+						{% endif %}
+					{% elif user|notifications_count > 0 %}
+						<span class="badge bg-danger position-absolute translate-middle top-0 start-100"
+							style="font-size:10px;">{{ user|notifications_count }}</span>
+					{% endif %}
+				{% endspaceless %}
 			</a>
-			<form method="post" action="{% url 'logout' %}" class="d-inline">
+			<form method="post" action="{% url 'logout' %}" class="d-inline-flex m-0">
 				{% csrf_token %}
-				<button type="submit" class="btn btn-sm btn-outline-light">Sign out</button>
+				<button type="submit" class="btn btn-sm btn-outline-light text-nowrap">Sign out</button>
 			</form>
 		{% else %}
 			<a class="nav-link" href="{% url 'login' %}">Sign in</a>
