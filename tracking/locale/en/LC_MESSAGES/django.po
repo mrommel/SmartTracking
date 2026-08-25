@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-22 16:54+0000\n"
+"POT-Creation-Date: 2026-08-25 18:09+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,11 +17,12 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-#: setup/settings.py:157
+
+#: setup/settings.py:166 setup/settings/base.py:131
 msgid "German"
 msgstr "German"
 
-#: setup/settings.py:158
+#: setup/settings.py:167 setup/settings/base.py:132
 msgid "English"
 msgstr "English"
 
@@ -38,65 +39,79 @@ msgstr "Sorting priority: %(priority_number)s"
 msgid "Toggle sorting"
 msgstr "Toggle sorting"
 
-#: tracking/admin.py:52 tracking/models.py:672 tracking/models.py:1044
+#: tracking/admin.py:61 tracking/models.py:726 tracking/models.py:1116
 msgid "body"
 msgstr "body"
 
-#: tracking/forms.py:262
+#: tracking/forms.py:272
 msgid "Move unassigned tickets to backlog"
 msgstr "Move unassigned tickets to backlog"
 
-#: tracking/forms.py:263
+#: tracking/forms.py:273
 msgid "Move unassigned tickets to another sprint"
 msgstr "Move unassigned tickets to another sprint"
 
-#: tracking/forms.py:264
+#: tracking/forms.py:274
 msgid "Leave tickets in sprint"
 msgstr "Leave tickets in sprint"
 
-#: tracking/forms.py:270
+#: tracking/forms.py:280
 msgid "Action for target tickets"
 msgstr "Action for target tickets"
 
-#: tracking/forms.py:275
+#: tracking/forms.py:285
 msgid "Target sprint"
 msgstr "Target sprint"
 
-#: tracking/forms.py:413
+#: tracking/forms.py:338 tracking/models.py:1304
+msgid "avatar"
+msgstr "avatar"
+
+#: tracking/forms.py:348
+#, python-format
+msgid "Unsupported image type. Allowed: %(allowed)s"
+msgstr "Unsupported image type. Allowed: %(allowed)s"
+
+#: tracking/forms.py:353
+#, python-format
+msgid "Image too large (max %(max_kb)s KB)."
+msgstr "Image too large (max %(max_kb)s KB)."
+
+#: tracking/forms.py:448
 msgid "Transition"
 msgstr "Transition"
 
-#: tracking/forms.py:414
+#: tracking/forms.py:449
 msgid "Reassign"
 msgstr "Reassign"
 
-#: tracking/forms.py:415
+#: tracking/forms.py:450
 msgid "Add labels"
 msgstr "Add labels"
 
-#: tracking/forms.py:416
+#: tracking/forms.py:451
 msgid "Add components"
 msgstr "Add components"
 
-#: tracking/forms.py:417
+#: tracking/forms.py:452
 msgid "Move to sprint"
 msgstr "Move to sprint"
 
-#: tracking/forms.py:418
+#: tracking/forms.py:453
 msgid "Delete"
 msgstr "Delete"
 
-#: tracking/forms.py:453
+#: tracking/forms.py:488
 #, python-format
 msgid "Cannot transition '%(t)s' to '%(s)s' — only to: %(allowed)s."
 msgstr "Cannot transition '%(t)s' to '%(s)s' — only to: %(allowed)s."
 
-#: tracking/forms.py:465
+#: tracking/forms.py:500
 msgid "User to watch"
 msgstr "User to watch"
 
 #: tracking/models.py:20 tracking/models.py:57 tracking/models.py:297
-#: tracking/models.py:334 tracking/models.py:761 tracking/models.py:922
+#: tracking/models.py:334 tracking/models.py:815 tracking/models.py:994
 msgid "name"
 msgstr "name"
 
@@ -105,20 +120,20 @@ msgid "key"
 msgstr "key"
 
 #: tracking/models.py:23 tracking/models.py:58 tracking/models.py:298
-#: tracking/models.py:336 tracking/models.py:417 tracking/models.py:932
+#: tracking/models.py:336 tracking/models.py:417 tracking/models.py:1004
 msgid "description"
 msgstr "description"
 
 #: tracking/models.py:24 tracking/models.py:63 tracking/models.py:299
-#: tracking/models.py:337 tracking/models.py:501 tracking/models.py:681
-#: tracking/models.py:722 tracking/models.py:767 tracking/models.py:850
-#: tracking/models.py:902 tracking/models.py:934 tracking/models.py:1046
-#: tracking/models.py:1091 tracking/models.py:1129
+#: tracking/models.py:337 tracking/models.py:501 tracking/models.py:735
+#: tracking/models.py:776 tracking/models.py:821 tracking/models.py:922
+#: tracking/models.py:974 tracking/models.py:1006 tracking/models.py:1118
+#: tracking/models.py:1163 tracking/models.py:1201
 msgid "created at"
 msgstr "created at"
 
 #: tracking/models.py:27 tracking/models.py:55 tracking/models.py:295
-#: tracking/models.py:332 tracking/models.py:414 tracking/models.py:920
+#: tracking/models.py:332 tracking/models.py:414 tracking/models.py:992
 msgid "project"
 msgstr "project"
 
@@ -143,7 +158,7 @@ msgid "is active"
 msgstr "is active"
 
 #: tracking/models.py:66 tracking/models.py:243 tracking/models.py:444
-#: tracking/models.py:928
+#: tracking/models.py:1000
 msgid "sprint"
 msgstr "sprint"
 
@@ -202,7 +217,8 @@ msgstr "waste ratio"
 #: tracking/models.py:268
 msgid ""
 "Percentage of high-priority (HIGH / CRITICAL) open tickets in the sprint."
-msgstr "Percentage of high-priority (HIGH / CRITICAL) open tickets in the sprint."
+msgstr ""
+"Percentage of high-priority (HIGH / CRITICAL) open tickets in the sprint."
 
 #: tracking/models.py:272
 msgid "velocity window"
@@ -372,13 +388,13 @@ msgstr "affects versions"
 msgid "related tickets"
 msgstr "related tickets"
 
-#: tracking/models.py:502 tracking/models.py:682 tracking/models.py:1132
+#: tracking/models.py:502 tracking/models.py:736 tracking/models.py:1204
 msgid "updated at"
 msgstr "updated at"
 
-#: tracking/models.py:505 tracking/models.py:670 tracking/models.py:759
-#: tracking/models.py:832 tracking/models.py:884 tracking/models.py:1025
-#: tracking/models.py:1083
+#: tracking/models.py:505 tracking/models.py:724 tracking/models.py:813
+#: tracking/models.py:890 tracking/models.py:956 tracking/models.py:1097
+#: tracking/models.py:1155
 msgid "ticket"
 msgstr "ticket"
 
@@ -386,259 +402,285 @@ msgstr "ticket"
 msgid "tickets"
 msgstr "tickets"
 
-#: tracking/models.py:679 tracking/models.py:839
+#: tracking/models.py:733 tracking/models.py:897
 msgid "author"
 msgstr "author"
 
-#: tracking/models.py:685 tracking/models.py:710 tracking/models.py:849
+#: tracking/models.py:739 tracking/models.py:764 tracking/models.py:921
 msgid "comment"
 msgstr "comment"
 
-#: tracking/models.py:686
+#: tracking/models.py:740
 msgid "comments"
 msgstr "comments"
 
-#: tracking/models.py:712
+#: tracking/models.py:766
 msgid "old body"
 msgstr "old body"
 
-#: tracking/models.py:713
+#: tracking/models.py:767
 msgid "new body"
 msgstr "new body"
 
-#: tracking/models.py:720 tracking/models.py:892 tracking/models.py:1039
+#: tracking/models.py:774 tracking/models.py:964 tracking/models.py:1111
 msgid "actor"
 msgstr "actor"
 
-#: tracking/models.py:725
+#: tracking/models.py:779
 msgid "comment edit history"
 msgstr "comment edit history"
 
-#: tracking/models.py:726
+#: tracking/models.py:780
 msgid "comment edit histories"
 msgstr "comment edit histories"
 
-#: tracking/models.py:763
+#: tracking/models.py:817
 msgid "file"
 msgstr "file"
 
-#: tracking/models.py:766
+#: tracking/models.py:820
 msgid "mime type"
 msgstr "mime type"
 
-#: tracking/models.py:770
+#: tracking/models.py:824
 msgid "attachment"
 msgstr "attachment"
 
-#: tracking/models.py:771
+#: tracking/models.py:825
 msgid "attachments"
 msgstr "attachments"
 
-#: tracking/models.py:814
+#: tracking/models.py:868
 #, python-format
 msgid "File type '.%(ext)s' is not allowed. Allowed: %(allowed)s"
 msgstr "File type '.%(ext)s' is not allowed. Allowed: %(allowed)s"
 
-#: tracking/models.py:820
+#: tracking/models.py:874
 #, python-format
 msgid "MIME type '%(mime)s' is not allowed."
 msgstr "MIME type '%(mime)s' is not allowed."
 
-#: tracking/models.py:842
+#: tracking/models.py:900
 msgid "time spent"
 msgstr "time spent"
 
-#: tracking/models.py:843
+#: tracking/models.py:901
 msgid "Time spent in minutes"
 msgstr "Time spent in minutes"
 
-#: tracking/models.py:846
+#: tracking/models.py:904
+msgid "original estimate (hours)"
+msgstr "original estimate (hours)"
+
+#: tracking/models.py:908
+msgid "Per-entry original estimate in hours. Used for epic rollups."
+msgstr "Per-entry original estimate in hours. Used for epic rollups."
+
+#: tracking/models.py:911
+msgid "remaining estimate (hours)"
+msgstr "remaining estimate (hours)"
+
+#: tracking/models.py:915
+msgid ""
+"Per-entry remaining estimate in hours. Falls back to calculation if blank."
+msgstr ""
+"Per-entry remaining estimate in hours. Falls back to calculation if blank."
+
+#: tracking/models.py:918
 msgid "date"
 msgstr "date"
 
-#: tracking/models.py:863
+#: tracking/models.py:935
 msgid "State changed"
 msgstr "State changed"
 
-#: tracking/models.py:864
+#: tracking/models.py:936
 msgid "Title changed"
 msgstr "Title changed"
 
-#: tracking/models.py:865
+#: tracking/models.py:937
 msgid "Description changed"
 msgstr "Description changed"
 
-#: tracking/models.py:866
+#: tracking/models.py:938
 msgid "Related ticket added"
 msgstr "Related ticket added"
 
-#: tracking/models.py:867
+#: tracking/models.py:939
 msgid "Comment added"
 msgstr "Comment added"
 
-#: tracking/models.py:868
+#: tracking/models.py:940
 msgid "Component added"
 msgstr "Component added"
 
-#: tracking/models.py:869
+#: tracking/models.py:941
 msgid "Component removed"
 msgstr "Component removed"
 
-#: tracking/models.py:870
+#: tracking/models.py:942
 msgid "Label added"
 msgstr "Label added"
 
-#: tracking/models.py:871
+#: tracking/models.py:943
 msgid "Label removed"
 msgstr "Label removed"
 
-#: tracking/models.py:872
+#: tracking/models.py:944
 msgid "Relation added"
 msgstr "Relation added"
 
-#: tracking/models.py:873
+#: tracking/models.py:945
 msgid "Relation removed"
 msgstr "Relation removed"
 
-#: tracking/models.py:874
+#: tracking/models.py:946
 msgid "Sprint changed"
 msgstr "Sprint changed"
 
-#: tracking/models.py:875
+#: tracking/models.py:947
 msgid "Attachment added"
 msgstr "Attachment added"
 
-#: tracking/models.py:876
+#: tracking/models.py:948
 msgid "Attachment removed"
 msgstr "Attachment removed"
 
-#: tracking/models.py:877
+#: tracking/models.py:949
 msgid "Ticket created"
 msgstr "Ticket created"
 
-#: tracking/models.py:878
+#: tracking/models.py:950
 msgid "Ticket deleted"
 msgstr "Ticket deleted"
 
-#: tracking/models.py:895
+#: tracking/models.py:967
 msgid "action"
 msgstr "action"
 
-#: tracking/models.py:898
+#: tracking/models.py:970
 msgid "field"
 msgstr "field"
 
-#: tracking/models.py:900
+#: tracking/models.py:972
 msgid "old value"
 msgstr "old value"
 
-#: tracking/models.py:901
+#: tracking/models.py:973
 msgid "new value"
 msgstr "new value"
 
-#: tracking/models.py:905
+#: tracking/models.py:977
 msgid "activity log entry"
 msgstr "activity log entry"
 
-#: tracking/models.py:906
+#: tracking/models.py:978
 msgid "activity log entries"
 msgstr "activity log entries"
 
-#: tracking/models.py:930
+#: tracking/models.py:1002
 msgid "target date"
 msgstr "target date"
 
-#: tracking/models.py:931
+#: tracking/models.py:1003
 msgid "release date"
 msgstr "release date"
 
-#: tracking/models.py:933
+#: tracking/models.py:1005
 msgid "archived"
 msgstr "archived"
 
-#: tracking/models.py:937
+#: tracking/models.py:1009
 msgid "version"
 msgstr "version"
 
-#: tracking/models.py:938
+#: tracking/models.py:1010
 msgid "versions"
 msgstr "versions"
 
-#: tracking/models.py:1015
+#: tracking/models.py:1087
 msgid "Issue assigned to you"
 msgstr "Issue assigned to you"
 
-#: tracking/models.py:1016
+#: tracking/models.py:1088
 msgid "You were mentioned in an issue"
 msgstr "You were mentioned in an issue"
 
-#: tracking/models.py:1017
+#: tracking/models.py:1089
 msgid "Issue state changed"
 msgstr "Issue state changed"
 
-#: tracking/models.py:1018
+#: tracking/models.py:1090
 msgid "New comment on issue you watch"
 msgstr "New comment on issue you watch"
 
-#: tracking/models.py:1019
+#: tracking/models.py:1091
 msgid "You were mentioned in a comment"
 msgstr "You were mentioned in a comment"
 
-#: tracking/models.py:1031
+#: tracking/models.py:1103
 msgid "recipient"
 msgstr "recipient"
 
-#: tracking/models.py:1042
+#: tracking/models.py:1114
 msgid "verb"
 msgstr "verb"
 
-#: tracking/models.py:1045
+#: tracking/models.py:1117
 msgid "read"
 msgstr "read"
 
-#: tracking/models.py:1049
+#: tracking/models.py:1121
 msgid "notification"
 msgstr "notification"
 
-#: tracking/models.py:1050
+#: tracking/models.py:1122
 msgid "notifications"
 msgstr "notifications"
 
-#: tracking/models.py:1089
+#: tracking/models.py:1161 tracking/models.py:1301
 msgid "user"
 msgstr "user"
 
-#: tracking/models.py:1094
+#: tracking/models.py:1166
 msgid "watcher"
 msgstr "watcher"
 
-#: tracking/models.py:1095
+#: tracking/models.py:1167
 msgid "watchers"
 msgstr "watchers"
 
-#: tracking/models.py:1115
+#: tracking/models.py:1187
 msgid "subject ticket"
 msgstr "subject ticket"
 
-#: tracking/models.py:1121
+#: tracking/models.py:1193
 msgid "target ticket"
 msgstr "target ticket"
 
-#: tracking/models.py:1124
+#: tracking/models.py:1196
 msgid "relation type"
 msgstr "relation type"
 
-#: tracking/models.py:1158
+#: tracking/models.py:1230
 msgid "A relation already exists between these two tickets."
 msgstr "A relation already exists between these two tickets."
 
-#: tracking/models.py:1199
+#: tracking/models.py:1271
 msgid "Saved filter"
 msgstr "Saved filter"
 
-#: tracking/models.py:1200
+#: tracking/models.py:1272
 msgid "Saved filters"
 msgstr "Saved filters"
+
+#: tracking/models.py:1311
+msgid "user profile"
+msgstr "Profile"
+
+#: tracking/models.py:1312
+msgid "user profiles"
+msgstr "Profile"
 
 #: tracking/views/sprint_views.py:16
 #, python-format
@@ -650,6 +692,14 @@ msgstr "Sprint '%(name)s' created."
 msgid "Sprint '%(name)s' closed."
 msgstr "Sprint '%(name)s' closed."
 
-#: tracking/views/user_views.py:109
+#: tracking/views/user_views.py:123
 msgid "Profile"
 msgstr "Profile"
+
+#: tracking/views/user_views.py:143
+msgid "Avatar updated"
+msgstr "start date"
+
+#: tracking/views/user_views.py:163
+msgid "Avatar removed"
+msgstr "Attachment removed"

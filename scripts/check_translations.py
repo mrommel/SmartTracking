@@ -26,6 +26,9 @@ from subprocess import PIPE, run, CalledProcessError
 BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_DIR = BASE_DIR / "setup"
 LOCALE_DIR = BASE_DIR / "tracking" / "locale"
+# Must match the DJANGO_SETTINGS_MODULE default in manage.py (the
+# ``setup.settings`` package itself does not define settings).
+SETTINGS_MODULE = "setup.settings.dev"
 LANGUAGE_CODE = "en-us"
 LANGUAGES = [
     ("de", "German"),
@@ -54,7 +57,7 @@ def ensure_po_files_exist() -> None:
         ),
         cwd=BASE_DIR,
         stdout=PIPE, stderr=PIPE, text=True,
-        env={**os.environ, "DJANGO_SETTINGS_MODULE": "setup.settings"},
+        env={**os.environ, "DJANGO_SETTINGS_MODULE": SETTINGS_MODULE},
     )
     if result.returncode != 0:
         print(f"FATAL: makemessages failed (exit {result.returncode})")
@@ -74,7 +77,7 @@ def ensure_mo_files() -> bool:
         ),
         cwd=BASE_DIR,
         stdout=PIPE, stderr=PIPE, text=True,
-        env={**os.environ, "DJANGO_SETTINGS_MODULE": "setup.settings"},
+        env={**os.environ, "DJANGO_SETTINGS_MODULE": SETTINGS_MODULE},
     )
     return result.returncode == 0
 
