@@ -311,7 +311,7 @@ def project_detail(request, pk):
 
 	elif tab == 'velocity':
 		# Get completed sprints
-		closed_sprints = project.sprints.exclude(is_active=True).order_by('-closed_at')
+		closed_sprints = project.sprints.exclude(is_active=True).order_by('-end_date')
 		has_velocity_data = closed_sprints.exists()
 
 		context.update({
