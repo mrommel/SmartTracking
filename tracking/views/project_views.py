@@ -98,6 +98,18 @@ def _build_board_context(project, request):
 	}
 
 @login_required
+def project_board_partial(request, pk):
+	"""Render only the active-sprint board markup (used by the board auto-refresh).
+
+	Deliberately uncached: this endpoint is polled by the client and must always
+	reflect the current ticket states.
+	"""
+	project = get_object_or_404(Project, pk=pk)
+	context = {'project': project}
+	context.update(_build_board_context(project, request))
+	return render(request, 'tracking/_board.html', context)
+
+@login_required
 @cache_page(settings.DASHBOARD_CACHE_TIMEOUT)
 def dashboard(request):
 	project_key = request.GET.get('project_key')

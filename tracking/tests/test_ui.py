@@ -238,7 +238,33 @@ class ProjectDetailTests(TestCase):
         self.assertContains(response, "Sprint 1")
         self.assertContains(response, "ticket")
 
+    def test_project_detail_active_sprint_has_auto_refresh_controls(self):
+        Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+        response = self.client.get(reverse("project_detail", args=[self.project.pk]), {"tab": "active_sprint"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="boardRefreshControls"')
+        self.assertContains(response, 'id="boardAutoRefreshToggle"')
+        self.assertContains(response, 'id="boardRefreshInterval"')
+        self.assertContains(response, reverse("project_board_partial", args=[self.project.pk]))
+
+    def test_board_partial_returns_only_board_markup(self):
+        sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+        ticket = Ticket.objects.create(project=self.project, title="Sprint item", sprint=sprint, state=Ticket.State.OPEN)
+        response = self.client.get(reverse("project_board_partial", args=[self.project.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="boardContainer"')
+        self.assertContains(response, 'data-ticket-id="%d"' % ticket.pk)
+        # The partial must not render the surrounding page chrome.
+        self.assertNotContains(response, "<html")
+
+    def test_board_partial_requires_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("project_board_partial", args=[self.project.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("login"), response.url)
+
     def test_project_detail_active_sprint_renders_board_with_state_columns(self):
+
         sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
         Ticket.objects.create(project=self.project, title="Sprint item", sprint=sprint, state=Ticket.State.OPEN)
         response = self.client.get(reverse("project_detail", args=[self.project.pk]), {"tab": "active_sprint"})

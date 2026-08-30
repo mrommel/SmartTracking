@@ -23,17 +23,33 @@
 				<a class="btn btn-sm btn-outline-secondary {% if board_view != 'swimlane' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view=kanban">Kanban</a>
 				<a class="btn btn-sm btn-outline-secondary {% if board_view == 'swimlane' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view=swimlane">Swimlane</a>
 			</div>
-			{% if board_view == 'swimlane' %}
-			<div class="d-flex gap-2 align-items-center">
-				<span class="swimlane-label small">Group by:</span>
-				<select class="form-select form-select-sm" id="swimlaneSelector" style="width: 160px;">
-					<option value="">—</option>
-					<option value="assignee" {% if swimlane_mode == 'assignee' %}selected{% endif %}>Assignee</option>
-					<option value="epic" {% if swimlane_mode == 'epic' %}selected{% endif %}>Epic</option>
-					<option value="priority" {% if swimlane_mode == 'priority' %}selected{% endif %}>Priority</option>
-				</select>
+			<div class="d-flex gap-3 align-items-center">
+				{% if board_view == 'swimlane' %}
+				<div class="d-flex gap-2 align-items-center">
+					<span class="swimlane-label small">Group by:</span>
+					<select class="form-select form-select-sm" id="swimlaneSelector" style="width: 160px;">
+						<option value="">—</option>
+						<option value="assignee" {% if swimlane_mode == 'assignee' %}selected{% endif %}>Assignee</option>
+						<option value="epic" {% if swimlane_mode == 'epic' %}selected{% endif %}>Epic</option>
+						<option value="priority" {% if swimlane_mode == 'priority' %}selected{% endif %}>Priority</option>
+					</select>
+				</div>
+				{% endif %}
+				<div class="d-flex gap-2 align-items-center" id="boardRefreshControls" data-board-url="{% url 'project_board_partial' project.pk %}">
+					<div class="form-check form-switch mb-0">
+						<input class="form-check-input" type="checkbox" role="switch" id="boardAutoRefreshToggle" checked>
+						<label class="form-check-label small" for="boardAutoRefreshToggle">Auto refresh</label>
+					</div>
+					<select class="form-select form-select-sm" id="boardRefreshInterval" style="width: 110px;">
+						<option value="15">15 s</option>
+						<option value="30" selected>30 s</option>
+						<option value="60">1 min</option>
+						<option value="300">5 min</option>
+					</select>
+					<button type="button" class="btn btn-sm btn-outline-secondary" id="boardRefreshNow" title="Refresh now">&#8635;</button>
+					<span class="text-muted small" id="boardRefreshStatus"></span>
+				</div>
 			</div>
-			{% endif %}
 		</div>
 	</div>
 

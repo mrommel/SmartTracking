@@ -27,6 +27,7 @@ urlpatterns = [
     path('health/', _pv.health_check, name='health_check'),
 	path('projects/', _pv.project_list, name='project_list'),
 	path('projects/<int:pk>/', _pv.project_detail, name='project_detail'),
+	path('projects/<int:pk>/board/', _pv.project_board_partial, name='project_board_partial'),
 	path('projects/<int:pk>/edit/', _pv.project_edit, name='project_edit'),
 	path('projects/new/', _pv.project_create, name='project_create'),
     path('tickets/', _tv.ticket_list, name='ticket_list'),

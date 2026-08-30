@@ -619,114 +619,167 @@
 	{% endif %}
     </script>
 
-	/* Board drag-and-drop (SortableJS) */
+	/* Board drag-and-drop (SortableJS) + auto refresh */
 	{% if tab == 'active_sprint' %}
 	<div id="board-js" class="d-none"></div>
 	<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
-	<script id="board-sortable-init" type="text/template">
+	<script>
 	(function() {
 		var boardContainer = document.getElementById('boardContainer');
 		if (!boardContainer) return;
-		var columns = boardContainer.querySelectorAll('.board-state-body');
-		columns.forEach(function(col) {
-			new Sortable(col, {
-				animation: 150,
-				handle: '.board-ticket-card',
-				lockToTile: !1,
-				typing: !1,
-				ghostClass: 'sortable-ghost',
-				chosenClass: 'sortable-chosen',
-				dragClass: 'sortable-drag',
-				draggable: '.board-ticket-card',
-				onEnd: function(evt) {
-					var ticketId = evt.item.dataset.ticketId;
-					var newState = evt.to.dataset.state;
-					if (!ticketId || !newState) return;
-					var url = '/tracking/api/tickets/' + ticketId + '/transition/';
-					fetch(url, {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-						body: JSON.stringify({ state: newState })
-					}).then(function(resp) {
-						if (!resp.ok) return resp.json().then(function(err) { throw new Error(err.detail || err.error || 'Transition failed'); });
-						return resp.json();
-					}).then(function(data) {
-					}).catch(function(err) {
-						evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
-						var el = document.getElementById('board-js');
-						if (el) { el.textContent = 'Could not move ticket: ' + err.message; }
-					});
-				}
-			});
-		});
-		var swimlaneSelector = document.getElementById('swimlaneSelector');
-		if (swimlaneSelector) {
-			swimlaneSelector.addEventListener('change', function() {
-				var currentParams = new URLSearchParams(window.location.search);
-				currentParams.set('swimlane', this.value);
-				currentParams.set('board_view', 'swimlane');
-				window.location.search = currentParams.toString();
-			});
-		}
-		function getCookie(name) {
-			var cookieValue = null;
-			if (document.cookie && document.cookie !== '') {
-				var cookies = document.cookie.split(';');
-				for (var i = 0; i < cookies.length; i++) {
-					var cookie = cookies[i].trim();
-					if (cookie.substring(0, name.length + 1) === (name + '=')) {
-						cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-						break;
-					}
-				}
-			}
-			return cookieValue;
-		}
-	})();
-	</script>
-	<script>
-		(function(tmpl) {
-			var el = document.getElementById('board-sortable-init');
-			if (el && el.textContent && document.getElementById('boardContainer')) {
-				eval(el.textContent);
-				el.parentNode.removeChild(el);
-			}
-		})();
-	</script>
-	{% endif %}
 
-	/* Board drag-and-drop (SortableJS) */
-	{% if tab == 'active_sprint' %}
-	<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
-	<script>
-	(function() {
-		var columns = document.querySelectorAll('.board-state-body');
-		if (!columns.length) return;
-		columns.forEach(function(col) {
-			new Sortable(col, {
-				animation: 150,
-				ghostClass: 'sortable-ghost',
-				chosenClass: 'sortable-chosen',
-				draggable: '.board-ticket-card',
-				onEnd: function(evt) {
-					var ticketId = evt.item.dataset.ticketId;
-					var newState = evt.to.dataset.state;
-					if (!ticketId || !newState) return;
-					fetch('/tracking/api/tickets/' + ticketId + '/transition/', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
-						body: JSON.stringify({ state: newState })
-					}).then(function(resp) {
-						return resp.json().then(function(body) {
-							if (!resp.ok) throw new Error(body.detail || body.error || 'Transition failed');
+		var controls = document.getElementById('boardRefreshControls');
+		var toggle = document.getElementById('boardAutoRefreshToggle');
+		var intervalSelect = document.getElementById('boardRefreshInterval');
+		var refreshNowBtn = document.getElementById('boardRefreshNow');
+		var statusEl = document.getElementById('boardRefreshStatus');
+		var boardUrl = controls ? controls.dataset.boardUrl : null;
+
+		var STORAGE_ENABLED = 'smarttracking.board.autorefresh';
+		var STORAGE_INTERVAL = 'smarttracking.board.refreshinterval';
+
+		var timer = null;
+		var isDragging = false;
+		var isRefreshing = false;
+		var pendingRefresh = false;
+
+		function getCookie(name) {
+			var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+			return m ? decodeURIComponent(m[2]) : null;
+		}
+
+		function setStatus(text) {
+			if (statusEl) statusEl.textContent = text;
+		}
+
+		/* ---- drag & drop ---- */
+		function initSortable() {
+			var columns = boardContainer.querySelectorAll('.board-state-body');
+			columns.forEach(function(col) {
+				if (col.dataset.sortableBound === '1') return;
+				col.dataset.sortableBound = '1';
+				new Sortable(col, {
+					animation: 150,
+					ghostClass: 'sortable-ghost',
+					chosenClass: 'sortable-chosen',
+					dragClass: 'sortable-drag',
+					draggable: '.board-ticket-card',
+					onStart: function() { isDragging = true; },
+					onEnd: function(evt) {
+						isDragging = false;
+						var ticketId = evt.item.dataset.ticketId;
+						var newState = evt.to.dataset.state;
+						if (!ticketId || !newState) return;
+						if (evt.from === evt.to) return;
+						fetch('/tracking/api/tickets/' + ticketId + '/transition/', {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+							body: JSON.stringify({ state: newState })
+						}).then(function(resp) {
+							return resp.json().then(function(body) {
+								if (!resp.ok) throw new Error(body.detail || body.error || 'Transition failed');
+							});
+						}).then(function() {
+							refreshBoard();
+						}).catch(function(err) {
+							evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
+							alert('Could not move ticket: ' + err.message);
 						});
-					}).catch(function(err) {
-						evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] || null);
-						alert('Could not move ticket: ' + err.message);
-					});
+					}
+				});
+			});
+		}
+
+		/* ---- auto refresh ---- */
+		function boardRequestUrl() {
+			var params = new URLSearchParams(window.location.search);
+			params.delete('tab');
+			params.delete('sprint_page');
+			params.set('_', Date.now().toString());
+			return boardUrl + '?' + params.toString();
+		}
+
+		function refreshBoard() {
+			if (!boardUrl || isRefreshing) { pendingRefresh = true; return; }
+			if (isDragging || document.hidden) { pendingRefresh = true; return; }
+			isRefreshing = true;
+			setStatus('updating…');
+			fetch(boardRequestUrl(), {
+				headers: { 'X-Requested-With': 'XMLHttpRequest' },
+				credentials: 'same-origin'
+			}).then(function(resp) {
+				if (!resp.ok) throw new Error('HTTP ' + resp.status);
+				return resp.text();
+			}).then(function(html) {
+				var doc = new DOMParser().parseFromString(html, 'text/html');
+				var fresh = doc.getElementById('boardContainer');
+				if (!fresh) throw new Error('Board markup missing');
+				/* Skip the swap while the user is dragging to avoid ripping out the node. */
+				if (isDragging) return;
+				boardContainer.className = fresh.className;
+				boardContainer.innerHTML = fresh.innerHTML;
+				initSortable();
+				setStatus('updated ' + new Date().toLocaleTimeString());
+			}).catch(function(err) {
+				setStatus('refresh failed');
+				console.warn('Board refresh failed:', err);
+			}).finally(function() {
+				isRefreshing = false;
+				if (pendingRefresh && !isDragging && !document.hidden) {
+					pendingRefresh = false;
+					refreshBoard();
 				}
 			});
+		}
+
+		function stopTimer() {
+			if (timer) { clearInterval(timer); timer = null; }
+		}
+
+		function startTimer() {
+			stopTimer();
+			if (!toggle || !toggle.checked) { setStatus('paused'); return; }
+			var seconds = intervalSelect ? parseInt(intervalSelect.value, 10) : 30;
+			if (!seconds || seconds < 5) seconds = 30;
+			timer = setInterval(refreshBoard, seconds * 1000);
+			setStatus('auto refresh every ' + seconds + 's');
+		}
+
+		/* restore preferences */
+		try {
+			var savedEnabled = localStorage.getItem(STORAGE_ENABLED);
+			if (toggle && savedEnabled !== null) toggle.checked = savedEnabled === '1';
+			var savedInterval = localStorage.getItem(STORAGE_INTERVAL);
+			if (intervalSelect && savedInterval) intervalSelect.value = savedInterval;
+		} catch (e) { /* localStorage unavailable */ }
+
+		if (toggle) {
+			toggle.addEventListener('change', function() {
+				try { localStorage.setItem(STORAGE_ENABLED, this.checked ? '1' : '0'); } catch (e) {}
+				startTimer();
+				if (this.checked) refreshBoard();
+			});
+		}
+		if (intervalSelect) {
+			intervalSelect.addEventListener('change', function() {
+				try { localStorage.setItem(STORAGE_INTERVAL, this.value); } catch (e) {}
+				startTimer();
+			});
+		}
+		if (refreshNowBtn) {
+			refreshNowBtn.addEventListener('click', function() { refreshBoard(); });
+		}
+
+		document.addEventListener('visibilitychange', function() {
+			if (document.hidden) {
+				stopTimer();
+			} else {
+				startTimer();
+				if (pendingRefresh) { pendingRefresh = false; refreshBoard(); }
+			}
 		});
+		window.addEventListener('beforeunload', stopTimer);
+
 		var swimlaneSelector = document.getElementById('swimlaneSelector');
 		if (swimlaneSelector) {
 			swimlaneSelector.addEventListener('change', function() {
@@ -736,10 +789,9 @@
 				window.location.search = params.toString();
 			});
 		}
-		function getCookie(name) {
-			var m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-			return m ? decodeURIComponent(m[2]) : null;
-		}
+
+		initSortable();
+		startTimer();
 	})();
 	</script>
  	{% endif %}
