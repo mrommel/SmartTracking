@@ -3,15 +3,21 @@
 Each test patches ``_request`` to verify that the MCP tool calls the correct
 REST endpoint with the expected method, path, and parameters — without needing
 the Django dev server running.
+
+``McpWireProtocolTests`` additionally covers the *transport* path
+(``handle_call_tool`` / ``handle_list_tools``), which the tool tests above
+deliberately bypass by calling the module-level wrappers directly.
 """
 
-from unittest.mock import patch, call
-
-from django.test import TestCase
+import asyncio
+import json
+from unittest.mock import patch
 
 # Import the module-level _request so we can patch it.
 # The tools call the local _request, not the one we import.
 import mcp_server as mcp_mod
+from django.test import TestCase
+from mcp.types import CallToolRequestParams
 
 
 @patch.object(mcp_mod, "_request")
@@ -339,3 +345,107 @@ class McpToolTests(TestCase):
 	def test_delete_relation(self, mock_req):
 		mcp_mod.delete_relation(99)
 		mock_req.assert_called_once_with("DELETE", "/tickets/relations/99/delete/")
+
+
+class McpWireProtocolTests(TestCase):
+	"""Guard the MCP transport seam, not just the REST delegation.
+
+	The low-level ``Server`` invokes handlers as ``handler(ctx, params)``.  A
+	previous signature of ``handle_call_tool(name, arguments)`` meant the
+	*context object* was treated as the tool name, so every call over the wire
+	fell through to the "Unknown tool" branch — while the delegation tests above
+	stayed green because they never touch the handler.
+	"""
+
+	def _call(self, name, arguments=None):
+		# GIVEN a tools/call request as the low-level Server would deliver it
+		params = CallToolRequestParams(name=name, arguments=arguments or {})
+		# WHEN the registered handler processes it
+		return asyncio.run(mcp_mod.handle_call_tool(None, params))
+
+	def test_call_tool_dispatches_by_params_name(self):
+		# GIVEN a stubbed upstream
+		with patch.object(mcp_mod, "_request", return_value={"ok": True}) as mock_req:
+			# WHEN a tool is called through the wire handler
+			result = self._call("get_meta")
+		# THEN the correct REST endpoint is hit, not the unknown-tool branch
+		mock_req.assert_called_once_with("GET", "/meta/")
+		self.assertFalse(result.is_error)
+
+	def test_call_tool_returns_json_not_python_repr(self):
+		# GIVEN an upstream payload containing values whose repr is not JSON
+		with patch.object(mcp_mod, "_request", return_value={"id": 1, "estimation": None, "done": True}):
+			# WHEN the tool is called
+			result = self._call("get_ticket", {"ticket_id": 1})
+		# THEN the content is parseable JSON (``None``/``True`` would break it)
+		payload = json.loads(result.content[0].text)
+		self.assertEqual(payload, {"id": 1, "estimation": None, "done": True})
+		self.assertEqual(result.content[0].type, "text")
+
+	def test_call_tool_flags_upstream_error_status(self):
+		# GIVEN an upstream rejection
+		with patch.object(mcp_mod, "_request", return_value={"status": 409, "error": "illegal"}):
+			# WHEN an illegal transition is attempted
+			result = self._call("transition_ticket", {"ticket_id": 1, "state": "closed"})
+		# THEN it is surfaced as an MCP tool error, not a silent success
+		self.assertTrue(result.is_error)
+
+	def test_call_tool_rejects_missing_required_argument(self):
+		# GIVEN a call that omits a required argument
+		with patch.object(mcp_mod, "_request") as mock_req:
+			result = self._call("get_project", {})
+		# THEN no bogus request is made and the agent gets a usable error
+		self.assertFalse(mock_req.called)
+		self.assertTrue(result.is_error)
+		self.assertIn("key", json.loads(result.content[0].text)["error"])
+
+	def test_call_tool_unknown_name_is_error_with_suggestion(self):
+		# GIVEN a hallucinated near-miss tool name
+		result = self._call("get_tickets")
+		# THEN the response is an error carrying a correction hint
+		payload = json.loads(result.content[0].text)
+		self.assertTrue(result.is_error)
+		self.assertIn("get_ticket", payload["did_you_mean"])
+
+	def test_call_tool_survives_unexpected_exception(self):
+		# GIVEN an upstream that blows up
+		with patch.object(mcp_mod, "_request", side_effect=RuntimeError("boom")):
+			result = self._call("get_meta")
+		# THEN the session survives and the failure is reported as a tool error
+		self.assertTrue(result.is_error)
+		self.assertIn("boom", result.content[0].text)
+
+	def test_every_tool_advertises_an_object_input_schema(self):
+		# GIVEN the advertised tool list
+		result = asyncio.run(mcp_mod.handle_list_tools(None, None))
+		# THEN every schema is a JSON-Schema object; a bare {} makes strict
+		# clients reject the whole tools/list result and drop the session.
+		for tool in result.tools:
+			self.assertEqual((tool.input_schema or {}).get("type"), "object", tool.name)
+
+	def test_list_tools_exposes_all_tools(self):
+		# GIVEN the handler
+		result = asyncio.run(mcp_mod.handle_list_tools(None, None))
+		# THEN it mirrors the TOOLS registry
+		self.assertEqual(len(result.tools), len(mcp_mod.TOOLS))
+
+
+class McpPaginationTests(TestCase):
+	"""``list_tickets`` must be able to page instead of dumping whole projects."""
+
+	def test_list_tickets_forwards_paging_params(self):
+		# GIVEN a paged request
+		with patch.object(mcp_mod, "_request") as mock_req:
+			mcp_mod.list_tickets(project="SWG", page=2, page_size=50)
+		# THEN the page params reach the REST layer
+		mock_req.assert_called_once_with(
+			"GET", "/tickets/", params={"page": 2, "page_size": 50, "project": "SWG"},
+		)
+
+	def test_list_tickets_without_paging_is_unchanged(self):
+		# GIVEN no paging arguments
+		with patch.object(mcp_mod, "_request") as mock_req:
+			mcp_mod.list_tickets()
+		# THEN the call is identical to the legacy behaviour
+		mock_req.assert_called_once_with("GET", "/tickets/", params={})
+

@@ -11,13 +11,28 @@ Django API. Configuration comes from the environment (loaded from ``.env``):
     SMARTTRACKING_URL   base URL of the Django app   (default http://127.0.0.1:8092)
     TRACKING_API_TOKEN  bearer token for the REST API
     MCP_HOST / MCP_PORT where this MCP server listens (default 127.0.0.1:8091)
+    TRACKING_HTTP_TIMEOUT  upstream request timeout in seconds (default 15)
+
+Two transports are supported:
+
+    python mcp_server.py            # streamable HTTP on MCP_HOST:MCP_PORT/mcp
+    python mcp_server.py --stdio    # stdio, for clients that spawn a subprocess
+
+The HTTP transport runs **stateless** (no ``Mcp-Session-Id``) with JSON
+responses, so restarting this process can never strand a connected editor on a
+dead session id. ``GET /health`` reports upstream reachability.
 """
 
+import argparse
+import difflib
+import json
 import logging
 import os
 import sys
 from typing import Any
 
+import anyio
+import anyio.to_thread
 import httpx
 import uvicorn
 from mcp.server import Server
@@ -27,6 +42,8 @@ from mcp.types import (
 	TextContent,
 	Tool,
 )
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 # ── Logging setup ──────────────────────────────────────────────────────────
 # The "Failed to validate request" errors are NOT emitted via Python's logging
@@ -54,12 +71,23 @@ TOKEN = os.environ.get("TRACKING_API_TOKEN", "")
 MCP_HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 MCP_PORT = int(os.environ.get("MCP_PORT", "8091"))
 
+# Upstream (Django REST API) request timeout in seconds.  Kept low so a stalled
+# Django worker can never hold an MCP tool call open long enough for the client
+# to give up on the whole session.
+HTTP_TIMEOUT = float(os.environ.get("TRACKING_HTTP_TIMEOUT", "15"))
+
+# MCP requires `inputSchema` to be a JSON-Schema *object*.  A bare ``{}`` is
+# rejected by strict clients (opencode / Zod) while they validate the
+# `tools/list` result, which aborts the whole session before the first tool
+# call.  Zero-argument tools must therefore advertise this instead.
+NO_ARGS_SCHEMA: dict[str, Any] = {"type": "object", "properties": {}}
+
 
 def _client() -> httpx.Client:
 	headers = {"Accept": "application/json"}
 	if TOKEN:
 		headers["Authorization"] = f"Bearer {TOKEN}"
-	return httpx.Client(base_url=API, headers=headers, timeout=15)
+	return httpx.Client(base_url=API, headers=headers, timeout=HTTP_TIMEOUT)
 
 
 def _request(method: str, path: str, **kwargs: Any) -> Any:
@@ -84,12 +112,12 @@ TOOLS: list[Tool] = [
 	Tool(
 		name="get_meta",
 		description="Return ticket enums (types, states, priorities) and the state-transition graph. Call this first to learn valid values before creating/moving tickets.",
-		inputSchema={},
+		inputSchema=NO_ARGS_SCHEMA,
 	),
 	Tool(
 		name="list_projects",
 		description="List all projects.",
-		inputSchema={},
+		inputSchema=NO_ARGS_SCHEMA,
 	),
 	Tool(
 		name="get_project",
@@ -111,12 +139,14 @@ TOOLS: list[Tool] = [
 	),
 	Tool(
 		name="list_tickets",
-		description="List tickets, optionally filtered by project key and/or state value.",
+		description="List tickets, optionally filtered by project key and/or state value. Paginated: pass `page` (1-based) and `page_size` (default 25, max 100) to page through large projects instead of pulling everything at once.",
 		inputSchema={
 			"type": "object",
 			"properties": {
 				"project": {"type": "string"},
 				"state": {"type": "string"},
+				"page": {"type": "integer"},
+				"page_size": {"type": "integer"},
 			},
 		},
 	),
@@ -338,6 +368,15 @@ TOOLS: list[Tool] = [
 ]
 
 
+class MissingArgumentError(Exception):
+	"""Raised when a required tool argument is absent or uncastable."""
+
+	def __init__(self, name: str, detail: str):
+		super().__init__(detail)
+		self.name = name
+		self.detail = detail
+
+
 def _get_arg(args: dict, name: str, default: Any = None):
 	"""Get an argument from the tool call arguments, converting to int if needed."""
 	if name not in args:
@@ -350,15 +389,105 @@ def _get_arg(args: dict, name: str, default: Any = None):
 	return val
 
 
-async def handle_list_tools(*args, **kwargs) -> ListToolsResult:
+def _require(args: dict, name: str, cast: type = str):
+	"""Return a *required* argument, cast to ``cast``.
+
+	Historically call sites passed the type itself as the ``default`` of
+	``_get_arg`` (e.g. ``_get_arg(args, 'key', str)``).  When the argument was
+	missing that returned the ``str`` *class*, which then interpolated into the
+	URL as ``/projects/<class 'str'>/`` and produced a baffling 404 instead of a
+	usable error.  This helper fails loudly and structurally instead.
+	"""
+	if name not in args or args[name] is None:
+		raise MissingArgumentError(name, f"Missing required argument: '{name}'")
+	val = args[name]
+	try:
+		if cast is int and not isinstance(val, int):
+			return int(val)
+		if cast is bool and not isinstance(val, bool):
+			return str(val).lower() in ("true", "1", "yes")
+		if cast is str and not isinstance(val, str):
+			return str(val)
+	except (TypeError, ValueError) as exc:
+		raise MissingArgumentError(
+			name, f"Argument '{name}' must be of type {cast.__name__}, got {val!r}"
+		) from exc
+	return val
+
+
+def _paging(args: dict) -> dict:
+	"""Extract the optional ``page`` / ``page_size`` pagination params."""
+	params = {}
+	for key in ("page", "page_size"):
+		value = _get_arg(args, key)
+		if value is not None:
+			params[key] = int(value)
+	return params
+
+
+async def handle_list_tools(ctx: Any = None, params: Any = None) -> ListToolsResult:
+	"""``tools/list`` handler.
+
+	The low-level ``Server`` invokes registered handlers as
+	``handler(ctx, params)`` — the signature is positional, so it is pinned here
+	rather than swallowed by ``*args``.
+	"""
 	return ListToolsResult(tools=TOOLS)
 
 
-async def handle_call_tool(name: str, arguments: dict = None) -> CallToolResult:
-	if arguments is None:
-		arguments = {}
-	result = _call_tool_impl(name, arguments)
-	return CallToolResult(content=[TextContent(text=str(result))])
+async def handle_call_tool(ctx: Any = None, params: Any = None) -> CallToolResult:
+	"""``tools/call`` handler.
+
+	CRITICAL: the low-level ``Server`` calls this as ``handler(ctx, params)``
+	where ``params`` is a ``CallToolRequestParams`` carrying ``.name`` and
+	``.arguments``.  The previous signature was ``(name, arguments)``, so the
+	*context object* was used as the tool name and every single call over the
+	wire fell through to the ``Unknown tool`` branch — while the unit tests
+	(which call the module-level wrappers directly) stayed green.
+	"""
+	name = getattr(params, "name", None)
+	arguments = getattr(params, "arguments", None) or {}
+
+	if not name:
+		return _error_result("Malformed tools/call request: no tool name supplied.")
+
+	# The upstream REST call is synchronous (httpx.Client).  Running it inline
+	# would block the event loop for up to HTTP_TIMEOUT seconds, starving the
+	# streamable-HTTP transport of keep-alives and causing clients to drop the
+	# session.  Push it to a worker thread instead.
+	try:
+		result = await anyio.to_thread.run_sync(lambda: _call_tool_impl(name, arguments))
+	except MissingArgumentError as exc:
+		return _error_result(exc.detail)
+	except Exception as exc:  # noqa: BLE001 - never kill the session on a tool error
+		_logger.exception("Tool %s failed", name)
+		return _error_result(f"{type(exc).__name__}: {exc}")
+
+	return _to_result(result)
+
+
+def _json_text(payload: Any) -> str:
+	"""Serialise a tool result as JSON (never a Python ``repr``)."""
+	try:
+		return json.dumps(payload, indent=2, default=str)
+	except (TypeError, ValueError):
+		return json.dumps({"error": str(payload)})
+
+
+def _to_result(payload: Any) -> CallToolResult:
+	"""Wrap a tool payload, flagging upstream 4xx/5xx as an MCP tool error."""
+	is_error = isinstance(payload, dict) and isinstance(payload.get("status"), int) and payload["status"] >= 400
+	return CallToolResult(
+		content=[TextContent(type="text", text=_json_text(payload))],
+		is_error=is_error,
+	)
+
+
+def _error_result(message: str) -> CallToolResult:
+	return CallToolResult(
+		content=[TextContent(type="text", text=_json_text({"error": message}))],
+		is_error=True,
+	)
 
 
 def _call_tool_impl(name: str, args: dict) -> Any:
@@ -367,27 +496,27 @@ def _call_tool_impl(name: str, args: dict) -> Any:
 	elif name == "list_projects":
 		return _request("GET", "/projects/")
 	elif name == "get_project":
-		return _request("GET", f"/projects/{_get_arg(args, 'key', str)}/")
+		return _request("GET", f"/projects/{_require(args, 'key')}/")
 	elif name == "create_project":
 		return _request(
 			"POST", "/projects/",
-			json={"key": _get_arg(args, "key", str), "name": _get_arg(args, "name", str), "description": _get_arg(args, "description", "")},
+			json={"key": _require(args, "key"), "name": _require(args, "name"), "description": _get_arg(args, "description", "")},
 		)
 	elif name == "list_tickets":
-		params = {}
+		params = _paging(args)
 		if project := _get_arg(args, "project"):
 			params["project"] = project
 		if state := _get_arg(args, "state"):
 			params["state"] = state
 		return _request("GET", "/tickets/", params=params)
 	elif name == "get_ticket":
-		return _request("GET", f"/tickets/{_get_arg(args, 'ticket_id', int)}/")
+		return _request("GET", f"/tickets/{_require(args, 'ticket_id', int)}/")
 	elif name == "create_ticket":
 		return _request(
 			"POST", "/tickets/",
 			json={
-				"project": _get_arg(args, "project", str),
-				"title": _get_arg(args, "title", str),
+				"project": _require(args, "project"),
+				"title": _require(args, "title"),
 				"type": _get_arg(args, "type", "task"),
 				"priority": _get_arg(args, "priority", 2),
 				"estimation": _get_arg(args, "estimation"),
@@ -409,20 +538,20 @@ def _call_tool_impl(name: str, args: dict) -> Any:
 			}.items()
 			if v is not None
 		}
-		return _request("PATCH", f"/tickets/{_get_arg(args, 'ticket_id', int)}/", json=payload)
+		return _request("PATCH", f"/tickets/{_require(args, 'ticket_id', int)}/", json=payload)
 	elif name == "transition_ticket":
 		return _request(
-			"POST", f"/tickets/{_get_arg(args, 'ticket_id', int)}/transition/",
-			json={"state": _get_arg(args, "state", str)},
+			"POST", f"/tickets/{_require(args, 'ticket_id', int)}/transition/",
+			json={"state": _require(args, "state")},
 		)
 	elif name == "list_labels":
-		return _request("GET", "/labels/", params={"project": _get_arg(args, "project", str)})
+		return _request("GET", "/labels/", params={"project": _require(args, "project")})
 	elif name == "list_components":
-		return _request("GET", "/components/", params={"project": _get_arg(args, "project", str)})
+		return _request("GET", "/components/", params={"project": _require(args, "project")})
 	elif name == "create_component":
 		return _request(
 			"POST", "/components/",
-			json={"project": _get_arg(args, "project", str), "name": _get_arg(args, "name", str), "description": _get_arg(args, "description", "")},
+			json={"project": _require(args, "project"), "name": _require(args, "name"), "description": _get_arg(args, "description", "")},
 		)
 	elif name == "update_component":
 		payload = {
@@ -430,23 +559,23 @@ def _call_tool_impl(name: str, args: dict) -> Any:
 			for k, v in {"name": _get_arg(args, "name"), "description": _get_arg(args, "description")}.items()
 			if v is not None
 		}
-		return _request("PATCH", f"/components/{_get_arg(args, 'component_id', int)}/", json=payload)
+		return _request("PATCH", f"/components/{_require(args, 'component_id', int)}/", json=payload)
 	elif name == "delete_component":
-		return _request("DELETE", f"/components/{_get_arg(args, 'component_id', int)}/")
+		return _request("DELETE", f"/components/{_require(args, 'component_id', int)}/")
 	elif name == "create_label":
 		return _request(
 			"POST", "/labels/",
-			json={"project": _get_arg(args, "project", str), "name": _get_arg(args, "name", str), "color": _get_arg(args, "color", "secondary"), "description": _get_arg(args, "description", "")},
+			json={"project": _require(args, "project"), "name": _require(args, "name"), "color": _get_arg(args, "color", "secondary"), "description": _get_arg(args, "description", "")},
 		)
 	elif name == "list_attachments":
-		return _request("GET", "/attachments/", params={"ticket": _get_arg(args, "ticket_id", int)})
+		return _request("GET", "/attachments/", params={"ticket": _require(args, "ticket_id", int)})
 	elif name == "get_attachment":
-		return _request("GET", f"/attachments/{_get_arg(args, 'attachment_id', int)}/")
+		return _request("GET", f"/attachments/{_require(args, 'attachment_id', int)}/")
 	elif name == "delete_attachment":
-		return _request("DELETE", f"/attachments/{_get_arg(args, 'attachment_id', int)}/")
+		return _request("DELETE", f"/attachments/{_require(args, 'attachment_id', int)}/")
 	elif name == "upload_attachment":
-		ticket_id = _get_arg(args, "ticket_id", int)
-		file_path = _get_arg(args, "file_path", str)
+		ticket_id = _require(args, "ticket_id", int)
+		file_path = _require(args, "file_path")
 		with _client() as client:
 			try:
 				with open(file_path, "rb") as f:
@@ -463,14 +592,14 @@ def _call_tool_impl(name: str, args: dict) -> Any:
 			body = {"error": resp.text}
 		return {"status": resp.status_code, **body}
 	elif name == "list_sprints":
-		return _request("GET", f"/sprints/{_get_arg(args, 'project_key', str)}/")
+		return _request("GET", f"/sprints/{_require(args, 'project_key')}/")
 	elif name == "get_active_sprint_tickets":
-		return _request("GET", f"/sprints/{_get_arg(args, 'project_key', str)}/active/tickets/")
+		return _request("GET", f"/sprints/{_require(args, 'project_key')}/active/tickets/")
 	elif name == "create_sprint":
 		return _request(
-			"POST", f"/sprints/{_get_arg(args, 'project_key', str)}/create/",
+			"POST", f"/sprints/{_require(args, 'project_key')}/create/",
 			json={
-				"name": _get_arg(args, "name", str),
+				"name": _require(args, "name"),
 				"description": _get_arg(args, "description", ""),
 				"start_date": _get_arg(args, "start_date"),
 				"end_date": _get_arg(args, "end_date"),
@@ -491,23 +620,32 @@ def _call_tool_impl(name: str, args: dict) -> Any:
 			}.items()
 			if v is not None
 		}
-		return _request("PATCH", f"/sprints/{_get_arg(args, 'sprint_id', int)}/", json=payload)
+		return _request("PATCH", f"/sprints/{_require(args, 'sprint_id', int)}/", json=payload)
 	elif name == "delete_sprint":
-		return _request("DELETE", f"/sprints/{_get_arg(args, 'sprint_id', int)}/")
+		return _request("DELETE", f"/sprints/{_require(args, 'sprint_id', int)}/")
 	elif name == "close_sprint":
 		return _request(
-			"POST", f"/sprints/{_get_arg(args, 'project_key', str)}/{_get_arg(args, 'sprint_id', int)}/close/",
+			"POST", f"/sprints/{_require(args, 'project_key')}/{_require(args, 'sprint_id', int)}/close/",
 			json={"action": _get_arg(args, "action", "backlog"), "target_sprint": _get_arg(args, "target_sprint")},
 		)
 	elif name == "add_relation":
 		return _request(
-			"POST", f"/tickets/{_get_arg(args, 'ticket_id', int)}/relations/add/",
-			json={"target_id": _get_arg(args, "target_id", int), "relation_type": _get_arg(args, "relation_type", str)},
+			"POST", f"/tickets/{_require(args, 'ticket_id', int)}/relations/add/",
+			json={"target_id": _require(args, "target_id", int), "relation_type": _require(args, "relation_type")},
 		)
 	elif name == "delete_relation":
-		return _request("DELETE", f"/tickets/relations/{_get_arg(args, 'relation_id', int)}/delete/")
+		return _request("DELETE", f"/tickets/relations/{_require(args, 'relation_id', int)}/delete/")
 	else:
-		return {"error": f"Unknown tool: {name}"}
+		# Surface a suggestion so a model that hallucinated a near-miss name can
+		# self-correct on the next turn instead of retrying the same bad call.
+		known = [t.name for t in TOOLS]
+		hint = difflib.get_close_matches(str(name), known, n=3, cutoff=0.5)
+		return {
+			"status": 400,
+			"error": f"Unknown tool: {name}",
+			"did_you_mean": hint,
+			"available_tools": known,
+		}
 
 
 mcp = Server(
@@ -534,12 +672,16 @@ def get_project(key):
 def create_project(key, name, description=""):
 	return _call_tool_impl("create_project", {"key": key, "name": name, "description": description})
 
-def list_tickets(project=None, state=None):
+def list_tickets(project=None, state=None, page=None, page_size=None):
 	args = {}
 	if project:
 		args["project"] = project
 	if state:
 		args["state"] = state
+	if page is not None:
+		args["page"] = page
+	if page_size is not None:
+		args["page_size"] = page_size
 	return _call_tool_impl("list_tickets", args)
 
 def get_ticket(ticket_id):
@@ -624,10 +766,81 @@ def delete_relation(relation_id):
 	return _call_tool_impl("delete_relation", {"relation_id": relation_id})
 
 
-if __name__ == "__main__":
-	_logger.info("Starting SmartTracking MCP server on %s:%d", MCP_HOST, MCP_PORT)
+async def _health(request):
+	"""Liveness/readiness probe.
+
+	Reports whether the MCP process is up *and* whether the Django REST API it
+	proxies is reachable, so a consuming project can fail fast (``make
+	check-tracker``) instead of discovering a dead backend mid-conversation.
+	"""
+	upstream = "unknown"
+	try:
+		result = await anyio.to_thread.run_sync(lambda: _request("GET", "/meta/"))
+		upstream = "error" if isinstance(result, dict) and result.get("status", 200) >= 400 else "ok"
+	except Exception:  # noqa: BLE001
+		upstream = "unreachable"
+	status = 200 if upstream == "ok" else 503
+	return JSONResponse(
+		{"status": "ok", "upstream": upstream, "api": API, "tools": len(TOOLS)},
+		status_code=status,
+	)
+
+
+def build_http_app():
+	"""Build the streamable-HTTP ASGI app.
+
+	``stateless_http=True`` + ``json_response=True`` is the robust configuration
+	for editor clients: there is no ``Mcp-Session-Id`` to invalidate, so a server
+	restart (or an idle SSE stream timing out) can no longer strand the client
+	with 404s on a dead session — the classic "opencode exits early" symptom.
+	"""
+	return mcp.streamable_http_app(
+		streamable_http_path="/mcp",
+		json_response=True,
+		stateless_http=True,
+		host=MCP_HOST,
+		custom_starlette_routes=[Route("/health", _health, methods=["GET"])],
+	)
+
+
+async def _run_stdio():
+	"""Serve MCP over stdio, for clients that spawn the server as a subprocess."""
+	from mcp.server.stdio import stdio_server
+
+	async with stdio_server() as (read_stream, write_stream):
+		await mcp.run(read_stream, write_stream, mcp.create_initialization_options())
+
+
+def main(argv: list[str] | None = None) -> None:
+	parser = argparse.ArgumentParser(description="SmartTracking MCP server")
+	parser.add_argument(
+		"--stdio",
+		action="store_true",
+		help="serve over stdio instead of streamable HTTP (no port, no session ids)",
+	)
+	parser.add_argument("--host", default=MCP_HOST)
+	parser.add_argument("--port", type=int, default=MCP_PORT)
+	opts = parser.parse_args(argv)
+
 	_logger.info("Django API base: %s", API)
 	_logger.info("API token: %s", "set" if TOKEN else "not set")
-	# Streamable HTTP transport -> reachable at http://MCP_HOST:MCP_PORT/mcp
-	app = mcp.streamable_http_app()
-	uvicorn.run(app, host=MCP_HOST, port=MCP_PORT)
+
+	if opts.stdio:
+		# stdout is the MCP transport in this mode — logs MUST stay on stderr.
+		_logger.info("Starting SmartTracking MCP server on stdio")
+		anyio.run(_run_stdio)
+		return
+
+	_logger.info("Starting SmartTracking MCP server on %s:%d", opts.host, opts.port)
+	uvicorn.run(
+		build_http_app(),
+		host=opts.host,
+		port=opts.port,
+		# Keep idle connections alive far longer than uvicorn's 5 s default so a
+		# thinking agent does not get its transport yanked between tool calls.
+		timeout_keep_alive=120,
+	)
+
+
+if __name__ == "__main__":
+	main()

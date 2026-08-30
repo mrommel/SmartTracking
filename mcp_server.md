@@ -6,10 +6,29 @@ project can connect to it over the network and drive tickets/projects as tools.
 
 - Django app (HTML + REST API): `http://127.0.0.1:8092`
 - **MCP server (streamable HTTP): `http://127.0.0.1:8091/mcp`**
+- Health probe: `http://127.0.0.1:8091/health` (also `make mcp-health`)
 
 The implementation lives in `mcp_server.py`. Each MCP tool is a thin wrapper
 around a REST endpoint in `tracking/api.py`; all domain rules (valid enums, the
 state-transition graph, auth) stay enforced by the Django API.
+
+### Transport reliability
+
+The HTTP transport runs **stateless** (`stateless_http=True`) with **JSON
+responses** (`json_response=True`). There is no `Mcp-Session-Id`, so restarting
+the server can never strand a connected editor on a dead session id — the
+classic "the agent lost the tracker mid-conversation / exited early" symptom.
+Every request is self-contained; a client can reconnect at any time.
+
+Additional hardening:
+
+| Concern | Mitigation |
+|---------|------------|
+| Blocking event loop | Upstream REST calls run on a worker thread (`anyio.to_thread`), so a slow Django never starves the transport of keep-alives |
+| Idle disconnects | `timeout_keep_alive=120` (uvicorn's default is 5 s) |
+| Upstream stalls | `TRACKING_HTTP_TIMEOUT` (default 15 s) caps every tool call |
+| Crash loops | `make run` supervises the MCP process and restarts it after 1 s |
+| Tool exceptions | Caught and returned as an MCP tool error — never kill the session |
 
 An **OpenAPI 3.1.0 spec** is available at `GET /tracking/api/schema/` — loads
 into Swagger UI, ReDoc, or any OpenAPI viewer for a complete machine-readable
@@ -18,6 +37,7 @@ description of every endpoint, parameter, and response type.
 All collection (list) endpoints return a **paginated envelope**:
 ``{ "count": N, "pagination": {"next": …, "previous": …}, "results": [...] }``.
 Use query params ``?page=<int>&page_size=<int>`` (default 25, max 100) to navigate.
+`list_tickets` accepts `page` / `page_size` directly as tool arguments.
 
 ---
 
@@ -34,12 +54,24 @@ stops the MCP server. The MCP server authenticates to the REST API with
 
 Configuration (all optional, read from the environment / `.env`):
 
-| Variable             | Default                 | Meaning                                   |
-|----------------------|-------------------------|-------------------------------------------|
-| `SMARTTRACKING_URL`  | `http://127.0.0.1:8092` | Base URL of the Django app the tools call |
-| `TRACKING_API_TOKEN` | *(empty)*               | Bearer token used to call the REST API    |
-| `MCP_HOST`           | `127.0.0.1`             | Interface the MCP server binds            |
-| `MCP_PORT`           | `8091`                  | Port the MCP server listens on            |
+| Variable                | Default                 | Meaning                                   |
+|-------------------------|-------------------------|-------------------------------------------|
+| `SMARTTRACKING_URL`     | `http://127.0.0.1:8092` | Base URL of the Django app the tools call |
+| `TRACKING_API_TOKEN`    | *(empty)*               | Bearer token used to call the REST API    |
+| `MCP_HOST`              | `127.0.0.1`             | Interface the MCP server binds            |
+| `MCP_PORT`              | `8091`                  | Port the MCP server listens on            |
+| `TRACKING_HTTP_TIMEOUT` | `15`                    | Upstream request timeout, in seconds      |
+
+### stdio mode
+
+For clients that prefer to spawn the server as a subprocess (no port, no
+sessions, lifecycle owned by the editor):
+
+```bash
+make mcp-stdio            # or: python mcp_server.py --stdio
+```
+
+In stdio mode stdout is the transport — all logging stays on stderr.
 
 ---
 
@@ -60,15 +92,53 @@ Configuration (all optional, read from the environment / `.env`):
 | `get_active_sprint_tickets` | `GET /tracking/api/sprints/<key>/active/tickets/` | tickets of the project's active sprint; `sprint: null` + empty list when none is active |
 
 State changes go **only** through `transition_ticket` (mirroring the API);
-`update_ticket` rejects a `state` key. API errors are returned to the agent as
-`{"status": <code>, "error": "..."}` rather than raising.
+`update_ticket` rejects a `state` key.
+
+**Error contract.** Tool results are always **JSON** (never a Python `repr`).
+API errors are returned to the agent as `{"status": <code>, "error": "..."}`
+with the MCP `isError` flag set, so a client can distinguish a failed call from
+a successful one. A missing required argument is rejected locally with
+`{"error": "Missing required argument: '<name>'"}` before any HTTP request is
+made. An unknown tool name returns a `did_you_mean` list of close matches.
 
 ---
 
 ## 3. Connect a client
 
-The MCP server speaks **streamable HTTP** at `http://127.0.0.1:8091/mcp`. Point
-any MCP client at that URL.
+The MCP server speaks **streamable HTTP** at `http://127.0.0.1:8091/mcp`, or
+**stdio** via `python mcp_server.py --stdio`. Point any MCP client at either.
+
+### opencode — `opencode.json` in the consuming project
+
+Remote (server managed by `make run`):
+
+```json
+{
+  "mcp": {
+    "smarttracking": {
+      "type": "remote",
+      "url": "http://127.0.0.1:8091/mcp",
+      "enabled": true
+    }
+  }
+}
+```
+
+Local/stdio (opencode owns the lifecycle — survives tracker restarts best):
+
+```json
+{
+  "mcp": {
+    "smarttracking": {
+      "type": "local",
+      "command": ["/path/to/SmartTracking/.venv/bin/python3.12",
+                  "/path/to/SmartTracking/mcp_server.py", "--stdio"],
+      "enabled": true,
+      "environment": { "TRACKING_API_TOKEN": "{env:TRACKING_API_TOKEN}" }
+    }
+  }
+}
+```
 
 ### VS Code (Copilot agent mode) — `.vscode/mcp.json` in the consuming project
 

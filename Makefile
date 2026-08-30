@@ -13,17 +13,37 @@ $(VENV)/bin/activate: requirements.txt
 # venv is a shortcut target
 venv: $(VENV)/bin/activate
 
+MCP_PORT ?= 8091
+
 run: venv
 	# Load .env in the same subshell as runserver. POSIX `.` works on macOS /bin/sh
 	# (bash-only `source` does not). `set -a` auto-exports every variable defined
 	# while sourcing; `[ -f .env ]` keeps a missing .env silently ok.
 	# Start the MCP server (streamable HTTP, port 8091) in the background, then the
 	# Django dev server in the foreground. The trap stops the MCP server on exit.
+	# The MCP server is supervised: if it dies (bad request, OOM, upstream blip) it
+	# is restarted after 1 s instead of leaving the editor with a dead endpoint.
 	set -a; [ -f .env ] && . ./.env && set +a; \
-	./$(VENV)/bin/python3.12 mcp_server.py & \
+	( while true; do ./$(VENV)/bin/python3.12 mcp_server.py || true; \
+	    echo "[make run] MCP server exited - restarting in 1s"; sleep 1; done ) & \
 	MCP_PID=$$!; \
 	trap "kill $$MCP_PID 2>/dev/null" EXIT INT TERM; \
 	./$(VENV)/bin/python3.12 manage.py runserver 8092
+
+## Serve MCP over stdio (for clients that spawn the server as a subprocess).
+## No port, no session ids - the most robust transport for editor agents.
+mcp-stdio: venv
+	@set -a; [ -f .env ] && . ./.env && set +a; \
+	exec ./$(VENV)/bin/python3.12 mcp_server.py --stdio
+
+## Probe the running MCP server (and the Django API behind it).
+## Exits non-zero when either is down, so consuming projects can gate on it.
+mcp-health:
+	@curl -fsS http://127.0.0.1:$(MCP_PORT)/health \
+	  && echo "" \
+	  || (echo "MCP server not healthy on port $(MCP_PORT) - run 'make run'"; exit 1)
+
+.PHONY: run mcp-stdio mcp-health
 
 clean:
 	rm -rf $(VENV)
