@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import sys
+import time
 from typing import Any
 
 import anyio
@@ -90,11 +91,33 @@ def _client() -> httpx.Client:
 	return httpx.Client(base_url=API, headers=headers, timeout=HTTP_TIMEOUT)
 
 
+# A stopped/restarting Django dev server refuses connections for a moment.
+# Retry idempotent-looking transport failures a couple of times before giving
+# up, then report a readable error instead of an httpx traceback.
+_TRANSPORT_RETRIES = 2
+_TRANSPORT_RETRY_DELAY = 0.5
+
+
 def _request(method: str, path: str, **kwargs: Any) -> Any:
 	"""Call the REST API and return parsed JSON, surfacing errors to the agent."""
 	_logger.debug("API %s %s %s", method, path, kwargs.get("json", kwargs.get("params", {})))
-	with _client() as client:
-		resp = client.request(method, path, **kwargs)
+	last_exc: httpx.HTTPError | None = None
+	resp = None
+	for attempt in range(_TRANSPORT_RETRIES + 1):
+		try:
+			with _client() as client:
+				resp = client.request(method, path, **kwargs)
+			break
+		except httpx.HTTPError as exc:
+			last_exc = exc
+			_logger.warning(
+				"API %s %s transport error (attempt %d/%d): %s",
+				method, path, attempt + 1, _TRANSPORT_RETRIES + 1, exc,
+			)
+			if attempt < _TRANSPORT_RETRIES:
+				time.sleep(_TRANSPORT_RETRY_DELAY)
+	if resp is None:
+		return _upstream_unreachable(method, path, last_exc)
 	try:
 		body = resp.json()
 	except ValueError:
@@ -104,6 +127,22 @@ def _request(method: str, path: str, **kwargs: Any) -> Any:
 		return {"status": resp.status_code, **body}
 	_logger.debug("API %s %s -> %d", method, path, resp.status_code)
 	return body
+
+
+def _upstream_unreachable(method: str, path: str, exc: httpx.HTTPError | None) -> dict[str, Any]:
+	"""Return a structured, actionable error for a failed upstream connection."""
+	reason = f"{type(exc).__name__}: {exc}" if exc is not None else "unknown transport error"
+	_logger.error("API %s %s unreachable: %s", method, path, reason)
+	kind = "timeout" if isinstance(exc, httpx.TimeoutException) else "connection"
+	return {
+		"status": 503,
+		"error": f"SmartTracking API at {BASE_URL} is unreachable ({kind} error).",
+		"detail": reason,
+		"hint": (
+			"The Django app is not running (or SMARTTRACKING_URL points elsewhere). "
+			"Start it with `make run` in the SmartTracking project, then retry."
+		),
+	}
 
 
 # ── Tool definitions ───────────────────────────────────────────────────────

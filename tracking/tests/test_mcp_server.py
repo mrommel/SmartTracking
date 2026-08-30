@@ -16,6 +16,7 @@ from unittest.mock import patch
 # Import the module-level _request so we can patch it.
 # The tools call the local _request, not the one we import.
 import mcp_server as mcp_mod
+import httpx
 from django.test import TestCase
 from mcp.types import CallToolRequestParams
 
@@ -428,6 +429,75 @@ class McpWireProtocolTests(TestCase):
 		result = asyncio.run(mcp_mod.handle_list_tools(None, None))
 		# THEN it mirrors the TOOLS registry
 		self.assertEqual(len(result.tools), len(mcp_mod.TOOLS))
+
+
+class McpUpstreamUnreachableTests(TestCase):
+	"""A stopped Django app must yield a readable 503, never an httpx traceback."""
+
+	def _fail(self, exc):
+		return patch.object(mcp_mod, "_client", side_effect=exc)
+
+	def test_request_retries_then_reports_connection_error(self):
+		# GIVEN an upstream that always refuses the connection
+		with patch.object(mcp_mod, "_TRANSPORT_RETRY_DELAY", 0), self._fail(httpx.ConnectError("refused")):
+			payload = mcp_mod._request("GET", "/meta/")
+		# THEN the tool gets an actionable error instead of an exception
+		self.assertEqual(payload["status"], 503)
+		self.assertIn("unreachable", payload["error"])
+		self.assertIn("make run", payload["hint"])
+
+	def test_request_retries_before_giving_up(self):
+		# GIVEN an upstream that recovers on the last attempt
+		attempts = []
+
+		def flaky():
+			attempts.append(1)
+			if len(attempts) < 3:
+				raise httpx.ConnectError("refused")
+			return _StubClient({"ok": True})
+
+		with patch.object(mcp_mod, "_TRANSPORT_RETRY_DELAY", 0), patch.object(mcp_mod, "_client", side_effect=flaky):
+			payload = mcp_mod._request("GET", "/meta/")
+		# THEN the transient failure is absorbed
+		self.assertEqual(payload, {"ok": True})
+		self.assertEqual(len(attempts), 3)
+
+	def test_timeout_is_reported_as_timeout(self):
+		# GIVEN a stalled upstream
+		with patch.object(mcp_mod, "_TRANSPORT_RETRY_DELAY", 0), self._fail(httpx.ReadTimeout("slow")):
+			payload = mcp_mod._request("GET", "/meta/")
+		# THEN the error names the timeout kind
+		self.assertIn("timeout", payload["error"])
+
+	def test_unreachable_upstream_is_flagged_as_tool_error(self):
+		# GIVEN a tool call against a dead upstream
+		with patch.object(mcp_mod, "_TRANSPORT_RETRY_DELAY", 0), self._fail(httpx.ConnectError("refused")):
+			result = asyncio.run(
+				mcp_mod.handle_call_tool(None, CallToolRequestParams(name="get_meta", arguments={}))
+			)
+		# THEN the session survives and the client sees the 503 payload
+		self.assertTrue(result.is_error)
+		self.assertEqual(json.loads(result.content[0].text)["status"], 503)
+
+
+class _StubClient:
+	"""Minimal ``httpx.Client`` stand-in usable as a context manager."""
+
+	def __init__(self, payload, status_code=200):
+		self._payload = payload
+		self.status_code = status_code
+
+	def __enter__(self):
+		return self
+
+	def __exit__(self, *exc_info):
+		return False
+
+	def request(self, *args, **kwargs):
+		return self
+
+	def json(self):
+		return self._payload
 
 
 class McpPaginationTests(TestCase):
