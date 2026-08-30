@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Database backups (make backup / manage.py backup_db)
+backups/

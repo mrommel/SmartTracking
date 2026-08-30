@@ -29,6 +29,7 @@ Django 6.1 issue/ticket tracker. Single app (`tracking/`) under the `setup/` pro
 - Run dev server (loads `.env`, port 8092) **and the bundled MCP server (port 8091)**: `make run`
 - Create/apply migrations: `make makemigrations` (note: hardcodes `sqlmigrate tracking 0001` — update the migration number) / `make migrate`
 - Translations: `make preparetranslations` then `make compiletranslations` (locale at `tracking/locale/`)
+- Database backup: `make backup` (optionally `make backup KEEP=30`) → writes `backups/yyyy-mm-dd db.sqlite3.zip` via the `backup_db` management command (`tracking/management/commands/backup_db.py`, SQLite online-backup snapshot; `backups/` is gitignored). Flags: `--output-dir`, `--keep N`, `--no-overwrite`, `--database`.
 - Rebuild venv: `make clean && make venv`
 - Direct manage.py calls must use the venv interpreter: `./.venv/bin/python3.12 manage.py <cmd>`.
 

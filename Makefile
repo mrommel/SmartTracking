@@ -57,6 +57,17 @@ makemigrations: venv
 migrate: venv
 	./$(VENV)/bin/python3.12 manage.py migrate
 
+# backup
+
+# Zip the SQLite DB into backups/yyyy-mm-dd db.sqlite3.zip.
+# Override retention: make backup KEEP=30 (0 = keep everything)
+KEEP ?= 0
+
+backup: venv
+	./$(VENV)/bin/python3.12 manage.py backup_db --keep $(KEEP)
+
+.PHONY: backup
+
 # translations
 
 preparetranslations: venv
