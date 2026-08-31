@@ -1,5 +1,5 @@
 from django.urls import path
-from . import meta, projects, tickets, comments, components, labels, attachments, sprints, schema, active_sprints, watchers, notifications, relations, worklogs
+from . import meta, projects, tickets, comments, components, labels, attachments, sprints, schema, active_sprints, watchers, notifications, worklogs
 
 urlpatterns = [
 	# Schema & Meta

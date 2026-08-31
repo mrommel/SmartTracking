@@ -1,13 +1,12 @@
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
-from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from . import _common as api
-from tracking.models import Ticket, Comment, Attachment, Sprint, WorkLog
-from tracking.forms import TicketForm, WorkLogForm
+from tracking.models import Ticket, TicketRelation
+from tracking.forms import WorkLogForm
 from tracking.queryset_helpers import build_ticket_queryset
 
 @api.require_http_methods(['GET', 'POST'])
@@ -187,14 +186,29 @@ def ticket_relations_add(request, id):
 		return JsonResponse({'error': 'Target ticket not found'}, status=404)
 	if ticket.project != target.project:
 		return JsonResponse({'error': 'Tickets must be in the same project'}, status=400)
-	from tracking.models import TicketRelation
-	relation = TicketRelation.objects.create(subject=ticket, target=target, relation_type=relation_type)
-	return JsonResponse({'id': relation.pk, 'type': relation.type}, status=201)
+	if ticket.pk == target.pk:
+		return JsonResponse({'error': 'A ticket cannot be related to itself'}, status=400)
+	if relation_type not in Ticket.RelationType.values:
+		return JsonResponse({
+			'error': 'Invalid relation type',
+			'allowed_types': list(Ticket.RelationType.values),
+		}, status=400)
+	relation = TicketRelation(subject=ticket, target=target, relation_type=relation_type)
+	try:
+		relation.full_clean()
+	except ValidationError as exc:
+		return JsonResponse({'error': 'Relation not allowed', 'detail': exc.messages}, status=409)
+	relation.save()
+	return JsonResponse({
+		'id': relation.pk,
+		'subject': ticket.pk,
+		'target': target.pk,
+		'type': relation.relation_type,
+	}, status=201)
 
 @api.require_http_methods(['DELETE'])
 @csrf_exempt
 def ticket_relations_delete(request, pk):
-	from tracking.models import TicketRelation
 	relation = TicketRelation.objects.filter(pk=pk).first()
 	if not relation:
 		return JsonResponse({'error': 'Not found'}, status=404)

@@ -596,43 +596,6 @@ class ComponentApiTests(TestCase):
 		self.assertEqual(response.status_code, 404)
 
 
-@override_settings(TRACKING_API_TOKEN=TOKEN)
-class TicketRelationApiTests(TestCase):
-	@classmethod
-	def setUpTestData(cls):
-		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
-		cls.ticket_a = Ticket.objects.create(project=cls.project, title="Ticket A")
-		cls.ticket_b = Ticket.objects.create(project=cls.project, title="Ticket B")
-
-	def _auth(self):
-		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
-
-	def test_delete_relation_not_found(self):
-		response = self.client.delete(
-			reverse("api_ticket_relation_delete", args=[999]),
-			**self._auth(),
-		)
-		self.assertEqual(response.status_code, 404)
-
-	def test_delete_relation_removes_relation_and_reverse(self):
-		relation = TicketRelation.objects.create(
-			subject=self.ticket_a, target=self.ticket_b,
-			relation_type=Ticket.RelationType.BLOCKED_BY,
-		)
-		relation_pk = relation.pk
-		# The symmetric "blocks" counterpart is created on save()
-		reverse_rel = TicketRelation.objects.get(
-			subject=self.ticket_b, target=self.ticket_a,
-			relation_type=Ticket._REVERSE_LABELS[Ticket.RelationType.BLOCKED_BY],
-		)
-		response = self.client.delete(
-			reverse("api_ticket_relation_delete", args=[relation_pk]),
-			**self._auth(),
-		)
-		self.assertEqual(response.status_code, 200)
-		self.assertFalse(TicketRelation.objects.filter(pk=relation_pk).exists())
-		self.assertFalse(TicketRelation.objects.filter(pk=reverse_rel.pk).exists())
-
 
 @override_settings(TRACKING_API_TOKEN=TOKEN)
 class EpicApiTests(TestCase):
@@ -909,7 +872,6 @@ class NotificationApiTests(TestCase):
 		self.assertIn("results", data)
 
 	def test_list_notifications_returns_data(self):
-		from tracking.models import Notification
 		self.client.force_login(self.user)
 		Notification.objects.create(
 			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
@@ -924,7 +886,6 @@ class NotificationApiTests(TestCase):
 		self.assertEqual(data["count"], 1)
 
 	def test_list_notifications_unfiltered(self):
-		from tracking.models import Notification
 		Notification.objects.create(
 			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
 			verb=Notification.Verb.COMMENTED, read=True,
@@ -936,7 +897,6 @@ class NotificationApiTests(TestCase):
 		self.assertEqual(len(data["results"]), 1)
 
 	def test_list_notifications_unread_filter(self):
-		from tracking.models import Notification
 		self.client.force_login(self.user)
 		Notification.objects.create(
 			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
@@ -948,7 +908,6 @@ class NotificationApiTests(TestCase):
 		self.assertTrue(all(r["read"] is False for r in data["results"]))
 
 	def test_list_notifications_pagination(self):
-		from tracking.models import Notification
 		self.client.force_login(self.user)
 		for i in range(5):
 			t = Ticket.objects.create(project=self.project, title=f"Ticket {i}")
@@ -961,7 +920,6 @@ class NotificationApiTests(TestCase):
 		self.assertIsNotNone(data["pagination"]["next"])
 
 	def test_mark_single_notification_read(self):
-		from tracking.models import Notification
 		self.client.force_login(self.user)
 		notif = Notification.objects.create(
 			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
@@ -983,7 +941,6 @@ class NotificationApiTests(TestCase):
 		self.assertEqual(resp.status_code, 404)
 
 	def test_mark_all_notifications_read(self):
-		from tracking.models import Notification
 		self.client.force_login(self.user)
 		t = Ticket.objects.create(project=self.project, title="Other")
 		Notification.objects.create(ticket=self.ticket, recipient=self.user, verb=Notification.Verb.COMMENTED, read=False)
@@ -995,7 +952,6 @@ class NotificationApiTests(TestCase):
 		self.assertEqual(Notification.objects.filter(recipient=self.user, read=False).count(), 0)
 
 	def test_delete_notification(self):
-		from tracking.models import Notification
 		self.client.force_login(self.user)
 		notif = Notification.objects.create(
 			ticket=self.ticket, recipient=self.user, actor=self.reviewer,
@@ -1009,7 +965,6 @@ class NotificationApiTests(TestCase):
 		self.assertEqual(Notification.objects.count(), 0)
 
 	def test_delete_others_notification_404(self):
-		from tracking.models import Notification
 		self.client.force_login(self.user)
 		notif = Notification.objects.create(
 			ticket=self.ticket, recipient=self.reviewer, actor=self.reviewer,
@@ -1044,7 +999,6 @@ class WatcherApiTests(TestCase):
 		self.assertEqual(data["count"], 0)
 
 	def test_list_watchers_with_data(self):
-		from tracking.models import Watcher
 		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
 		resp = self.client.get(reverse("api_watcher_list", args=[self.ticket.pk]), **self._auth())
 		data = resp.json()
@@ -1061,11 +1015,9 @@ class WatcherApiTests(TestCase):
 		self.assertEqual(resp.status_code, 200)
 		data = resp.json()
 		self.assertEqual(data["status"], "added")
-		from tracking.models import Watcher
 		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.watcher).count(), 1)
 
 	def test_add_watcher_already_exists(self):
-		from tracking.models import Watcher
 		self.client.force_login(self.user)
 		Watcher.objects.create(ticket=self.ticket, user=self.watcher)
 		resp = self.client.post(
@@ -1084,7 +1036,6 @@ class WatcherApiTests(TestCase):
 		self.assertEqual(resp.status_code, 400)
 
 	def test_remove_watcher(self):
-		from tracking.models import Watcher
 		w = Watcher.objects.create(ticket=self.ticket, user=self.watcher)
 		resp = self.client.delete(
 			reverse("api_watcher_remove", args=[self.ticket.pk, self.watcher.pk]),
@@ -1108,7 +1059,6 @@ class WatcherApiTests(TestCase):
 		self.assertEqual(data["count"], 0)
 
 	def test_workspace_watchers_with_data(self):
-		from tracking.models import Watcher
 		self.client.force_login(self.user)
 		Watcher.objects.create(ticket=self.ticket, user=self.user)
 		resp = self.client.get(reverse("api_watcher_workspace_list"))
@@ -1125,7 +1075,6 @@ class WatcherApiTests(TestCase):
 		self.assertEqual(resp.status_code, 200)
 		data = resp.json()
 		self.assertEqual(data["status"], "added")
-		from tracking.models import Watcher
 		self.assertEqual(Watcher.objects.filter(ticket=self.ticket, user=self.user).count(), 1)
 
 	def test_add_workspace_watcher_invalid_ticket(self):
@@ -1137,7 +1086,6 @@ class WatcherApiTests(TestCase):
 		self.assertEqual(resp.status_code, 404)
 
 	def test_remove_workspace_watcher(self):
-		from tracking.models import Watcher
 		self.client.force_login(self.user)
 		w = Watcher.objects.create(ticket=self.ticket, user=self.user)
 		resp = self.client.delete(
@@ -1149,4 +1097,105 @@ class WatcherApiTests(TestCase):
 	def test_workspace_watchers_requires_auth(self):
 		resp = self.client.get(reverse("api_watcher_workspace_list"))
 		self.assertEqual(resp.status_code, 401)
+
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
+class ApiTicketRelationTests(TestCase):
+	"""Covers POST /tickets/<id>/relations/add/ and DELETE /tickets/relations/<pk>/delete/."""
+
+	def setUp(self):
+		self.user = User.objects.create_user("relator", password="pw")
+		self.project = Project.objects.create(key="REL", name="Relations")
+		self.other_project = Project.objects.create(key="OTH", name="Other")
+		self.ticket_a = Ticket.objects.create(project=self.project, title="A")
+		self.ticket_b = Ticket.objects.create(project=self.project, title="B")
+		self.client.force_login(self.user)
+
+	def _add(self, ticket, payload):
+		return self.client.post(
+			reverse("api_ticket_relation_add", args=[ticket.pk]),
+			data=json.dumps(payload),
+			content_type="application/json",
+		)
+
+	def test_add_relation_returns_201(self):
+		resp = self._add(self.ticket_a, {"target_id": self.ticket_b.pk, "type": "blocked_by"})
+		self.assertEqual(resp.status_code, 201)
+		data = resp.json()
+		self.assertEqual(data["type"], "blocked_by")
+		self.assertEqual(data["subject"], self.ticket_a.pk)
+		self.assertEqual(data["target"], self.ticket_b.pk)
+		self.assertTrue(TicketRelation.objects.filter(pk=data["id"]).exists())
+
+	def test_add_relation_creates_symmetric_counterpart(self):
+		self._add(self.ticket_a, {"target_id": self.ticket_b.pk, "type": "blocked_by"})
+		self.assertTrue(
+			TicketRelation.objects.filter(
+				subject=self.ticket_b, target=self.ticket_a
+			).exists()
+		)
+
+	def test_add_relation_missing_target_returns_400(self):
+		resp = self._add(self.ticket_a, {"type": "related_to"})
+		self.assertEqual(resp.status_code, 400)
+
+	def test_add_relation_unknown_ticket_returns_404(self):
+		resp = self.client.post(
+			reverse("api_ticket_relation_add", args=[999999]),
+			data=json.dumps({"target_id": self.ticket_b.pk}),
+			content_type="application/json",
+		)
+		self.assertEqual(resp.status_code, 404)
+
+	def test_add_relation_unknown_target_returns_404(self):
+		resp = self._add(self.ticket_a, {"target_id": 999999})
+		self.assertEqual(resp.status_code, 404)
+
+	def test_add_relation_cross_project_returns_400(self):
+		foreign = Ticket.objects.create(project=self.other_project, title="F")
+		resp = self._add(self.ticket_a, {"target_id": foreign.pk})
+		self.assertEqual(resp.status_code, 400)
+
+	def test_add_relation_to_self_returns_400(self):
+		resp = self._add(self.ticket_a, {"target_id": self.ticket_a.pk})
+		self.assertEqual(resp.status_code, 400)
+
+	def test_add_relation_invalid_type_returns_400(self):
+		resp = self._add(self.ticket_a, {"target_id": self.ticket_b.pk, "type": "nope"})
+		self.assertEqual(resp.status_code, 400)
+		self.assertIn("allowed_types", resp.json())
+
+	def test_add_duplicate_relation_returns_409(self):
+		self._add(self.ticket_a, {"target_id": self.ticket_b.pk, "type": "blocked_by"})
+		resp = self._add(self.ticket_a, {"target_id": self.ticket_b.pk, "type": "related_to"})
+		self.assertEqual(resp.status_code, 409)
+
+	def test_add_relation_requires_auth(self):
+		self.client.logout()
+		resp = self._add(self.ticket_a, {"target_id": self.ticket_b.pk})
+		self.assertEqual(resp.status_code, 401)
+
+	def test_delete_relation_removes_both_directions(self):
+		created = self._add(
+			self.ticket_a, {"target_id": self.ticket_b.pk, "type": "blocked_by"}
+		).json()
+		# The symmetric "blocks" counterpart is created on save()
+		reverse_rel = TicketRelation.objects.get(
+			subject=self.ticket_b,
+			target=self.ticket_a,
+			relation_type=Ticket._REVERSE_LABELS[Ticket.RelationType.BLOCKED_BY],
+		)
+		resp = self.client.delete(
+			reverse("api_ticket_relation_delete", args=[created["id"]])
+		)
+		self.assertEqual(resp.status_code, 200)
+		self.assertFalse(TicketRelation.objects.filter(pk=created["id"]).exists())
+		self.assertFalse(TicketRelation.objects.filter(pk=reverse_rel.pk).exists())
+		self.assertEqual(TicketRelation.objects.count(), 0)
+
+	def test_delete_unknown_relation_returns_404(self):
+		resp = self.client.delete(
+			reverse("api_ticket_relation_delete", args=[999999])
+		)
+		self.assertEqual(resp.status_code, 404)
 
