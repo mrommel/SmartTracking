@@ -22,6 +22,9 @@ def _build_board_context(project, request):
 	board_view = request.GET.get('board_view', 'kanban')
 	swimlane_mode = request.GET.get('swimlane', '')
 
+	# Show/hide closed column on the board
+	show_closed = request.GET.get('show_closed') != '1'
+
 	active_sprint = project.sprints.filter(is_active=True).first()
 
 	# WIP limits: defaults overridable via ?wip__<state>=<n>
@@ -53,6 +56,8 @@ def _build_board_context(project, request):
 		for t in tickets:
 			state_ticket_map.setdefault(t.state, []).append(t)
 		for state in Ticket.State:
+			if not show_closed and state == Ticket.State.CLOSED:
+				continue
 			state_tickets = state_ticket_map.get(state.value, [])
 			wip_text, wip_over, wip_exceeded = _wip_flags(state, state_tickets)
 			state_ticket_tuples.append({'state': state, 'tickets': state_tickets, 'wip_text': wip_text, 'wip_over': wip_over, 'wip_exceeded': wip_exceeded})
@@ -76,12 +81,16 @@ def _build_board_context(project, request):
 					state_ticket_map_grp.setdefault(t.state, []).append(t)
 				lane_tickets = []
 				for state in Ticket.State:
+					if not show_closed and state == Ticket.State.CLOSED:
+						continue
 					state_tickets = state_ticket_map_grp.get(state.value, [])
 					wip_text, wip_over, wip_exceeded = _wip_flags(state, state_tickets)
 					lane_tickets.append({'state': state, 'tickets': state_tickets, 'wip_text': wip_text, 'wip_over': wip_over, 'wip_exceeded': wip_exceeded})
 				swimlane_groups.append((grp_name, lane_tickets))
 	else:
 		for state in Ticket.State:
+			if not show_closed and state == Ticket.State.CLOSED:
+				continue
 			state_ticket_tuples.append({'state': state, 'tickets': [], 'wip_text': '', 'wip_over': False, 'wip_exceeded': False})
 
 	wip_limit_texts = {item['state'].value: item['wip_text'] for item in state_ticket_tuples}
@@ -95,6 +104,7 @@ def _build_board_context(project, request):
 		'wip_limit_texts': wip_limit_texts,
 		'swimlane_groups': swimlane_groups if swimlane_mode else [],
 		'today': timezone.localdate(),
+		'show_closed': show_closed,
 	}
 
 @login_required
@@ -222,32 +232,40 @@ def project_detail(request, pk):
 		})
 
 	elif tab == 'backlog':
- 		# Tickets without a sprint (backlog)
- 		tickets_without_sprint = project.tickets.filter(sprint__isnull=True).select_related('assignee').order_by('backlog_order', '-created_at')
+		# Filter: show_closed toggle
+		show_closed = request.GET.get('show_closed') != '1'
 
- 		# Filter: show_closed toggle
- 		show_closed = request.GET.get('show_closed') != '1'
+		# Tickets without a sprint (backlog)
+		tickets_qs = project.tickets.filter(sprint__isnull=True).select_related('assignee').order_by('backlog_order', '-created_at')
+		if not show_closed:
+			tickets_without_sprint = tickets_qs.exclude(state=Ticket.State.CLOSED)
+		else:
+			tickets_without_sprint = tickets_qs
 
- 		# Sprint ticket lists (all non-backlog sprints with their tickets) — paginated
- 		sprint_qs = project.sprints.exclude(pk=1).order_by('order')
- 		page_num_sprint = int(request.GET.get('sprint_page', 1))
- 		paginator_sprint = Paginator(sprint_qs, 10)
- 		try:
- 			sprint_page = paginator_sprint.page(page_num_sprint)
- 		except Exception:
- 			sprint_page = paginator_sprint.page(1)
- 		sprint_ticket_list = []
- 		for sprint in sprint_page:
- 			sprint_tickets = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
- 			sprint_ticket_list.append((sprint, sprint_tickets))
+		# Sprint ticket lists (all non-backlog sprints with their tickets) — paginated
+		sprint_qs = project.sprints.exclude(pk=1).order_by('order')
+		page_num_sprint = int(request.GET.get('sprint_page', 1))
+		paginator_sprint = Paginator(sprint_qs, 10)
+		try:
+			sprint_page = paginator_sprint.page(page_num_sprint)
+		except Exception:
+			sprint_page = paginator_sprint.page(1)
+		sprint_ticket_list = []
+		for sprint in sprint_page:
+			sprint_tickets_qs = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
+			if not show_closed:
+				sprint_tickets = sprint_tickets_qs.exclude(state=Ticket.State.CLOSED)
+			else:
+				sprint_tickets = sprint_tickets_qs
+			sprint_ticket_list.append((sprint, sprint_tickets))
 
- 		context.update({
- 			'tickets_without_sprint': tickets_without_sprint,
- 			'show_closed': show_closed,
- 			'sprint_ticket_list': sprint_ticket_list,
- 			'sprint_page': sprint_page,
- 			'sprint_paginator': paginator_sprint,
- 		})
+		context.update({
+			'tickets_without_sprint': tickets_without_sprint,
+			'show_closed': show_closed,
+			'sprint_ticket_list': sprint_ticket_list,
+			'sprint_page': sprint_page,
+			'sprint_paginator': paginator_sprint,
+		})
 
 	elif tab == 'active_sprint':
 		board_view = request.GET.get('board_view', 'kanban')

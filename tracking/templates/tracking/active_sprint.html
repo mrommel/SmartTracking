@@ -22,6 +22,7 @@
 			<div class="d-flex gap-1">
 				<a class="btn btn-sm btn-outline-secondary {% if board_view != 'swimlane' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view=kanban">Kanban</a>
 				<a class="btn btn-sm btn-outline-secondary {% if board_view == 'swimlane' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view=swimlane">Swimlane</a>
+				<a class="btn btn-sm btn-outline-secondary" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view={{ board_view|default:'kanban' }}&swimlane={{ swimlane_mode }}&show_closed={{ show_closed|yesno:'1,0' }}">{{ show_closed|yesno:"Hide closed, Show closed" }}</a>
 			</div>
 			<div class="d-flex gap-3 align-items-center">
 				{% if board_view == 'swimlane' %}

@@ -33,6 +33,7 @@ def sprint_edit(request, project_pk, sprint_pk):
 
 @login_required
 def sprint_close(request, project_pk, sprint_pk):
+	project = get_object_or_404(Project, pk=project_pk)
 	sprint = get_object_or_404(Sprint, pk=sprint_pk, project_id=project_pk)
 	if request.method == 'POST':
 		form = SprintCloseForm(request.POST, project=project, exclude_sprint=sprint)
