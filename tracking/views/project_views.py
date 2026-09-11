@@ -165,7 +165,7 @@ def project_detail(request, pk):
 	# Shared context: recent tickets
 	tickets = project.tickets.all().select_related('assignee').order_by('-created_at')
 
-	context = {'project': project, 'tickets': tickets, 'tab': tab}
+	context = {'title': project.name, 'project': project, 'tickets': tickets, 'tab': tab}
 
 	if tab == 'overview':
 		from django.utils import timezone
