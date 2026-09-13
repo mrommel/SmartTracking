@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.core.paginator import Paginator
 from django.core.exceptions import ValidationError
 from . import _common as api
-from tracking.models import Ticket, TicketRelation
+from tracking.models import Ticket, TicketRelation, Sprint
 from tracking.forms import WorkLogForm
 from tracking.queryset_helpers import build_ticket_queryset
 
@@ -143,7 +143,14 @@ def detail(request, pk):
 		updatable = ['title', 'description', 'priority', 'assignee', 'due_date', 'estimation', 'sprint']
 		for field in updatable:
 			if field in data:
-				setattr(ticket, field, data[field])
+				if field == 'sprint':
+					sprint_id = data[field]
+					if sprint_id:
+						ticket.sprint = get_object_or_404(Sprint, pk=sprint_id)
+					else:
+						ticket.sprint = None
+				else:
+					setattr(ticket, field, data[field])
 		if 'parent_epic' in data:
 			pe_id = data['parent_epic']
 			if pe_id:

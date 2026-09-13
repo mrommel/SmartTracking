@@ -1199,3 +1199,50 @@ class ApiTicketRelationTests(TestCase):
 		)
 		self.assertEqual(resp.status_code, 404)
 
+
+@override_settings(TRACKING_API_TOKEN=TOKEN)
+class TicketSprintPatchTests(TestCase):
+	@classmethod
+	def setUpTestData(cls):
+		cls.project = Project.objects.create(key="SMT", name="SmartTracking")
+
+	def _auth(self):
+		return {"HTTP_AUTHORIZATION": f"Bearer {TOKEN}"}
+
+	def _patch(self, url, payload):
+		return self.client.patch(
+			url,
+			data=json.dumps(payload),
+			content_type="application/json",
+			**self._auth(),
+		)
+
+	def test_patch_updates_sprint(self):
+		sprint = Sprint.objects.create(project=self.project, name="Sprint 1")
+		ticket = Ticket.objects.create(project=self.project, title="t")
+		response = self._patch(
+			reverse("api_ticket_detail", args=[ticket.pk]),
+			{"sprint": sprint.pk},
+		)
+		self.assertEqual(response.status_code, 200)
+		ticket.refresh_from_db()
+		self.assertEqual(ticket.sprint, sprint)
+
+	def test_patch_clears_sprint(self):
+		sprint = Sprint.objects.create(project=self.project, name="Sprint 1")
+		ticket = Ticket.objects.create(project=self.project, title="t", sprint=sprint)
+		response = self._patch(
+			reverse("api_ticket_detail", args=[ticket.pk]),
+			{"sprint": None},
+		)
+		self.assertEqual(response.status_code, 200)
+		ticket.refresh_from_db()
+		self.assertIsNone(ticket.sprint)
+
+	def test_patch_sprint_not_found_returns_404(self):
+		ticket = Ticket.objects.create(project=self.project, title="t")
+		response = self._patch(
+			reverse("api_ticket_detail", args=[ticket.pk]),
+			{"sprint": 999999},
+		)
+		self.assertEqual(response.status_code, 404)
