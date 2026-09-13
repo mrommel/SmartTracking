@@ -658,18 +658,28 @@
 			columns.forEach(function(col) {
 				if (col.dataset.sortableBound === '1') return;
 				col.dataset.sortableBound = '1';
+				// The combined "Draft & Blocked" column shows the tickets together
+				// but is NOT itself a valid drop target (its state "draft_blocked"
+				// is not a real ticket state). Cards can be dragged *out* of it, but
+				// must be dropped onto one of the two landing slots (Draft/Blocked).
+				var isCombinedBody = col.dataset.state === 'draft_blocked';
 				new Sortable(col, {
 					animation: 150,
 					// Shared group lets cards be dragged *between* columns
 					// (required for the state-transition drop to fire).
-					group: 'board',
+					group: { name: 'board', pull: true, put: !isCombinedBody },
 					ghostClass: 'sortable-ghost',
 					chosenClass: 'sortable-chosen',
 					dragClass: 'sortable-drag',
 					draggable: '.board-ticket-card',
-					onStart: function() { isDragging = true; },
+					onStart: function() {
+						isDragging = true;
+						// Reveal the Draft/Blocked landing slots (JIRA-style).
+						boardContainer.classList.add('board-dragging');
+					},
 					onEnd: function(evt) {
 						isDragging = false;
+						boardContainer.classList.remove('board-dragging');
 						var ticketId = evt.item.dataset.ticketId;
 						var newState = evt.to.dataset.state;
 						if (!ticketId || !newState) return;

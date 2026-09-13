@@ -17,7 +17,7 @@
 						</span>
 						<a href="{% url 'ticket_create' %}?project={{ project.key }}&state={{ state.value }}{% if swimlane_mode %}&swimlane={{ swimlane_mode }}{% endif %}" class="btn btn-sm btn-outline-secondary py-0">+</a>
 					</div>
-					<div class="board-state-body" data-state="{{ state.value }}">
+					<div class="board-state-body {% if state.value == 'draft_blocked' %}board-combined-body{% endif %}" data-state="{{ state.value }}">
 						{% for ticket in tickets %}
 						<div class="board-ticket-card" data-ticket-id="{{ ticket.pk }}" data-state="{{ state.value }}" data-swimlane="{{ swimlane_name|lower|cut:' ' }}">
 							<div class="ticket-title">
@@ -44,6 +44,16 @@
 						<div class="empty-column-placeholder">No tickets</div>
 						{% endfor %}
 					</div>
+					{% if state.value == 'draft_blocked' %}
+					<div class="board-combined-slots" aria-hidden="true">
+						<div class="board-state-body board-drop-slot draft-slot" data-state="draft">
+							<span class="drop-slot-label">Draft</span>
+						</div>
+						<div class="board-state-body board-drop-slot blocked-slot" data-state="blocked">
+							<span class="drop-slot-label">Blocked</span>
+						</div>
+					</div>
+					{% endif %}
 				</div>
 				{% endwith %}
 				{% endfor %}
@@ -61,7 +71,7 @@
 			</span>
 			<a href="{% url 'ticket_create' %}?project={{ project.key }}&state={{ state.value }}{% if board_view == 'swimlane' and swimlane_mode %}&swimlane={{ swimlane_mode }}&board_view=swimlane{% endif %}" class="btn btn-sm btn-outline-secondary py-0">+</a>
 		</div>
-		<div class="board-state-body" data-state="{{ state.value }}">
+		<div class="board-state-body {% if state.value == 'draft_blocked' %}board-combined-body{% endif %}" data-state="{{ state.value }}">
 			{% for ticket in tickets %}
 			<div class="board-ticket-card" data-ticket-id="{{ ticket.pk }}" data-state="{{ state.value }}">
 				<div class="ticket-title">
@@ -88,6 +98,16 @@
 			<div class="empty-column-placeholder">No tickets</div>
 			{% endfor %}
 		</div>
+		{% if state.value == 'draft_blocked' %}
+		<div class="board-combined-slots" aria-hidden="true">
+			<div class="board-state-body board-drop-slot draft-slot" data-state="draft">
+				<span class="drop-slot-label">Draft</span>
+			</div>
+			<div class="board-state-body board-drop-slot blocked-slot" data-state="blocked">
+				<span class="drop-slot-label">Blocked</span>
+			</div>
+		</div>
+		{% endif %}
 	</div>
 	{% endwith %}
 	{% endfor %}

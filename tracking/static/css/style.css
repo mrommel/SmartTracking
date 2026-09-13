@@ -1063,6 +1063,57 @@ html {
 	transform: rotate(2deg);
 }
 
+/* Combined "Draft & Blocked" column: dual landing slots (JIRA-style).
+   The slots are hidden until a drag starts, then split the column into two
+   labeled drop targets so the user picks the concrete target state. */
+.board-combined-slots {
+	display: none;
+	flex-direction: column;
+	gap: 6px;
+	padding: 6px;
+}
+
+.board-dragging .board-combined-slots {
+	display: flex;
+}
+
+.board-dragging .board-combined-body {
+	display: none;
+}
+
+.board-drop-slot {
+	min-height: 70px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 2px dashed var(--atlas-grey-muted);
+	border-radius: 4px;
+	background-color: rgba(255, 255, 255, 0.5);
+	transition: border-color 0.1s ease, background-color 0.1s ease;
+}
+
+.board-drop-slot.draft-slot {
+	border-color: var(--atlas-orange);
+}
+
+.board-drop-slot.blocked-slot {
+	border-color: #d04437;
+}
+
+.board-drop-slot.sortable-ghost,
+.board-drop-slot.drag-over {
+	background-color: var(--atlas-orange-light);
+}
+
+.board-drop-slot .drop-slot-label {
+	font-size: 0.75rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--atlas-grey-text);
+	pointer-events: none;
+}
+
 .board-ticket-card {
 	margin: 0 6px 6px 6px;
 	padding: 8px 10px;
