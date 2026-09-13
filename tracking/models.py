@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from django.conf import settings
 from django.db import models
 from django.db.models import Count, Q
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.utils.timezone import localdate
 
@@ -372,6 +373,8 @@ class Ticket(models.Model):
 		SUBTASK = "subtask", _("Sub-task")
 
 	class State(models.TextChoices):
+		DRAFT = "draft", _("Draft")
+		BLOCKED = "blocked", _("Blocked")
 		OPEN = "open", _("Open")
 		IN_PROGRESS = "in_progress", _("In Progress")
 		RESOLVED = "resolved", _("Resolved")
@@ -379,10 +382,12 @@ class Ticket(models.Model):
 
 	# Allowed simple state transitions (from -> list of reachable states).
 	TRANSITIONS = {
-		State.OPEN: [State.IN_PROGRESS, State.CLOSED],
-		State.IN_PROGRESS: [State.RESOLVED, State.OPEN],
-		State.RESOLVED: [State.CLOSED, State.IN_PROGRESS],
-		State.CLOSED: [State.OPEN],
+		State.DRAFT: [State.OPEN, State.CLOSED],
+		State.BLOCKED: [State.OPEN, State.CLOSED],
+		State.OPEN: [State.IN_PROGRESS, State.CLOSED, State.DRAFT],
+		State.IN_PROGRESS: [State.RESOLVED, State.OPEN, State.BLOCKED],
+		State.RESOLVED: [State.CLOSED, State.IN_PROGRESS, State.BLOCKED],
+		State.CLOSED: [State.OPEN, State.DRAFT],
 	}
 
 	class Priority(models.IntegerChoices):
@@ -419,7 +424,7 @@ class Ticket(models.Model):
 		_("type"), max_length=20, choices=Type.choices, default=Type.TASK
 	)
 	state = models.CharField(
-		_("state"), max_length=20, choices=State.choices, default=State.OPEN
+		_("state"), max_length=20, choices=State.choices, default=State.DRAFT
 	)
 	priority = models.IntegerField(
 		_("priority"), choices=Priority.choices, default=Priority.MEDIUM
