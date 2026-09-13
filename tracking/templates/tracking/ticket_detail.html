@@ -5,6 +5,7 @@
 	<nav aria-label="breadcrumb">
 		<ol class="breadcrumb">
 			<li class="breadcrumb-item"><a href="{% url 'ticket_list' %}">Tickets</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'project_detail' ticket.project.pk %}?tab=active_sprint">{{ ticket.project.name }}</a></li>
 			<li class="breadcrumb-item active">{{ ticket.project.key }}</li>
 		</ol>
 	</nav>

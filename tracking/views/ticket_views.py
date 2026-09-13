@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.shortcuts import render, redirect, get_object_or_404
-from tracking.models import Ticket, Sprint, Comment, Attachment, Label, Component, SavedFilter, WorkLog
+from tracking.models import Ticket, Sprint, Comment, Attachment, Label, Component, SavedFilter, WorkLog, Project
 from tracking.forms import TicketForm, TicketTransitionForm, CommentForm, AttachmentForm, WorkLogForm
 from django.http import JsonResponse, HttpResponseForbidden, FileResponse
 from django.views.decorators.http import require_http_methods
@@ -11,6 +11,7 @@ from tracking.queryset_helpers import build_ticket_queryset, SORT_MAP
 
 @login_required
 def ticket_list(request, project_key: str = None):
+	project = get_object_or_404(Project, key=project_key)
 	qs = build_ticket_queryset(request, project_key=project_key)
 
 	# Sorting values needed by the template for the sort-header links.
@@ -45,6 +46,7 @@ def ticket_list(request, project_key: str = None):
 		saved_filters = saved_filters.filter(project__key=project_key)
 
 	return render(request, 'tracking/ticket_list.html', {
+		'title': f'{project.key} Tickets',
 		'tickets': qs,
 		'order': order,
 		'sort': sort_field,
@@ -78,10 +80,12 @@ def ticket_delete(request, project_pk, pk):
 @login_required
 def ticket_detail(request, pk):
 	ticket = get_object_or_404(Ticket.objects.select_related('sprint', 'parent_epic', 'assignee'), pk=pk)
+	project = get_object_or_404(Project, key=ticket.project.key)
 	attachments = list(ticket.attachments.all())
 	image_attachments = [a for a in attachments if a.is_image]
 	non_image_attachments = [a for a in attachments if not a.is_image]
 	return render(request, 'tracking/ticket_detail.html', {
+		'title': f'Ticket {project.key}-{ticket.pk}',
 		'ticket': ticket,
 		'attachments': attachments,
 		'image_attachments': image_attachments,

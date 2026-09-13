@@ -10,7 +10,7 @@
 				{% for item in lane_items %}
 				{% with state=item.state tickets=item.tickets wip_text=item.wip_text wip_over=item.wip_over wip_exceeded=item.wip_exceeded %}
 				<div class="board-state-column {% if wip_exceeded %}wip-exceeded{% endif %}" data-state="{{ state.value }}">
-					<div class="board-state-header {% if state.value == 'closed' %}close-border{% elif state.value == 'open' %}open-border{% elif state.value == 'in_progress' %}progress-border{% elif state.value == 'resolved' %}resolved-border{% endif %} {% if wip_over %}wip-over{% else %}normal{% endif %}">
+					<div class="board-state-header {% if state.value == 'closed' %}close-border{% elif state.value == 'open' %}open-border{% elif state.value == 'in_progress' %}progress-border{% elif state.value == 'resolved' %}resolved-border{% elif state.value == 'draft_blocked' %}draft-blocked-border{% endif %} {% if wip_over %}wip-over{% else %}normal{% endif %}">
 						<span>
 							{{ state.label }}
 							<span class="wip-limit-indicator">{{ tickets|length }}{% if wip_text and wip_text != 'inf' and tickets|length > wip_text %}/{{ wip_text }}{% endif %}</span>
@@ -54,7 +54,7 @@
 	{% for item in state_ticket_tuples %}
 	{% with state=item.state tickets=item.tickets wip_text=item.wip_text wip_over=item.wip_over wip_exceeded=item.wip_exceeded %}
 	<div class="board-state-column {% if wip_exceeded %}wip-exceeded{% endif %}" data-state="{{ state.value }}">
-		<div class="board-state-header {% if state.value == 'closed' %}close-border{% elif state.value == 'open' %}open-border{% elif state.value == 'in_progress' %}progress-border{% elif state.value == 'resolved' %}resolved-border{% endif %} {% if wip_over %}wip-over{% else %}normal{% endif %}">
+		<div class="board-state-header {% if state.value == 'closed' %}close-border{% elif state.value == 'open' %}open-border{% elif state.value == 'in_progress' %}progress-border{% elif state.value == 'resolved' %}resolved-border{% elif state.value == 'draft_blocked' %}draft-blocked-border{% endif %} {% if wip_over %}wip-over{% else %}normal{% endif %}">
 			<span>
 				{{ state.label }}
 				<span class="wip-limit-indicator">{{ tickets|length }}{% if wip_text and wip_text != 'inf' and tickets|length > wip_text %}/{{ wip_text }}{% endif %}</span>

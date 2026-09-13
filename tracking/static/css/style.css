@@ -70,7 +70,7 @@ body {
 	white-space: nowrap;
 	display: inline-flex;
 	align-items: center;
-	transition: background-color 0.1s ease;
+	transition: background-color 0.1s ease, border-color 0.1s ease;
 }
 
 .navbar .nav-link:hover,
@@ -1043,6 +1043,10 @@ html {
 	border-bottom-color: var(--atlas-green);
 }
 
+.board-state-header.draft-blocked-border {
+	border-bottom-color: var(--atlas-orange);
+}
+
 .board-state-body {
 	flex: 1;
 	min-height: 60px;
@@ -1340,4 +1344,6 @@ html {
  	background-color: #e9ecef !important;
  	color: #495057 !important;
  }
+
+
 

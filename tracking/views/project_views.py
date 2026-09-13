@@ -7,6 +7,7 @@ from django.views.decorators.cache import cache_page
 from tracking.models import Project, Ticket
 from tracking.forms import ProjectForm
 from django.db.models import Count, Q
+from types import SimpleNamespace
 
 # Default WIP limits per state for the active-sprint board
 _DEFAULT_WIP_LIMITS = {
@@ -15,6 +16,48 @@ _DEFAULT_WIP_LIMITS = {
 	'resolved': 4,
 	'closed': 0,
 }
+
+def _build_columns(state_ticket_map, show_closed, wip_limits):
+	"""Build column items, combining DRAFT and BLOCKED into a single column."""
+	_state_groups = [
+		[Ticket.State.DRAFT, Ticket.State.BLOCKED],
+		Ticket.State.OPEN,
+		Ticket.State.IN_PROGRESS,
+		Ticket.State.RESOLVED,
+		Ticket.State.CLOSED,
+	]
+	
+	columns = []
+	for group in _state_groups:
+		if not isinstance(group, list):
+			group = [group]
+		
+		if not show_closed and Ticket.State.CLOSED in group:
+			continue
+		
+		combined_tickets = []
+		for state in group:
+			combined_tickets.extend(state_ticket_map.get(state.value, []))
+		
+		if len(group) > 1:
+			state_obj = SimpleNamespace(value='draft_blocked', label='Draft & Blocked')
+		else:
+			state_obj = group[0]
+		
+		wip_text = wip_limits.get(state_obj.value, '')
+		if wip_text and len(combined_tickets) > wip_text:
+			wip_over, wip_exceeded = True, True
+		else:
+			wip_over, wip_exceeded = wip_text != '', False
+		
+		columns.append({
+			'state': state_obj,
+			'tickets': combined_tickets,
+			'wip_text': wip_text,
+			'wip_over': wip_over,
+			'wip_exceeded': wip_exceeded,
+		})
+	return columns
 
 def _build_board_context(project, request):
 	"""Build the Kanban/swimlane board context for the active-sprint tab."""
@@ -42,12 +85,6 @@ def _build_board_context(project, request):
 	state_ticket_tuples = []
 	swimlane_groups = []
 
-	def _wip_flags(state, tickets):
-		wip_text = wip_limits.get(state.value, '')
-		if wip_text and len(tickets) > wip_text:
-			return wip_text, True, True
-		return wip_text, wip_text != '', False
-
 	if active_sprint:
 		tickets_qs = active_sprint.tickets.select_related('project', 'assignee', 'parent_epic').order_by('-priority', 'created_at')
 		tickets = list(tickets_qs)
@@ -55,12 +92,8 @@ def _build_board_context(project, request):
 		state_ticket_map = {}
 		for t in tickets:
 			state_ticket_map.setdefault(t.state, []).append(t)
-		for state in Ticket.State:
-			if not show_closed and state == Ticket.State.CLOSED:
-				continue
-			state_tickets = state_ticket_map.get(state.value, [])
-			wip_text, wip_over, wip_exceeded = _wip_flags(state, state_tickets)
-			state_ticket_tuples.append({'state': state, 'tickets': state_tickets, 'wip_text': wip_text, 'wip_over': wip_over, 'wip_exceeded': wip_exceeded})
+		
+		state_ticket_tuples = _build_columns(state_ticket_map, show_closed, wip_limits)
 
 		if swimlane_mode:
 			group_map = {}
@@ -79,19 +112,10 @@ def _build_board_context(project, request):
 				state_ticket_map_grp = {}
 				for t in grp_tickets:
 					state_ticket_map_grp.setdefault(t.state, []).append(t)
-				lane_tickets = []
-				for state in Ticket.State:
-					if not show_closed and state == Ticket.State.CLOSED:
-						continue
-					state_tickets = state_ticket_map_grp.get(state.value, [])
-					wip_text, wip_over, wip_exceeded = _wip_flags(state, state_tickets)
-					lane_tickets.append({'state': state, 'tickets': state_tickets, 'wip_text': wip_text, 'wip_over': wip_over, 'wip_exceeded': wip_exceeded})
+				lane_tickets = _build_columns(state_ticket_map_grp, show_closed, wip_limits)
 				swimlane_groups.append((grp_name, lane_tickets))
 	else:
-		for state in Ticket.State:
-			if not show_closed and state == Ticket.State.CLOSED:
-				continue
-			state_ticket_tuples.append({'state': state, 'tickets': [], 'wip_text': '', 'wip_over': False, 'wip_exceeded': False})
+		state_ticket_tuples = _build_columns({}, show_closed, wip_limits)
 
 	wip_limit_texts = {item['state'].value: item['wip_text'] for item in state_ticket_tuples}
 
@@ -389,4 +413,8 @@ def project_create(request):
 	else:
 		form = ProjectForm()
 	return render(request, 'tracking/project_form.html', {'form': form, 'title': 'Create project'})
+
+
+
+
 
