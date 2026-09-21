@@ -268,6 +268,8 @@ def project_detail(request, pk):
 
 		# Sprint ticket lists (all non-backlog sprints with their tickets) — paginated
 		sprint_qs = project.sprints.exclude(pk=1).order_by('order')
+		if not show_closed:
+			sprint_qs = sprint_qs.filter(is_active=True)
 		page_num_sprint = int(request.GET.get('sprint_page', 1))
 		paginator_sprint = Paginator(sprint_qs, 10)
 		try:
@@ -295,11 +297,16 @@ def project_detail(request, pk):
 		board_view = request.GET.get('board_view', 'kanban')
 		swimlane_mode = request.GET.get('swimlane', '')
 
+		# Show/hide closed sprints on the sidebar
+		show_closed = request.GET.get('show_closed') != '1'
+
 		# Find the active sprint for this project
 		active_sprint = project.sprints.filter(is_active=True).first()
 
 		# All sprints with their tickets (for the sidebar) — paginated
 		sprint_qs = project.sprints.order_by('-order')
+		if not show_closed:
+			sprint_qs = sprint_qs.filter(is_active=True)
 		page_num_sprint = int(request.GET.get('sprint_page', 1))
 		paginator_sprint = Paginator(sprint_qs, 10)
 		try:
@@ -326,6 +333,7 @@ def project_detail(request, pk):
 			'sprint_paginator': paginator_sprint,
 			'board_view': board_view,
 			'swimlane_mode': swimlane_mode,
+			'show_closed': show_closed,
 		})
 		context.update(_build_board_context(project, request))
 
@@ -413,8 +421,6 @@ def project_create(request):
 	else:
 		form = ProjectForm()
 	return render(request, 'tracking/project_form.html', {'form': form, 'title': 'Create project'})
-
-
 
 
 
