@@ -507,7 +507,7 @@
 
 {% endif %}
 
-	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+	<script src="{% static 'js/chart.umd.min.js' %}"></script>
 	<script>
 	{% if tab == 'overview' %}
 	(function() {
@@ -622,7 +622,7 @@
 	{# Board drag-and-drop (SortableJS) + auto refresh #}
 	{% if tab == 'active_sprint' %}
 	<div id="board-js" class="d-none"></div>
-	<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+	<script src="{% static 'js/Sortable.min.js' %}"></script>
 	<script>
 	(function() {
 		var boardContainer = document.getElementById('boardContainer');
@@ -811,7 +811,7 @@
 
  	{# Backlog drag-to-reorder (SortableJS) #}
  	{% if tab == 'backlog' %}
- 	<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+ 	<script src="{% static 'js/Sortable.min.js' %}"></script>
  	<script>
  	(function() {
  		var tbody = document.getElementById('backlog-tbody');
