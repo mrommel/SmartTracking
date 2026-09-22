@@ -269,9 +269,9 @@ class SprintCloseForm(forms.Form):
 	"""Close a sprint with options for ticket handling."""
 
 	ACTIONS = [
-		("backlog", _("Move unassigned tickets to backlog")),
-		("sprint", _("Move unassigned tickets to another sprint")),
-		("keep", _("Leave tickets in sprint")),
+		("backlog", _("Move non-closed tickets to backlog (closed tickets stay linked)")),
+		("sprint", _("Move non-closed tickets to another sprint (closed tickets stay linked)")),
+		("keep", _("Leave non-closed tickets in sprint (closed tickets stay linked)")),
 	]
 
 	action = forms.ChoiceField(

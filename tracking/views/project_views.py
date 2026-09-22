@@ -257,7 +257,7 @@ def project_detail(request, pk):
 
 	elif tab == 'backlog':
 		# Filter: show_closed toggle
-		show_closed = request.GET.get('show_closed') != '1'
+		show_closed = request.GET.get('show_closed') == '1'
 
 		# Tickets without a sprint (backlog)
 		tickets_qs = project.tickets.filter(sprint__isnull=True).select_related('assignee').order_by('backlog_order', '-created_at')
@@ -269,7 +269,7 @@ def project_detail(request, pk):
 		# Sprint ticket lists (all non-backlog sprints with their tickets) — paginated
 		sprint_qs = project.sprints.exclude(pk=1).order_by('order')
 		if not show_closed:
-			sprint_qs = sprint_qs.filter(is_active=True)
+			sprint_qs = sprint_qs.filter(is_closed=False)
 		page_num_sprint = int(request.GET.get('sprint_page', 1))
 		paginator_sprint = Paginator(sprint_qs, 10)
 		try:
@@ -279,10 +279,10 @@ def project_detail(request, pk):
 		sprint_ticket_list = []
 		for sprint in sprint_page:
 			sprint_tickets_qs = project.tickets.filter(sprint=sprint).select_related('assignee').order_by('-created_at')
-			if not show_closed:
-				sprint_tickets = sprint_tickets_qs.exclude(state=Ticket.State.CLOSED)
-			else:
+			if show_closed:
 				sprint_tickets = sprint_tickets_qs
+			else:
+				sprint_tickets = sprint_tickets_qs.exclude(state=Ticket.State.CLOSED)
 			sprint_ticket_list.append((sprint, sprint_tickets))
 
 		context.update({
@@ -298,7 +298,7 @@ def project_detail(request, pk):
 		swimlane_mode = request.GET.get('swimlane', '')
 
 		# Show/hide closed sprints on the sidebar
-		show_closed = request.GET.get('show_closed') != '1'
+		show_closed = request.GET.get('show_closed') == '1'
 
 		# Find the active sprint for this project
 		active_sprint = project.sprints.filter(is_active=True).first()
@@ -306,7 +306,7 @@ def project_detail(request, pk):
 		# All sprints with their tickets (for the sidebar) — paginated
 		sprint_qs = project.sprints.order_by('-order')
 		if not show_closed:
-			sprint_qs = sprint_qs.filter(is_active=True)
+			sprint_qs = sprint_qs.filter(is_closed=False)
 		page_num_sprint = int(request.GET.get('sprint_page', 1))
 		paginator_sprint = Paginator(sprint_qs, 10)
 		try:

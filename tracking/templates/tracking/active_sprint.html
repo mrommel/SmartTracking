@@ -22,7 +22,7 @@
 			<div class="d-flex gap-1">
 				<a class="btn btn-sm btn-outline-secondary {% if board_view != 'swimlane' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view=kanban">Kanban</a>
 				<a class="btn btn-sm btn-outline-secondary {% if board_view == 'swimlane' %}active{% endif %}" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view=swimlane">Swimlane</a>
-				<a class="btn btn-sm btn-outline-secondary" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view={{ board_view|default:'kanban' }}&swimlane={{ swimlane_mode }}&show_closed={{ show_closed|yesno:'1,0' }}">{{ show_closed|yesno:"Hide closed, Show closed" }}</a>
+				<a class="btn btn-sm btn-outline-secondary" href="{% url 'project_detail' project.pk %}?tab=active_sprint&board_view={{ board_view|default:'kanban' }}&swimlane={{ swimlane_mode }}&show_closed={{ show_closed|yesno:'1,0' }}">{{ show_closed|yesno:"Show closed, Hide closed" }}</a>
 			</div>
 			<div class="d-flex gap-3 align-items-center">
 				{% if board_view == 'swimlane' %}
@@ -145,34 +145,3 @@
 		<a class="btn btn-outline-primary" href="{% url 'project_detail' project.pk %}?tab=backlog">View all tickets</a>
 	</div>
 {% endif %}
-
-<hr class="my-4">
-<div class="row g-3">
-	<div class="col-12 col-lg-4">
-		<div class="sidebar">
-			<div class="d-flex justify-content-between align-items-center mb-3">
-				<h4 class="mb-0">Sprints</h4>
-				<a class="btn btn-outline-primary btn-sm" href="{% url 'sprint_create' project.pk %}">+ Add Sprint</a>
-			</div>
-
-			{% if sprint_ticket_lists %}
-			{% for sprint, tickets in sprint_ticket_lists %}
-			<div class="mb-4">
-				<div class="d-flex justify-content-between align-items-center mb-2">
-					<h6 class="mb-0">{{ sprint.name }}</h6>
-					<a href="{% url 'sprint_close' project.pk sprint.pk %}" class="btn btn-sm btn-outline-danger">Close</a>
-				</div>
-				<p class="text-muted small mb-1">{{ sprint.description|default:"" }}</p>
-				<div class="d-flex gap-2 flex-wrap">
-					{% for state, count_label in sprint_state_counts %}
-					<span class="badge bg-secondary">{{ state.label|default:state }} ({{ count_label }})</span>
-					{% endfor %}
-				</div>
-			</div>
-			{% endfor %}
-			{% else %}
-			<p class="text-muted small">No closed or inactive sprints yet.</p>
-			{% endif %}
-		</div>
-	</div>
-</div>

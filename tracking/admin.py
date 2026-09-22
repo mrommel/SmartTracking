@@ -97,7 +97,7 @@ class TicketActivityAdmin(admin.ModelAdmin):
 
 @admin.register(Sprint)
 class SprintAdmin(admin.ModelAdmin):
-	list_display = ("name", "project", "start_date", "end_date", "created_at")
+	list_display = ("name", "project", "start_date", "end_date", "is_active", "is_closed")
 	list_filter = ("project",)
 	search_fields = ("name",)
 	autocomplete_fields = ("project",)

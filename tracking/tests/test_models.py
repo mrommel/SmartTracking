@@ -263,6 +263,25 @@ class SprintModelTests(TestCase):
 		sprint.refresh_from_db()
 		self.assertFalse(sprint.is_active)
 
+	def test_close_with_action_backlog_closed_tickets_stay(self):
+		"""Closed tickets should remain linked to the sprint."""
+		sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+		closed_ticket = Ticket.objects.create(
+			project=self.project, title="closed", state=Ticket.State.CLOSED, sprint=sprint
+		)
+		open_ticket = Ticket.objects.create(
+			project=self.project, title="open", state=Ticket.State.OPEN, sprint=sprint
+		)
+		sprint.close_with_action("backlog")
+		closed_ticket.refresh_from_db()
+		open_ticket.refresh_from_db()
+		# Closed ticket stays linked to sprint
+		self.assertEqual(closed_ticket.sprint, sprint)
+		# Open ticket moves to backlog
+		self.assertIsNone(open_ticket.sprint)
+		sprint.refresh_from_db()
+		self.assertFalse(sprint.is_active)
+
 	def test_close_with_action_keep(self):
 		sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
 		ticket = Ticket.objects.create(project=self.project, title="t", sprint=sprint)
@@ -270,6 +289,24 @@ class SprintModelTests(TestCase):
 		sprint.close_with_action("keep")
 		ticket = Ticket.objects.get(pk=ticket_id)
 		self.assertEqual(ticket.sprint, sprint)
+
+	def test_close_with_action_keep_closed_tickets_stay(self):
+		"""Closed tickets should remain linked to the sprint with keep action."""
+		sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+		closed_ticket = Ticket.objects.create(
+			project=self.project, title="closed", state=Ticket.State.CLOSED, sprint=sprint
+		)
+		open_ticket = Ticket.objects.create(
+			project=self.project, title="open", state=Ticket.State.OPEN, sprint=sprint
+		)
+		sprint.close_with_action("keep")
+		closed_ticket.refresh_from_db()
+		open_ticket.refresh_from_db()
+		# Both tickets stay in sprint
+		self.assertEqual(closed_ticket.sprint, sprint)
+		self.assertEqual(open_ticket.sprint, sprint)
+		sprint.refresh_from_db()
+		self.assertFalse(sprint.is_active)
 
 	def test_close_with_action_sprint(self):
 		target = Sprint.objects.create(project=self.project, name="Next Sprint", is_active=True)
@@ -279,6 +316,26 @@ class SprintModelTests(TestCase):
 		sprint.close_with_action("sprint", target.pk)
 		ticket = Ticket.objects.get(pk=ticket_id)
 		self.assertEqual(ticket.sprint, target)
+
+	def test_close_with_action_sprint_closed_tickets_stay(self):
+		"""Closed tickets should remain linked to the sprint when moving to another sprint."""
+		target = Sprint.objects.create(project=self.project, name="Next Sprint", is_active=True)
+		sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
+		closed_ticket = Ticket.objects.create(
+			project=self.project, title="closed", state=Ticket.State.CLOSED, sprint=sprint
+		)
+		open_ticket = Ticket.objects.create(
+			project=self.project, title="open", state=Ticket.State.OPEN, sprint=sprint
+		)
+		sprint.close_with_action("sprint", target.pk)
+		closed_ticket.refresh_from_db()
+		open_ticket.refresh_from_db()
+		# Closed ticket stays in original sprint
+		self.assertEqual(closed_ticket.sprint, sprint)
+		# Open ticket moves to target sprint
+		self.assertEqual(open_ticket.sprint, target)
+		sprint.refresh_from_db()
+		self.assertFalse(sprint.is_active)
 
 	def test_multiple_projects_one_active_each(self):
 		other = Project.objects.create(key="OTH", name="Other")

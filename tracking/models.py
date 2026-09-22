@@ -61,6 +61,7 @@ class Sprint(models.Model):
 	end_date = models.DateField(_("end date"), null=True, blank=True)
 	order = models.PositiveIntegerField(_("order"), default=0)
 	is_active = models.BooleanField(_("is active"), default=False)
+	is_closed = models.BooleanField(_("is closed"), default=False)
 	created_at = models.DateTimeField(_("created at"), auto_now_add=True)
 
 	class Meta:
@@ -91,6 +92,7 @@ class Sprint(models.Model):
 			"start_date": self.start_date.isoformat() if self.start_date else None,
 			"end_date": self.end_date.isoformat() if self.end_date else None,
 			"is_active": self.is_active,
+			"is_closed": self.is_closed,
 			"order": self.order,
 			"created_at": self.created_at.isoformat() if self.created_at else None,
 		}
@@ -112,6 +114,12 @@ class Sprint(models.Model):
 				raise ValidationError({
 					"is_active": _("At most one active sprint per project."),
 				})
+		# is_active and is_closed are mutually exclusive.
+		if self.is_active and self.is_closed:
+			raise ValidationError({
+				"is_active": _("A sprint cannot be both active and closed."),
+				"is_closed": _("A sprint cannot be both active and closed."),
+			})
 
 	def save(self, *args: Any, **kwargs: Any) -> None:
 		# At most one active sprint per project at a time.
@@ -120,6 +128,9 @@ class Sprint(models.Model):
 				project=self.project,
 				is_active=True,
 			).exclude(pk=self.pk).update(is_active=False)
+		# Ensure mutual exclusivity: closing a sprint deactivates it.
+		if self.is_closed:
+			self.is_active = False
 		super().save(*args, **kwargs)
 
 	def is_active_sprint(self) -> bool:
@@ -129,11 +140,12 @@ class Sprint(models.Model):
 		).exists()
 
 	def close(self) -> None:
-		"""Close this sprint: deactivate it and set end_date to today."""
+		"""Close this sprint: deactivate it, set end_date to today, and mark as closed."""
 		from django.utils import timezone
 		self.is_active = False
+		self.is_closed = True
 		self.end_date = timezone.localdate()
-		self.save(update_fields=["is_active", "end_date"])
+		self.save(update_fields=["is_active", "is_closed", "end_date"])
 
 	def close_with_action(self, action: str = "backlog", target_sprint_id: int | None = None) -> None:
 		"""Close this sprint with an action for its tickets.
@@ -144,7 +156,8 @@ class Sprint(models.Model):
 		- "keep": leave tickets as-is
 		"""
 		from django.utils import timezone
-		tickets = self.tickets.filter(sprint=self)
+		# Only move non-closed tickets; closed tickets stay linked to the sprint
+		tickets = self.tickets.filter(sprint=self).exclude(state=Ticket.State.CLOSED)
 		if action == "backlog":
 			tickets.update(sprint=None)
 		elif action == "sprint":
@@ -152,8 +165,9 @@ class Sprint(models.Model):
 				tickets.update(sprint_id=target_sprint_id)
 		# "keep" does nothing to tickets
 		self.is_active = False
+		self.is_closed = True
 		self.end_date = timezone.localdate()
-		self.save(update_fields=["is_active", "end_date"])
+		self.save(update_fields=["is_active", "is_closed", "end_date"])
 
 	@property
 	def duration_days(self) -> int | None:

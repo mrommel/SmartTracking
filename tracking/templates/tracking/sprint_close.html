@@ -17,7 +17,8 @@
 		<div class="card-body">
 			<p class="text-muted mb-4">
 				Closing the sprint will deactivate it and set its end date to today.
-				Choose what should happen to the tickets assigned to this sprint:
+				<strong>Closed tickets (state=CLOSED) will remain linked to this sprint.</strong>
+				Choose what should happen to the <strong>non-closed tickets</strong> assigned to this sprint:
 			</p>
 
 			<form method="post" action="{% url 'sprint_close' project.pk sprint.pk %}">
