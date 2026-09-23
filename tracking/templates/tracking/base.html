@@ -12,18 +12,7 @@
 	<link rel="manifest" href="{% static 'icons/site.webmanifest' %}">
 	<link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
 	<link href="{% static 'css/tracking.css' %}" rel="stylesheet">
-	<script>
-		/* ── Dark mode: apply before render to avoid FOUC ── */
-		(function() {
-			var stored = localStorage.getItem('theme');
-			if (stored === 'dark' || stored === 'light') {
-				document.documentElement.setAttribute('data-bs-theme', stored);
-			} else {
-				document.documentElement.setAttribute('data-bs-theme',
-					window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-			}
-		})();
-	</script>
+	<script src="{% static 'js/tracking.js' %}"></script>
 	</head>
 <body>
 <nav class="navbar flex-nowrap">
@@ -184,29 +173,6 @@
  			});
  		});
  	})();
-  </script>
-  <script>
-  	(function() {
-  		var toggle = document.getElementById('themeToggle');
-  		var icon = document.getElementById('themeIcon');
-  		if (!toggle || !icon) return;
-
-  		function updateIcon() {
-  			var theme = document.documentElement.getAttribute('data-bs-theme');
-  			icon.textContent = theme === 'dark' ? '🌙' : '☀️';
-  		}
-
-  		toggle.addEventListener('click', function() {
-  			var html = document.documentElement;
-  			var current = html.getAttribute('data-bs-theme');
-  			var next = current === 'dark' ? 'light' : 'dark';
-  			html.setAttribute('data-bs-theme', next);
-  			localStorage.setItem('theme', next);
-  			updateIcon();
-  		});
-
-  		updateIcon();
-  	})();
   </script>
   {% block extra_js %}{% endblock %}
 </body>

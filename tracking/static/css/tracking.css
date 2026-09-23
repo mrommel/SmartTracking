@@ -1397,4 +1397,93 @@ html {
  }
 
 
+	/* Dark theme overrides for the custom Atlassian-inspired palette and surfaces. */
+	html[data-bs-theme="dark"] {
+		--atlas-blue: #579dff;
+		--atlas-blue-hover: #85b8ff;
+		--atlas-blue-light: #1c2b41;
+		--atlas-purple: #9f8fef;
+		--atlas-purple-light: #2e264f;
+		--atlas-green: #4bce97;
+		--atlas-green-light: #164b35;
+		--atlas-teal: #60c6d2;
+		--atlas-teal-light: #123f46;
+		--atlas-yellow: #f5cd47;
+		--atlas-yellow-light: #4d3d00;
+		--atlas-orange: #ff8f73;
+		--atlas-orange-light: #5d2b21;
+		--atlas-grey-fg: #b6c2cf;
+		--atlas-grey-bg: #1d2125;
+		--atlas-grey-border: #3c4147;
+		--atlas-grey-line: #343a40;
+		--atlas-grey-text: #9fadbc;
+		--atlas-grey-muted: #738496;
+		color-scheme: dark;
+	}
+
+	html[data-bs-theme="dark"] body {
+		background-color: #15191e;
+	}
+
+	html[data-bs-theme="dark"] .card,
+	html[data-bs-theme="dark"] .board-column,
+	html[data-bs-theme="dark"] .board-ticket-card,
+	html[data-bs-theme="dark"] .swimlane-row {
+		background-color: var(--atlas-grey-bg);
+	}
+
+	html[data-bs-theme="dark"] .card-header,
+	html[data-bs-theme="dark"] .card-footer,
+	html[data-bs-theme="dark"] .table thead th,
+	html[data-bs-theme="dark"] .modal-header,
+	html[data-bs-theme="dark"] .modal-footer,
+	html[data-bs-theme="dark"] .board-view-controls,
+	html[data-bs-theme="dark"] .swimlane-row:hover {
+		background-color: #22272b;
+	}
+
+	html[data-bs-theme="dark"] .board-state-column {
+		background-color: #22272b;
+	}
+
+	html[data-bs-theme="dark"] .board-ticket-card:hover {
+		background-color: #292f35;
+	}
+
+	html[data-bs-theme="dark"] .board-drop-slot {
+		background-color: rgba(255, 255, 255, 0.04);
+	}
+
+	html[data-bs-theme="dark"] .badge.text-bg-secondary,
+	html[data-bs-theme="dark"] .text-bg-light {
+		background-color: #343a40 !important;
+		color: #dfe1e6 !important;
+	}
+
+	html[data-bs-theme="dark"] .alert-success {
+		background-color: #164b35;
+		border-color: #216e4e;
+		color: #baf3db;
+	}
+
+	html[data-bs-theme="dark"] .alert-danger,
+	html[data-bs-theme="dark"] .alert-error {
+		background-color: #5d2b21;
+		border-color: #ae493b;
+		color: #ffd2cc;
+	}
+
+	html[data-bs-theme="dark"] .alert-warning {
+		background-color: #4d3d00;
+		border-color: #946f00;
+		color: #f8e6a0;
+	}
+
+	html[data-bs-theme="dark"] .alert-info {
+		background-color: #123f46;
+		border-color: #206b73;
+		color: #c6edee;
+	}
+
+
 
