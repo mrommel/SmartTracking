@@ -16,3 +16,8 @@ ignore = ["E501", "W191"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["setup", "tracking"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "setup.settings.dev"
+python_files = ["test_*.py"]
+testpaths = ["tracking/tests"]

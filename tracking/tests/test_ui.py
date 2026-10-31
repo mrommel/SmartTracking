@@ -228,7 +228,7 @@ class ProjectDetailTests(TestCase):
     def test_project_detail_active_sprint_without_active_sprint_still_works(self):
         response = self.client.get(reverse("project_detail", args=[self.project.pk]), {"tab": "active_sprint"})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Sprints")
+        self.assertContains(response, "No active sprint selected")
 
     def test_project_detail_active_sprint_with_active_sprint(self):
         sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
@@ -264,9 +264,8 @@ class ProjectDetailTests(TestCase):
         self.assertIn(reverse("login"), response.url)
 
     def test_project_detail_active_sprint_renders_board_with_state_columns(self):
-
         sprint = Sprint.objects.create(project=self.project, name="Sprint 1", is_active=True)
-        Ticket.objects.create(project=self.project, title="Sprint item", sprint=sprint, state=Ticket.State.OPEN)
+        ticket = Ticket.objects.create(project=self.project, title="Sprint item", sprint=sprint, state=Ticket.State.OPEN)
         response = self.client.get(reverse("project_detail", args=[self.project.pk]), {"tab": "active_sprint"})
         self.assertEqual(response.status_code, 200)
         # Drag-and-drop board container and one column per state
@@ -276,7 +275,7 @@ class ProjectDetailTests(TestCase):
         self.assertContains(response, 'data-state="resolved"')
         self.assertContains(response, 'data-state="closed"')
         # The ticket card is rendered inside the board
-        self.assertContains(response, 'data-ticket-id="%d"' % response.context["state_ticket_tuples"][0]["tickets"][0].pk)
+        self.assertContains(response, 'data-ticket-id="%d"' % ticket.pk)
         # SortableJS drag-and-drop script is included
         self.assertContains(response, "Sortable.min.js")
 

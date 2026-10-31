@@ -401,7 +401,7 @@ class Ticket(models.Model):
 		State.OPEN: [State.IN_PROGRESS, State.CLOSED, State.DRAFT],
 		State.IN_PROGRESS: [State.RESOLVED, State.OPEN, State.BLOCKED],
 		State.RESOLVED: [State.CLOSED, State.IN_PROGRESS, State.BLOCKED],
-		State.CLOSED: [State.OPEN, State.DRAFT],
+		State.CLOSED: [State.OPEN],
 	}
 
 	class Priority(models.IntegerChoices):

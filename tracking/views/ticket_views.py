@@ -11,7 +11,10 @@ from tracking.queryset_helpers import build_ticket_queryset, SORT_MAP
 
 @login_required
 def ticket_list(request, project_key: str = None):
-	project = get_object_or_404(Project, key=project_key)
+	if project_key:
+		project = get_object_or_404(Project, key=project_key)
+	else:
+		project = None
 	qs = build_ticket_queryset(request, project_key=project_key)
 
 	# Sorting values needed by the template for the sort-header links.
@@ -46,7 +49,13 @@ def ticket_list(request, project_key: str = None):
 		saved_filters = saved_filters.filter(project__key=project_key)
 
 	return render(request, 'tracking/ticket_list.html', {
-		'title': f'{project.key} Tickets',
+		'title': f'{project.key} Tickets' if project else 'All Tickets',
+		'current_project': project_key,
+		'projects': Project.objects.all().order_by('key'),
+		'active_query': request.GET.get('query', ''),
+		'sort_by': sort_field,
+		'sort_dir': order,
+		'saved_filter_pk': request.GET.get('saved_filter_pk'),
 		'tickets': qs,
 		'order': order,
 		'sort': sort_field,

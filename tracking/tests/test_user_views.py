@@ -170,14 +170,14 @@ class UserProfileStatsTests(TestCase):
 	def test_assigned_tickets_count(self):
 		"""Should show the correct count of assigned tickets."""
 		response = self.client.get(reverse("user_profile", args=[self.user.pk]))
-		# We have 4 tickets (one per state) assigned to alice
-		self.assertEqual(response.context["assigned_tickets_count"], 4)
+		# We have 6 tickets (one per state) assigned to alice
+		self.assertEqual(response.context["assigned_tickets_count"], 6)
 
 	def test_reported_tickets_count(self):
 		"""Should show the correct count of reported tickets."""
 		response = self.client.get(reverse("user_profile", args=[self.user.pk]))
-		# We have 4 tickets (one per state) reported by alice
-		self.assertEqual(response.context["reported_tickets_count"], 4)
+		# We have 6 tickets (one per state) reported by alice
+		self.assertEqual(response.context["reported_tickets_count"], 6)
 
 	def test_total_work_logged(self):
 		"""Should show the total minutes logged."""
@@ -193,8 +193,8 @@ class UserProfileStatsTests(TestCase):
 		"""Should show state breakdown for assigned tickets."""
 		response = self.client.get(reverse("user_profile", args=[self.user.pk]))
 		by_state = response.context["assigned_by_state"]
-		# Should have all 4 states
-		self.assertEqual(len(by_state), 4)
+		# Should have all 6 states
+		self.assertEqual(len(by_state), 6)
 		for state in Ticket.State:
 			self.assertIn(state.value, by_state)
 			label, count = by_state[state.value]
