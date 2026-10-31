@@ -244,7 +244,7 @@ class ApiEndpointTests(TestCase):
 		self.assertEqual(response.status_code, 201)
 		body = response.json()
 		self.assertEqual(body["type"], "bug")
-		self.assertEqual(body["allowed_transitions"], ["in_progress", "closed"])
+		self.assertEqual(body["allowed_transitions"], ["open", "closed"])
 
 	def test_create_ticket_unknown_project(self):
 		response = self._post(
@@ -271,7 +271,7 @@ class ApiEndpointTests(TestCase):
 		self.assertEqual(ticket.title, "new")
 
 	def test_patch_rejects_state(self):
-		ticket = Ticket.objects.create(project=self.project, title="t")
+		ticket = Ticket.objects.create(project=self.project, title="t", state=Ticket.State.OPEN)
 		response = self._patch(
 			reverse("api_ticket_detail", args=[ticket.pk]), {"state": "closed"}
 		)
@@ -280,7 +280,7 @@ class ApiEndpointTests(TestCase):
 		self.assertEqual(ticket.state, Ticket.State.OPEN)
 
 	def test_transition_valid(self):
-		ticket = Ticket.objects.create(project=self.project, title="t")
+		ticket = Ticket.objects.create(project=self.project, title="t", state=Ticket.State.OPEN)
 		response = self._post(
 			reverse("api_ticket_transition", args=[ticket.pk]),
 			{"state": "in_progress"},
@@ -290,7 +290,7 @@ class ApiEndpointTests(TestCase):
 		self.assertEqual(ticket.state, Ticket.State.IN_PROGRESS)
 
 	def test_transition_illegal_returns_409(self):
-		ticket = Ticket.objects.create(project=self.project, title="t")
+		ticket = Ticket.objects.create(project=self.project, title="t", state=Ticket.State.OPEN)
 		response = self._post(
 			reverse("api_ticket_transition", args=[ticket.pk]),
 			{"state": "resolved"},  # not reachable from open

@@ -148,7 +148,10 @@
  					<span class="badge bg-secondary">{{ tickets_without_sprint|length }} tickets</span>
  					<small class="text-muted ms-2">Drag rows to reorder priority</small>
  				</div>
-  				<a class="btn btn-sm btn-outline-secondary" href="{% url 'project_detail' project.pk %}?tab=backlog&show_closed={{ show_closed|yesno:'1,0' }}">{{ show_closed|yesno:"Show closed, Hide closed" }}</a>
+										  <div class="d-flex gap-2">
+											<a class="btn btn-sm btn-primary" href="{% url 'sprint_create' project.pk %}">Create Sprint</a>
+											<a class="btn btn-sm btn-outline-secondary" href="{% url 'project_detail' project.pk %}?tab=backlog&show_closed={{ show_closed|yesno:'1,0' }}">{{ show_closed|yesno:"Show closed, Hide closed" }}</a>
+										  </div>
  			</div>
  			<div class="card-body p-0">
  				{% if tickets_without_sprint %}

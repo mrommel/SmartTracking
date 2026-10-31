@@ -82,7 +82,7 @@ class LoggedInFlowTests(TestCase):
 		self.assertEqual(ticket.reporter, self.user)
 
 	def test_valid_transition_updates_state(self):
-		ticket = Ticket.objects.create(project=self.project, title="t")
+		ticket = Ticket.objects.create(project=self.project, title="t", state=Ticket.State.OPEN)
 		response = self.client.post(
 			reverse("ticket_transition", args=[ticket.pk]),
 			{"state": Ticket.State.IN_PROGRESS},
@@ -93,7 +93,7 @@ class LoggedInFlowTests(TestCase):
 		self.assertEqual(ticket.state, Ticket.State.IN_PROGRESS)
 
 	def test_invalid_transition_is_rejected(self):
-		ticket = Ticket.objects.create(project=self.project, title="t")
+		ticket = Ticket.objects.create(project=self.project, title="t", state=Ticket.State.OPEN)
 		self.client.post(
 			reverse("ticket_transition", args=[ticket.pk]),
 			{"state": Ticket.State.RESOLVED},  # not reachable from open
